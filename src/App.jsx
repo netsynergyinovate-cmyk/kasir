@@ -26,7 +26,6 @@ const INIT_COMPANY = {
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentTime, setCurrentTime] = useState(new Date());
   
   const [customers, setCustomers] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -42,13 +41,6 @@ export default function App() {
   const [isAutoConnecting, setIsAutoConnecting] = useState(false);
   const [savedDeviceName, setSavedDeviceName] = useState(localStorage.getItem('last_printer_name') || '');
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -78,23 +70,7 @@ export default function App() {
   };
 
   const showNotification = async (title, body) => {
-    if (Notification.permission === "granted") {
-      try {
-        if ("serviceWorker" in navigator) {
-          const registration = await navigator.serviceWorker.ready;
-          registration.showNotification(title, {
-            body: body,
-            icon: '/hero.png',
-            vibrate: [200, 100, 200],
-            badge: '/favicon.svg'
-          });
-        } else {
-          new Notification(title, { body: body, icon: '/hero.png' });
-        }
-      } catch (e) {
-        console.error('Gagal menampilkan notifikasi:', e);
-      }
-    }
+    console.log('Notification:', title, body);
   };
 
   const requestLocationPermission = async () => {
@@ -152,40 +128,6 @@ export default function App() {
     testConnection();
     requestNotificationPermission();
     requestLocationPermission();
-
-    // Auto-reconnect Bluetooth if possible
-    const attemptAutoConnect = async () => {
-      if (navigator.bluetooth && navigator.bluetooth.getDevices) {
-        try {
-          const devices = await navigator.bluetooth.getDevices();
-          console.log('Perangkat Bluetooth tersimpan di browser:', devices.map(d => d.name));
-          
-          const lastDeviceName = localStorage.getItem('last_printer_name');
-          
-          if (lastDeviceName && devices.length > 0) {
-            const device = devices.find(d => d.name === lastDeviceName);
-            if (device) {
-              setIsAutoConnecting(true);
-              console.log('Mencoba menghubungkan ulang ke printer:', device.name);
-              await device.gatt.connect();
-              setBtDevice(device);
-              setSavedDeviceName(device.name);
-              console.log('Printer berhasil terhubung otomatis!');
-              
-              device.addEventListener('gattserverdisconnected', () => {
-                setBtDevice(null);
-                console.log('Printer terputus secara otomatis.');
-              });
-            }
-          }
-        } catch (err) {
-          console.warn('Auto-connect Bluetooth gagal (mungkin butuh klik user):', err);
-        } finally {
-          setIsAutoConnecting(false);
-        }
-      }
-    };
-    attemptAutoConnect();
   }, []);
 
   const connectBluetooth = async () => {
@@ -415,12 +357,7 @@ export default function App() {
           <div className="w-4 h-4 bg-blue-600 rounded-full animate-bounce animation-delay-100"></div>
           <div className="w-4 h-4 bg-blue-600 rounded-full animate-bounce animation-delay-200"></div>
         </div>
-        <div className="text-center">
-          <p className="font-bold animate-pulse">Memuat...</p>
-          {isAutoConnecting && (
-            <p className="text-[10px] text-gray-500 mt-2 animate-pulse">Menghubungkan ke Printer...</p>
-          )}
-        </div>
+        <p className="font-bold animate-pulse">Memuat...</p>
       </div>
     );
   }
@@ -430,32 +367,21 @@ export default function App() {
       
       <div className="flex-1 relative flex flex-col print:hidden">
         
-        <header className="bg-white px-4 py-3.5 border-b border-gray-100 sticky top-0 z-50 flex items-center justify-between shrink-0 shadow-sm">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
-              <Menu size={22} />
-            </button>
+        <header className="bg-white px-4 py-3.5 border-b border-gray-100 sticky top-0 z-10 flex items-center gap-3 shrink-0 shadow-sm">
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
+            <Menu size={22} />
+          </button>
 
-            {companyInfo.logo ? (
-              <img src={companyInfo.logo} alt="Logo" className="w-9 h-9 rounded-xl object-contain shadow-sm border border-gray-100 shrink-0 bg-white p-0.5" />
-            ) : (
-              <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-200 shrink-0">
-                <Building2 size={18} />
-              </div>
-            )}
-            <div className="overflow-hidden">
-              <h1 className="font-bold text-gray-900 text-[14px] leading-tight truncate">{companyInfo.name}</h1>
-              <p className="text-[10px] text-gray-500 font-medium">ISP Billing POS</p>
+          {companyInfo.logo ? (
+            <img src={companyInfo.logo} alt="Logo" className="w-9 h-9 rounded-xl object-contain shadow-sm border border-gray-100 shrink-0 bg-white p-0.5" />
+          ) : (
+            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-200 shrink-0">
+              <Building2 size={18} />
             </div>
-          </div>
-
-          <div className="text-right flex flex-col items-end border-l border-gray-100 pl-3">
-             <p className="text-[13px] font-black text-blue-600 tabular-nums leading-none">
-               {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-             </p>
-             <p className="text-[9px] text-gray-400 font-bold uppercase mt-1 tracking-tight">
-               {currentTime.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}
-             </p>
+          )}
+          <div className="overflow-hidden">
+            <h1 className="font-bold text-gray-900 text-[15px] leading-tight truncate">{companyInfo.name}</h1>
+            <p className="text-[11px] text-gray-500 font-medium">ISP Billing POS</p>
           </div>
         </header>
 
