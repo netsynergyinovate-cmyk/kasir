@@ -60,6 +60,17 @@ export default function App() {
     }
   };
 
+  const requestLocationPermission = async () => {
+    // Pada Android Chrome, izin Lokasi wajib agar Bluetooth bisa memindai & menyimpan perangkat
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        () => console.log("Izin lokasi diberikan."),
+        () => console.warn("Izin lokasi ditolak, fitur simpan printer mungkin terbatas."),
+        { enableHighAccuracy: false, timeout: 5000 }
+      );
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       console.log('Mulai mengambil data dari Supabase...');
@@ -103,6 +114,7 @@ export default function App() {
     fetchData();
     testConnection();
     requestNotificationPermission();
+    requestLocationPermission();
 
     // Auto-reconnect Bluetooth if possible
     const attemptAutoConnect = async () => {
