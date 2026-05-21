@@ -1,4 +1,3 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Home, Users, History, Settings as SettingsIcon, PlusCircle } from 'lucide-react';
 

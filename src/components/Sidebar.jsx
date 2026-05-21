@@ -1,4 +1,3 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { X, Home, Users, Printer, Settings as SettingsIcon, Building2, ChevronRight } from 'lucide-react';
 

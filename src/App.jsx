@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Menu, Building2, RefreshCw } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
@@ -38,48 +38,46 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [savedDeviceName, setSavedDeviceName] = useState(localStorage.getItem('last_printer_name') || '');
 
-  // --- SUPABASE DATA FETCHING ---
-  const fetchData = async () => {
-    setIsLoading(true);
-    console.log('Mulai mengambil data dari Supabase...');
-    try {
-      const [
-        { data: custData, error: custErr }, 
-        { data: transData, error: transErr }, 
-        { data: pkgData, error: pkgErr },
-        { data: settingsData, error: setErr }
-      ] = await Promise.all([
-        supabase.from('customers').select('*').order('created_at', { ascending: false }),
-        supabase.from('transactions').select('*').order('date', { ascending: false }),
-        supabase.from('packages').select('*').order('name'),
-        supabase.from('company_settings').select('*').eq('id', 1).maybeSingle()
-      ]);
-
-      if (custErr) console.error('Error Customers:', custErr.message);
-      if (transErr) console.error('Error Transactions:', transErr.message);
-      if (pkgErr) console.error('Error Packages:', pkgErr.message);
-      if (setErr) console.error('Error Settings:', setErr.message);
-
-      if (custData) setCustomers(custData);
-      if (transData) setTransactions(transData);
-      if (pkgData) setPackages(pkgData);
-      if (settingsData) {
-        setCompanyInfo({
-          name: settingsData.name,
-          address: settingsData.address,
-          phone: settingsData.phone,
-          logo: settingsData.logo_url
-        });
-      }
-      console.log('Data berhasil dimuat.');
-    } catch (error) {
-      console.error('Koneksi Gagal:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchData = async () => {
+      console.log('Mulai mengambil data dari Supabase...');
+      try {
+        const [
+          { data: custData, error: custErr }, 
+          { data: transData, error: transErr }, 
+          { data: pkgData, error: pkgErr },
+          { data: settingsData, error: setErr }
+        ] = await Promise.all([
+          supabase.from('customers').select('*').order('created_at', { ascending: false }),
+          supabase.from('transactions').select('*').order('date', { ascending: false }),
+          supabase.from('packages').select('*').order('name'),
+          supabase.from('company_settings').select('*').eq('id', 1).maybeSingle()
+        ]);
+
+        if (custErr) console.error('Error Customers:', custErr.message);
+        if (transErr) console.error('Error Transactions:', transErr.message);
+        if (pkgErr) console.error('Error Packages:', pkgErr.message);
+        if (setErr) console.error('Error Settings:', setErr.message);
+
+        if (custData) setCustomers(custData);
+        if (transData) setTransactions(transData);
+        if (pkgData) setPackages(pkgData);
+        if (settingsData) {
+          setCompanyInfo({
+            name: settingsData.name,
+            address: settingsData.address,
+            phone: settingsData.phone,
+            logo: settingsData.logo_url
+          });
+        }
+        console.log('Data berhasil dimuat.');
+      } catch (error) {
+        console.error('Koneksi Gagal:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     fetchData();
     testConnection();
   }, []);
