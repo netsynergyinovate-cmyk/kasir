@@ -51,12 +51,23 @@ export default function App() {
     }
   };
 
-  const showNotification = (title, body) => {
+  const showNotification = async (title, body) => {
     if (Notification.permission === "granted") {
-      new Notification(title, {
-        body: body,
-        icon: '/hero.png'
-      });
+      try {
+        if ("serviceWorker" in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          registration.showNotification(title, {
+            body: body,
+            icon: '/hero.png',
+            vibrate: [200, 100, 200],
+            badge: '/favicon.svg'
+          });
+        } else {
+          new Notification(title, { body: body, icon: '/hero.png' });
+        }
+      } catch (e) {
+        console.error('Gagal menampilkan notifikasi:', e);
+      }
     }
   };
 
@@ -121,6 +132,8 @@ export default function App() {
       if (navigator.bluetooth && navigator.bluetooth.getDevices) {
         try {
           const devices = await navigator.bluetooth.getDevices();
+          console.log('Perangkat Bluetooth tersimpan di browser:', devices.map(d => d.name));
+          
           const lastDeviceName = localStorage.getItem('last_printer_name');
           
           if (lastDeviceName && devices.length > 0) {
