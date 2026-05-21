@@ -12,6 +12,7 @@ const AddCustomerModal = ({ show, packages, onClose, onAdd }) => {
     const newCustomer = {
       id: `CUST-${Math.floor(1000 + Math.random() * 9000)}`,
       name: formData.get('name'),
+      nickname: formData.get('nickname'),
       address: formData.get('address'),
       package: formData.get('package'),
       status: 'aktif',
@@ -28,9 +29,15 @@ const AddCustomerModal = ({ show, packages, onClose, onAdd }) => {
           <button onClick={onClose} className="p-1 hover:bg-blue-700 rounded-full"><X size={20}/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap</label>
-            <input name="name" required type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Nama Pelanggan"/>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nama Lengkap</label>
+              <input name="name" required type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Contoh: Budi Santoso"/>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nama Panggilan</label>
+              <input name="nickname" type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Contoh: Budi"/>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Pemasangan</label>

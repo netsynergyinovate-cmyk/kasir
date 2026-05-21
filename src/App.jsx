@@ -259,6 +259,7 @@ export default function App() {
       const { error } = await supabase.from('customers').insert([{
         id: newCust.id,
         name: newCust.name,
+        nickname: newCust.nickname,
         address: newCust.address,
         package: newCust.package,
         due_date: newCust.dueDate,

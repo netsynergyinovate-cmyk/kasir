@@ -9,6 +9,14 @@ const Transaksi = ({ customers, packages, onComplete }) => {
   const [status, setStatus] = useState('LUNAS');
   const [amountPaid, setAmountPaid] = useState('');
   const [change, setChange] = useState(0);
+  const [searchCust, setSearchCust] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+
+  const filteredCustomers = customers.filter(c => 
+    c.name.toLowerCase().includes(searchCust.toLowerCase()) || 
+    (c.nickname && c.nickname.toLowerCase().includes(searchCust.toLowerCase())) ||
+    c.address.toLowerCase().includes(searchCust.toLowerCase())
+  );
   
   useEffect(() => {
     if(selectedCust) {
@@ -46,6 +54,12 @@ const Transaksi = ({ customers, packages, onComplete }) => {
     }
   };
 
+  const handleSelectCustomer = (cust) => {
+    setSelectedCust(cust.id);
+    setSearchCust(`${cust.name}${cust.nickname ? ` (${cust.nickname})` : ''}`);
+    setIsSearching(false);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -60,10 +74,12 @@ const Transaksi = ({ customers, packages, onComplete }) => {
     const now = new Date();
     selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
     
+    const targetCust = customers.find(c => c.id === selectedCust);
+    
     const newTransaction = {
       id: `INV-${Date.now()}`,
       date: selectedDate.toISOString(),
-      customerName: customers.find(c => c.id === selectedCust)?.name || 'Pelanggan Umum',
+      customerName: targetCust?.name || 'Pelanggan Umum',
       packageName: activePackage.name,
       price: activePackage.price,
       status: status,
@@ -76,6 +92,7 @@ const Transaksi = ({ customers, packages, onComplete }) => {
     onComplete(newTransaction);
     e.target.reset();
     setSelectedCust('');
+    setSearchCust('');
     setAmountPaid('');
     setStatus('LUNAS');
   };
@@ -94,14 +111,39 @@ const Transaksi = ({ customers, packages, onComplete }) => {
         </div>
 
         <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
-          <div>
+          <div className="relative">
             <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Pelanggan</label>
-            <select required value={selectedCust} onChange={(e) => setSelectedCust(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium">
-              <option value="">-- Cari Nama Pelanggan --</option>
-              {customers.map(c => (
-                <option key={c.id} value={c.id}>{c.name} - {c.address}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <input 
+                type="text" 
+                required
+                placeholder="Ketik nama atau nama panggilan..." 
+                value={searchCust}
+                onChange={(e) => {
+                  setSearchCust(e.target.value);
+                  setIsSearching(true);
+                  if(!e.target.value) setSelectedCust('');
+                }}
+                onFocus={() => setIsSearching(true)}
+                className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium"
+              />
+              {isSearching && searchCust.length > 0 && (
+                <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
+                  {filteredCustomers.length > 0 ? filteredCustomers.map(c => (
+                    <div 
+                      key={c.id} 
+                      onClick={() => handleSelectCustomer(c)}
+                      className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0"
+                    >
+                      <p className="font-bold text-sm text-gray-800">{c.name} {c.nickname && <span className="text-blue-600 font-medium text-[11px]">({c.nickname})</span>}</p>
+                      <p className="text-[10px] text-gray-500">{c.address}</p>
+                    </div>
+                  )) : (
+                    <div className="p-4 text-center text-xs text-gray-400 italic">Pelanggan tidak ditemukan...</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {activePackage && (
