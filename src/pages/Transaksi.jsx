@@ -54,9 +54,15 @@ const Transaksi = ({ customers, packages, onComplete }) => {
     
     const bayar = Number(amountPaid) || activePackage.price;
     
+    const selectedDate = formData.get('printDate') ? new Date(formData.get('printDate')) : new Date();
+    // Jika tanggal dipilih manual, pastikan jamnya menggunakan jam saat ini (real-time)
+    // Agar tidak default ke 00:00 UTC (07:00 WIB)
+    const now = new Date();
+    selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+    
     const newTransaction = {
       id: `INV-${Date.now()}`,
-      date: formData.get('printDate') ? new Date(formData.get('printDate')).toISOString() : new Date().toISOString(),
+      date: selectedDate.toISOString(),
       customerName: customers.find(c => c.id === selectedCust)?.name || 'Pelanggan Umum',
       packageName: activePackage.name,
       price: activePackage.price,

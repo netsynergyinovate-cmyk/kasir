@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, BluetoothOff, AlertCircle } from 'lucide-react';
+import { Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, BluetoothOff, AlertCircle, Printer } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 
 const Settings = ({ 

@@ -9,14 +9,13 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
 
   const printViaBluetooth = async () => {
     if (!btDevice) {
-      onPrint(); // Fallback ke print browser jika Bluetooth tidak ada
+      onPrint();
       return;
     }
 
     setIsConnecting(true);
     try {
       if (btDevice.gatt && !btDevice.gatt.connected) {
-        console.log('Printer terputus, mencoba menyambung kembali...');
         await btDevice.gatt.connect();
       }
 
@@ -25,10 +24,10 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
       const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
 
       const encoder = new TextEncoder();
+      const printRaw = (data) => characteristic.writeValue(data);
       const printLine = (text) => characteristic.writeValue(encoder.encode(text + '\n'));
       const center = () => characteristic.writeValue(new Uint8Array([0x1b, 0x61, 0x01]));
       const left = () => characteristic.writeValue(new Uint8Array([0x1b, 0x61, 0x00]));
-      const right = () => characteristic.writeValue(new Uint8Array([0x1b, 0x61, 0x02]));
       const boldOn = () => characteristic.writeValue(new Uint8Array([0x1b, 0x45, 0x01]));
       const boldOff = () => characteristic.writeValue(new Uint8Array([0x1b, 0x45, 0x00]));
       const feed = () => characteristic.writeValue(new Uint8Array([0x1b, 0x64, 0x03]));
@@ -39,8 +38,69 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
         return label + ' '.repeat(Math.max(1, spaces)) + value;
       };
 
+      // Helper to convert Image to ESC/POS Bit Image
+      const printLogo = async (url) => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const width = 160; // Max width for 58mm
+            const height = Math.floor(img.height * (width / img.width));
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            const imgData = ctx.getImageData(0, 0, width, height).data;
+            
+            // ESC/POS Image Command: GS v 0
+            const xL = (width / 8) % 256;
+            const xH = Math.floor((width / 8) / 256);
+            const yL = height % 256;
+            const yH = Math.floor(height / 256);
+            
+            const header = new Uint8Array([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+            const p = new Uint8Array(header.length + (width * height / 8));
+            p.set(header);
+            
+            let pos = header.length;
+            for (let y = 0; pos < p.length; y++) {
+              for (let x = 0; x < width; x += 8) {
+                let byte = 0;
+                for (let bit = 0; bit < 8; bit++) {
+                  const idx = ((y * width) + (x + bit)) * 4;
+                  const r = imgData[idx];
+                  const g = imgData[idx + 1];
+                  const b = imgData[idx + 2];
+                  const avg = (r + g + b) / 3;
+                  if (avg < 128) byte |= (0x80 >> bit);
+                }
+                p[pos++] = byte;
+              }
+            }
+            resolve(p);
+          };
+          img.src = url;
+        });
+      };
+
       // --- ESC/POS PRINTING ---
       await center();
+      
+      // Print Logo if exists
+      if (companyInfo.logo) {
+        try {
+          const logoData = await printLogo(companyInfo.logo);
+          // ESC/POS chips can only handle small chunks at a time
+          const chunkSize = 512;
+          for (let i = 0; i < logoData.length; i += chunkSize) {
+            await printRaw(logoData.slice(i, i + chunkSize));
+          }
+          await printLine(''); // Space after logo
+        } catch (err) {
+          console.warn('Gagal cetak logo Bluetooth:', err);
+        }
+      }
+
       await boldOn();
       await printLine(companyInfo.name.toUpperCase());
       await boldOff();
@@ -117,9 +177,19 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
       .no-print {
         display: none !important;
       }
+      img {
+        display: block !important;
+        visibility: visible !important;
+        width: 120px !important;
+        height: auto !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
+      }
       * {
         color: black !important;
-        background: white !important;
+        background: transparent !important;
       }
     }
   `;
@@ -211,17 +281,26 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
         </div>
       </div>
 
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex gap-4 z-[60] print:hidden w-full max-w-[300px] px-4 no-print">
-          <button onClick={onClose} className="flex-1 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold py-4 rounded-2xl shadow-xl transition-all active:scale-95 border border-white/20">
-            Tutup
-          </button>
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex flex-col gap-3 z-[60] print:hidden w-full max-w-[300px] px-4 no-print">
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold py-4 rounded-2xl shadow-xl transition-all active:scale-95 border border-white/20">
+              Tutup
+            </button>
+            <button 
+              onClick={printViaBluetooth} 
+              disabled={isPrinting}
+              className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Printer size={20} /> 
+              {isPrinting ? 'Mencetak...' : 'Cetak Bluetooth'}
+            </button>
+          </div>
           <button 
-            onClick={printViaBluetooth} 
-            disabled={isPrinting}
-            className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+            onClick={onPrint}
+            className="w-full bg-white/90 hover:bg-white text-blue-900 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 text-xs"
           >
-            <Printer size={20} /> 
-            {isPrinting ? 'Mencetak...' : btDevice ? 'Cetak Bluetooth' : 'Cetak Struk'}
+            <Printer size={16} /> 
+            Gunakan Cetak Sistem (Jika Bluetooth Lambat)
           </button>
       </div>
     </div>

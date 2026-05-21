@@ -1,11 +1,14 @@
 export const formatRupiah = (angka) => {
-  const formatter = new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0
-  });
-  // Replace non-breaking space and other potential odd characters with standard space
-  return formatter.format(angka).replace(/\s/g, ' ').replace('Rp', 'Rp ');
+  if (angka === null || angka === undefined) return 'Rp 0';
+  const s = Math.floor(angka).toString();
+  let hasil = '';
+  let count = 0;
+  for (let i = s.length - 1; i >= 0; i--) {
+    hasil = s[i] + hasil;
+    count++;
+    if (count % 3 === 0 && i !== 0) hasil = '.' + hasil;
+  }
+  return 'Rp ' + hasil;
 };
 
 export const formatDate = (isoString) => {
