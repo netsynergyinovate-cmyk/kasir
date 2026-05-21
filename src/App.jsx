@@ -36,6 +36,7 @@ export default function App() {
 
   const [btDevice, setBtDevice] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isAutoConnecting, setIsAutoConnecting] = useState(false);
   const [savedDeviceName, setSavedDeviceName] = useState(localStorage.getItem('last_printer_name') || '');
 
   useEffect(() => {
@@ -80,6 +81,38 @@ export default function App() {
 
     fetchData();
     testConnection();
+
+    // Auto-reconnect Bluetooth if possible
+    const attemptAutoConnect = async () => {
+      if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+        try {
+          const devices = await navigator.bluetooth.getDevices();
+          const lastDeviceName = localStorage.getItem('last_printer_name');
+          
+          if (lastDeviceName && devices.length > 0) {
+            const device = devices.find(d => d.name === lastDeviceName);
+            if (device) {
+              setIsAutoConnecting(true);
+              console.log('Mencoba menghubungkan ulang ke printer:', device.name);
+              await device.gatt.connect();
+              setBtDevice(device);
+              setSavedDeviceName(device.name);
+              console.log('Printer berhasil terhubung otomatis!');
+              
+              device.addEventListener('gattserverdisconnected', () => {
+                setBtDevice(null);
+                console.log('Printer terputus secara otomatis.');
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Auto-connect Bluetooth gagal (mungkin butuh klik user):', err);
+        } finally {
+          setIsAutoConnecting(false);
+        }
+      }
+    };
+    attemptAutoConnect();
   }, []);
 
   const connectBluetooth = async () => {
@@ -274,7 +307,12 @@ export default function App() {
           <div className="w-4 h-4 bg-blue-600 rounded-full animate-bounce animation-delay-100"></div>
           <div className="w-4 h-4 bg-blue-600 rounded-full animate-bounce animation-delay-200"></div>
         </div>
-        <p className="font-bold animate-pulse">Menghubungkan ke Supabase...</p>
+        <div className="text-center">
+          <p className="font-bold animate-pulse">Memuat...</p>
+          {isAutoConnecting && (
+            <p className="text-[10px] text-gray-500 mt-2 animate-pulse">Menghubungkan ke Printer...</p>
+          )}
+        </div>
       </div>
     );
   }

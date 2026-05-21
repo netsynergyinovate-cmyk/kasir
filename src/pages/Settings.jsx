@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, BluetoothOff, AlertCircle } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 
@@ -8,10 +8,23 @@ const Settings = ({
 }) => {
   const [newPkgName, setNewPkgName] = useState('');
   const [newPkgPrice, setNewPkgPrice] = useState('');
+  const [localCompany, setLocalCompany] = useState(companyInfo);
 
-  const handleCompanyChange = (e) => {
+  // Sync local state when companyInfo prop changes (e.g., after initial fetch)
+  useEffect(() => {
+    setLocalCompany(companyInfo);
+  }, [companyInfo]);
+
+  const handleLocalChange = (e) => {
     const { name, value } = e.target;
-    setCompanyInfo({ ...companyInfo, [name]: value });
+    setLocalCompany({ ...localCompany, [name]: value });
+  };
+
+  const handleBlur = () => {
+    // Only update if there's a difference
+    if (JSON.stringify(localCompany) !== JSON.stringify(companyInfo)) {
+      setCompanyInfo(localCompany);
+    }
   };
 
   const handleLogoUpload = (e) => {
@@ -19,7 +32,9 @@ const Settings = ({
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCompanyInfo({ ...companyInfo, logo: reader.result });
+        const updated = { ...localCompany, logo: reader.result };
+        setLocalCompany(updated);
+        setCompanyInfo(updated);
       };
       reader.readAsDataURL(file);
     }
@@ -107,15 +122,15 @@ const Settings = ({
           
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nama Usaha / Toko</label>
-            <input name="name" value={companyInfo.name || ''} onChange={handleCompanyChange} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"/>
+            <input name="name" value={localCompany.name || ''} onChange={handleLocalChange} onBlur={handleBlur} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"/>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Alamat</label>
-            <textarea name="address" value={companyInfo.address || ''} onChange={handleCompanyChange} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" rows="2"></textarea>
+            <textarea name="address" value={localCompany.address || ''} onChange={handleLocalChange} onBlur={handleBlur} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" rows="2"></textarea>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">No. Telepon / WA</label>
-            <input name="phone" value={companyInfo.phone || ''} onChange={handleCompanyChange} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"/>
+            <input name="phone" value={localCompany.phone || ''} onChange={handleLocalChange} onBlur={handleBlur} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"/>
           </div>
         </div>
       </div>
