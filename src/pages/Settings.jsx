@@ -4,7 +4,8 @@ import { formatRupiah } from '../utils/format';
 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
-  btDevice, isConnecting, connectBluetooth, disconnectBluetooth, reconnectBluetooth, savedDeviceName 
+  btDevice, isConnecting, connectBluetooth, disconnectBluetooth, reconnectBluetooth, savedDeviceName,
+  deferredPrompt, onInstall
 }) => {
   const [newPkgName, setNewPkgName] = useState('');
   const [newPkgPrice, setNewPkgPrice] = useState('');
@@ -54,6 +55,28 @@ const Settings = ({
   return (
     <div className="p-4 pb-32 space-y-6 animate-in fade-in duration-300">
       
+      {/* PWA Installation Section */}
+      {deferredPrompt && (
+        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-3xl shadow-xl text-white relative overflow-hidden">
+          <div className="relative z-10">
+            <h3 className="font-bold text-lg flex items-center gap-2 mb-2">
+              <Printer size={22}/> Instal Aplikasi KAsir
+            </h3>
+            <p className="text-sm opacity-90 mb-5 leading-relaxed">
+              Aplikasi belum terinstal. Instal sekarang untuk akses instan dari layar HP dan fitur printer yang lebih stabil.
+            </p>
+            <button 
+              onClick={onInstall}
+              className="w-full bg-white text-blue-600 font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              Pasang Aplikasi Sekarang
+            </button>
+          </div>
+          {/* Decorative element */}
+          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+        </div>
+      )}
+
       {/* Bluetooth Printer Section */}
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
         <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 border-b pb-3">

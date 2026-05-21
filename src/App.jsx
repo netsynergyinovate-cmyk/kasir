@@ -40,6 +40,24 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isAutoConnecting, setIsAutoConnecting] = useState(false);
   const [savedDeviceName, setSavedDeviceName] = useState(localStorage.getItem('last_printer_name') || '');
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+  useEffect(() => {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      console.log('PWA Install prompt tersedia.');
+    });
+  }, []);
+
+  const installApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   const requestNotificationPermission = async () => {
     if (!("Notification" in window)) {
@@ -466,6 +484,8 @@ export default function App() {
                 disconnectBluetooth={disconnectBluetooth}
                 reconnectBluetooth={reconnectBluetooth}
                 savedDeviceName={savedDeviceName}
+                deferredPrompt={deferredPrompt}
+                onInstall={installApp}
                 />
 
             } />
