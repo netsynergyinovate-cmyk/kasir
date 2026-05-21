@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { Menu, Building2, RefreshCw } from 'lucide-react';
+import { Menu, Building2 } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
@@ -269,7 +269,11 @@ export default function App() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-blue-600">
-        <RefreshCw className="animate-spin mb-4" size={40} />
+        <div className="flex space-x-2 mb-4">
+          <div className="w-4 h-4 bg-blue-600 rounded-full animate-bounce"></div>
+          <div className="w-4 h-4 bg-blue-600 rounded-full animate-bounce animation-delay-100"></div>
+          <div className="w-4 h-4 bg-blue-600 rounded-full animate-bounce animation-delay-200"></div>
+        </div>
         <p className="font-bold animate-pulse">Menghubungkan ke Supabase...</p>
       </div>
     );
