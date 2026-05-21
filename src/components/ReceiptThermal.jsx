@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Printer } from 'lucide-react';
+import { useState } from 'react';
+import { Printer } from 'lucide-react';
 import { formatRupiah, formatDate } from '../utils/format';
 
 const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }) => {
@@ -72,14 +72,45 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
     }
   };
 
+  const printStyles = `
+    @media print {
+      @page {
+        margin: 0;
+        size: 58mm auto;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+      }
+      .print-container {
+        width: 58mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      * {
+        color: black !important;
+        background: white !important;
+      }
+    }
+  `;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md overflow-y-auto print:bg-white print:p-0 flex flex-col items-center">
-      <div className="w-full flex justify-center py-10 px-4 mb-32"> 
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md overflow-y-auto print:bg-white print:p-0 flex flex-col items-center no-print-overlay">
+      <style>{printStyles}</style>
+      <div className="w-full flex justify-center py-10 px-4 mb-32 print:p-0 print:m-0"> 
         <div className="print-container bg-white w-full max-w-[300px] relative flex flex-col font-mono text-black print:m-0 print:w-[58mm] print:shadow-none shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden h-fit">
           
           <div className="h-3 w-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSI1Ij48cG9seWdvbiBwb2ludHM9IjAsNSA1LDAgMTAsNSIgZmlsbD0id2hpdGUiLz48L3N2Zz4=')] bg-repeat-x absolute -top-[1px] left-0 z-10 print:hidden"></div>
 
-          <div className="p-6 print:p-0">
+          <div className="p-6 print:p-2">
             <div className="text-center mb-6 border-b border-dashed border-black pb-4">
               {companyInfo.logo && (
                 <img src={companyInfo.logo} alt="Logo" className="w-16 h-16 object-contain mx-auto mb-3 grayscale brightness-50" />
@@ -158,7 +189,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
         </div>
       </div>
 
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex gap-4 z-[60] print:hidden w-full max-w-[300px] px-4">
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex gap-4 z-[60] print:hidden w-full max-w-[300px] px-4 no-print">
           <button onClick={onClose} className="flex-1 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold py-4 rounded-2xl shadow-xl transition-all active:scale-95 border border-white/20">
             Tutup
           </button>
