@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Menu, Building2 } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
+import { formatRupiah } from './utils/format';
+
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -38,6 +40,25 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isAutoConnecting, setIsAutoConnecting] = useState(false);
   const [savedDeviceName, setSavedDeviceName] = useState(localStorage.getItem('last_printer_name') || '');
+
+  const requestNotificationPermission = async () => {
+    if (!("Notification" in window)) {
+      console.log("Browser ini tidak mendukung notifikasi.");
+      return;
+    }
+    if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+      await Notification.requestPermission();
+    }
+  };
+
+  const showNotification = (title, body) => {
+    if (Notification.permission === "granted") {
+      new Notification(title, {
+        body: body,
+        icon: '/hero.png'
+      });
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -81,6 +102,7 @@ export default function App() {
 
     fetchData();
     testConnection();
+    requestNotificationPermission();
 
     // Auto-reconnect Bluetooth if possible
     const attemptAutoConnect = async () => {
@@ -157,6 +179,39 @@ export default function App() {
     localStorage.removeItem('last_printer_name');
   };
 
+  const reconnectBluetooth = async () => {
+    setIsConnecting(true);
+    try {
+      if (!navigator.bluetooth || !navigator.bluetooth.getDevices) {
+        throw new Error('Browser tidak mendukung fitur simpan perangkat.');
+      }
+      
+      const devices = await navigator.bluetooth.getDevices();
+      const lastDeviceName = localStorage.getItem('last_printer_name');
+      
+      if (!lastDeviceName) throw new Error('Tidak ada riwayat printer.');
+      
+      const device = devices.find(d => d.name === lastDeviceName);
+      if (!device) throw new Error('Printer tidak ditemukan dalam daftar sistem browser. Silakan hubungkan ulang secara manual.');
+
+      console.log('Mencoba menyambungkan kembali ke:', device.name);
+      await device.gatt.connect();
+      setBtDevice(device);
+      setSavedDeviceName(device.name);
+      
+      device.addEventListener('gattserverdisconnected', () => {
+        setBtDevice(null);
+        console.log('Printer terputus.');
+      });
+
+    } catch (e) {
+      console.error(e);
+      alert(e.message || 'Gagal menyambung ulang otomatis.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   const handleTransactionComplete = async (newTrx) => {
     try {
       console.log('Menyimpan Transaksi Retail...');
@@ -176,6 +231,7 @@ export default function App() {
       if (error) throw error;
       setTransactions([newTrx, ...transactions]);
       setReceiptToView(newTrx);
+      showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
       console.log('Transaksi berhasil disimpan ke database.');
     } catch (e) {
       console.error('DB Insert Error:', e.message);
@@ -199,6 +255,7 @@ export default function App() {
       if (error) throw error;
       setTransactions([newTrx, ...transactions]);
       setInstansiReceiptToView(newTrx);
+      showNotification('Invoice Instansi Berhasil', `${newTrx.instansiName} - ${formatRupiah(newTrx.price)}`);
     } catch (e) {
       alert('Gagal menyimpan invoice: ' + e.message);
     }
@@ -382,8 +439,10 @@ export default function App() {
                 isConnecting={isConnecting}
                 connectBluetooth={connectBluetooth}
                 disconnectBluetooth={disconnectBluetooth}
+                reconnectBluetooth={reconnectBluetooth}
                 savedDeviceName={savedDeviceName}
-              />
+                />
+
             } />
             <Route path="/pos" element={
               <Transaksi 

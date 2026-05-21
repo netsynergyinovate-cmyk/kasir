@@ -4,7 +4,7 @@ import { formatRupiah } from '../utils/format';
 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
-  btDevice, isConnecting, connectBluetooth, disconnectBluetooth, savedDeviceName 
+  btDevice, isConnecting, connectBluetooth, disconnectBluetooth, reconnectBluetooth, savedDeviceName 
 }) => {
   const [newPkgName, setNewPkgName] = useState('');
   const [newPkgPrice, setNewPkgPrice] = useState('');
@@ -49,6 +49,7 @@ const Settings = ({
   };
 
   const isConnected = btDevice && btDevice.gatt.connected;
+  const hasSavedDevice = savedDeviceName && !isConnected;
 
   return (
     <div className="p-4 pb-32 space-y-6 animate-in fade-in duration-300">
@@ -73,33 +74,47 @@ const Settings = ({
               )}
               <div>
                 <p className="text-sm font-bold text-gray-800">
-                  {isConnected ? btDevice.name : savedDeviceName || 'Tidak Ada Printer'}
+                  {isConnected ? btDevice.name : (savedDeviceName || 'Tidak Ada Printer')}
                 </p>
                 <p className="text-[10px] text-gray-500 uppercase font-medium">
-                  {isConnected ? 'Status: Terkoneksi' : 'Status: Terputus'}
+                  {isConnected ? 'Status: Terhubung Aktif' : (savedDeviceName ? 'Status: Disimpan (Terputus)' : 'Status: Belum Dipasangkan')}
                 </p>
               </div>
             </div>
             
-            {isConnected ? (
-              <button onClick={disconnectBluetooth} className="text-xs font-bold text-red-600 px-4 py-2 bg-white border border-red-100 rounded-xl shadow-sm active:scale-95 transition-all">
-                Putuskan
-              </button>
-            ) : (
-              <button 
-                onClick={connectBluetooth} 
-                disabled={isConnecting}
-                className="text-xs font-bold text-blue-600 px-4 py-2 bg-white border border-blue-100 rounded-xl shadow-sm active:scale-95 transition-all disabled:opacity-50"
-              >
-                {isConnecting ? 'Mencari...' : 'Hubungkan'}
-              </button>
-            )}
+            <div className="flex gap-2">
+              {hasSavedDevice && (
+                <button 
+                  onClick={reconnectBluetooth} 
+                  disabled={isConnecting}
+                  className="text-xs font-bold text-green-600 px-4 py-2 bg-white border border-green-100 rounded-xl shadow-sm active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {isConnecting ? 'Menyambung...' : 'Sambung Ulang'}
+                </button>
+              )}
+              
+              {isConnected ? (
+                <button onClick={disconnectBluetooth} className="text-xs font-bold text-red-600 px-4 py-2 bg-white border border-red-100 rounded-xl shadow-sm active:scale-95 transition-all">
+                  Hapus
+                </button>
+              ) : (
+                <button 
+                  onClick={connectBluetooth} 
+                  disabled={isConnecting}
+                  className="text-xs font-bold text-blue-600 px-4 py-2 bg-white border border-blue-100 rounded-xl shadow-sm active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {isConnecting && !hasSavedDevice ? 'Mencari...' : 'Cari Baru'}
+                </button>
+              )}
+            </div>
           </div>
           
           <p className="text-[10px] text-gray-400 italic px-1 leading-relaxed">
             {isConnected 
               ? 'Printer siap digunakan untuk mencetak struk kasir.' 
-              : 'Gunakan tombol hubungkan untuk memindai printer thermal di sekitar Anda.'}
+              : hasSavedDevice 
+                ? 'Klik "Sambung Ulang" untuk mengaktifkan kembali koneksi printer yang tersimpan.'
+                : 'Gunakan tombol hubungkan untuk memindai printer thermal di sekitar Anda.'}
           </p>
         </div>
       </div>

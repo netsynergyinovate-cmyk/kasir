@@ -15,52 +15,74 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
 
     setIsConnecting(true);
     try {
+      if (btDevice.gatt && !btDevice.gatt.connected) {
+        console.log('Printer terputus, mencoba menyambung kembali...');
+        await btDevice.gatt.connect();
+      }
+
       const server = await btDevice.gatt.connect();
       const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
       const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
 
-      // Helper untuk encode teks ke biner (ESC/POS)
       const encoder = new TextEncoder();
       const printLine = (text) => characteristic.writeValue(encoder.encode(text + '\n'));
       const center = () => characteristic.writeValue(new Uint8Array([0x1b, 0x61, 0x01]));
       const left = () => characteristic.writeValue(new Uint8Array([0x1b, 0x61, 0x00]));
+      const right = () => characteristic.writeValue(new Uint8Array([0x1b, 0x61, 0x02]));
       const boldOn = () => characteristic.writeValue(new Uint8Array([0x1b, 0x45, 0x01]));
       const boldOff = () => characteristic.writeValue(new Uint8Array([0x1b, 0x45, 0x00]));
-      const feed = () => characteristic.writeValue(new Uint8Array([0x1b, 0x64, 0x03])); // Feed 3 lines
+      const feed = () => characteristic.writeValue(new Uint8Array([0x1b, 0x64, 0x03]));
+      
+      const formatRow = (label, value) => {
+        const totalChars = 32;
+        const spaces = totalChars - label.length - value.length;
+        return label + ' '.repeat(Math.max(1, spaces)) + value;
+      };
 
-      // --- PROSES CETAK ESC/POS ---
+      // --- ESC/POS PRINTING ---
       await center();
       await boldOn();
       await printLine(companyInfo.name.toUpperCase());
       await boldOff();
       await printLine(companyInfo.address);
       await printLine('WA: ' + companyInfo.phone);
-      await printLine('--------------------------------');
+      await printLine('================================');
 
       await left();
-      await printLine('TGL: ' + new Date(transaction.date).toLocaleDateString('id-ID'));
-      await printLine('JAM: ' + new Date(transaction.date).toLocaleTimeString('id-ID'));
-      await printLine('KSR: ' + (transaction.cashierName || 'Admin'));
-      await printLine('INV: ' + transaction.id);
-      await printLine('--------------------------------');
-
-      await boldOn();
-      await printLine('STATUS: ' + transaction.status);
-      await boldOff();
-      await printLine('PLG: ' + transaction.customerName);
-      await printLine('PKG: ' + transaction.packageName);
-      await printLine('--------------------------------');
-
-      await boldOn();
-      await printLine('TOTAL: ' + formatRupiah(transaction.price));
-      await boldOff();
-      await printLine('BAYAR: ' + formatRupiah(transaction.amountPaid || transaction.price));
-      await printLine('KEMBALI: ' + formatRupiah(Math.max(0, (transaction.amountPaid || transaction.price) - transaction.price)));
+      await printLine(formatRow('Waktu:', formatDate(transaction.date)));
+      await printLine(formatRow('Kasir:', transaction.cashierName || 'Admin'));
+      await printLine(formatRow('INV:', transaction.id));
       await printLine('--------------------------------');
 
       await center();
+      await printLine('--------------------------------');
+      await boldOn();
+      await printLine(transaction.status.toUpperCase());
+      await boldOff();
+      await printLine('--------------------------------');
+      
+      await left();
+      await printLine('PELANGGAN:');
+      await boldOn();
+      await printLine(transaction.customerName.toUpperCase());
+      await boldOff();
+      await printLine('LAYANAN: ' + transaction.packageName);
+      await printLine('--------------------------------');
+
+      await boldOn();
+      await printLine(formatRow('TOTAL', formatRupiah(transaction.price)));
+      await boldOff();
+      await printLine(formatRow('METODE:', transaction.paymentMethod));
+      await printLine(formatRow('BAYAR:', formatRupiah(transaction.amountPaid || transaction.price)));
+      await printLine(formatRow('KEMBALI:', formatRupiah(Math.max(0, (transaction.amountPaid || transaction.price) - transaction.price))));
+      await printLine('--------------------------------');
+
+      await center();
+      await boldOn();
       await printLine('TERIMA KASIH');
+      await boldOff();
       await printLine('Layanan internet handal & cepat');
+      await printLine('Simpan struk ini sebagai bukti');
       await feed();
 
     } catch (error) {

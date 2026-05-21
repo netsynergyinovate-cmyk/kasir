@@ -1,9 +1,11 @@
 export const formatRupiah = (angka) => {
-  return new Intl.NumberFormat('id-ID', {
+  const formatter = new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
     minimumFractionDigits: 0
-  }).format(angka);
+  });
+  // Replace non-breaking space and other potential odd characters with standard space
+  return formatter.format(angka).replace(/\s/g, ' ').replace('Rp', 'Rp ');
 };
 
 export const formatDate = (isoString) => {
