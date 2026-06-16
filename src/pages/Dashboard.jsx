@@ -40,6 +40,17 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
   );
   const adminIncome = successTrxForAdmin.length * (companyInfo.adminFee || 10000);
 
+  // Total successful transactions (including CS, needed for progress bar)
+  const totalSuccessTrx = filteredTransactions.filter(t => 
+    t.status === 'LUNAS' || t.type === 'instansi'
+  ).length;
+
+  const totalCustomers = customers.length;
+  // Calculate percentage, ensure it doesn't exceed 100% or drop below 0, handle 0 customers
+  const progressPercentage = totalCustomers > 0 
+    ? Math.min(Math.round((totalSuccessTrx / totalCustomers) * 100), 100) 
+    : 0;
+
   // Latest highlight (within filtered list)
   const latestSuccess = filteredTransactions.find(trx => 
     trx.status === 'LUNAS' || trx.type === 'instansi'
@@ -134,14 +145,30 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
           <p className="text-[9px] text-gray-400 mt-1 italic font-medium leading-none">Sebelum Potong Jasa</p>
         </div>
 
-        {/* Total Pelanggan Card */}
+        {/* Progres Penagihan Card */}
         <div className="stat-card p-5 super-rounded flex flex-col justify-center">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Pelanggan</p>
-          <div className="flex items-center gap-2">
-            <p className="text-2xl font-black text-gray-900 leading-none">{customers.length}</p>
-            <Users size={14} className="text-blue-600 mb-1" />
+          <div className="flex justify-between items-end mb-2">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Progres Penagihan</p>
+            <p className="text-[10px] font-bold text-blue-600">{progressPercentage}%</p>
           </div>
-          <p className="text-[9px] text-gray-400 mt-1 font-medium leading-none">Semua Terdaftar</p>
+          
+          <div className="flex items-baseline gap-1 mb-3">
+            <p className="text-2xl font-black text-gray-900 leading-none">{totalSuccessTrx}</p>
+            <p className="text-xs font-bold text-gray-400">/ {totalCustomers}</p>
+          </div>
+
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-1.5">
+            <div 
+              className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out" 
+              style={{ width: `${progressPercentage}%` }}
+            ></div>
+          </div>
+          
+          <p className="text-[9px] text-gray-400 font-medium text-right">
+            {totalCustomers - totalSuccessTrx > 0 
+              ? `${totalCustomers - totalSuccessTrx} trx belum lunas` 
+              : 'Semua lunas! 🎉'}
+          </p>
         </div>
       </div>
 
