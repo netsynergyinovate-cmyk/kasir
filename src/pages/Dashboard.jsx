@@ -62,10 +62,40 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
           <h1 className="text-2xl font-black text-gray-900 leading-tight">
             Halo, <span className="text-blue-600">{companyInfo.adminName || 'Admin'}</span> 👋
           </h1>
-          <p className="text-gray-500 text-xs font-medium">ISP Billing Dashboard • {months[selectedMonth]} {selectedYear}</p>
+          <p className="text-gray-500 text-xs font-medium">Laporan ISP KAsir</p>
         </div>
-        <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm border border-blue-100">
+        <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 shadow-sm border border-blue-100">
           <Users size={24} />
+        </div>
+      </div>
+
+      {/* Modern Period Filter */}
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+            <Calendar size={18} />
+          </div>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest">Periode Laporan</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <select 
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-bold text-gray-700 appearance-none transition-all focus:border-blue-500"
+          >
+            {months.map((name, index) => (
+              <option key={index} value={index}>{name}</option>
+            ))}
+          </select>
+          <select 
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-bold text-gray-700 appearance-none transition-all focus:border-blue-500"
+          >
+            {[2024, 2025, 2026, 2027].map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -123,7 +153,7 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
                 <CheckCircle size={80} className="text-green-600" />
             </div>
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-green-600 shadow-sm">
+              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-green-600 shadow-sm">
                 {latestSuccess.type === 'instansi' ? <Building2 size={24}/> : <FileText size={24} />}
               </div>
               <div className="z-10">
@@ -172,10 +202,10 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
               <div 
                 key={trx.id} 
                 onClick={() => trx.type === 'instansi' ? setInstansiReceiptToView(trx) : setReceiptToView(trx)} 
-                className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-200 transition-all active:scale-[0.99]"
+                className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-200 transition-all active:scale-[0.99]"
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${trx.type === 'instansi' ? 'bg-gray-50 text-gray-500' : 'bg-blue-50 text-blue-600'}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${trx.type === 'instansi' ? 'bg-gray-50 text-gray-500' : 'bg-blue-50 text-blue-600'}`}>
                     {trx.type === 'instansi' ? <Building2 size={18}/> : <FileText size={18} />}
                   </div>
                   <div>
