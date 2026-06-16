@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, BluetoothOff, AlertCircle, Printer } from 'lucide-react';
+import { Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, BluetoothOff, AlertCircle, Printer, User } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 
 const Settings = ({ 
@@ -139,6 +139,37 @@ const Settings = ({
                 ? 'Klik "Sambung Ulang" untuk mengaktifkan kembali koneksi printer yang tersimpan.'
                 : 'Gunakan tombol hubungkan untuk memindai printer thermal di sekitar Anda.'}
           </p>
+        </div>
+      </div>
+
+      <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
+        <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 border-b pb-3">
+          <User size={18} className="text-blue-500"/> Pengaturan Admin
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nama Admin Bertugas</label>
+            <input 
+              name="adminName" 
+              value={localCompany.adminName || ''} 
+              onChange={handleLocalChange} 
+              onBlur={handleBlur} 
+              type="text" 
+              placeholder="Contoh: Admin Budi"
+              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Jasa per Transaksi (Rp)</label>
+            <input 
+              name="adminFee" 
+              value={localCompany.adminFee || ''} 
+              onChange={handleLocalChange} 
+              onBlur={handleBlur} 
+              type="number" 
+              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"
+            />
+          </div>
         </div>
       </div>
 
