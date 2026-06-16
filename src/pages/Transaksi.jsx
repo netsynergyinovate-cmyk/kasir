@@ -3,7 +3,7 @@ import { Wifi, Printer } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import './Transaksi.css';
 
-const Transaksi = ({ customers, packages, onComplete }) => {
+const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
   const [selectedCust, setSelectedCust] = useState('');
   const [activePackage, setActivePackage] = useState(null);
   const [status, setStatus] = useState('LUNAS');
@@ -169,7 +169,7 @@ const Transaksi = ({ customers, packages, onComplete }) => {
             </div>
             <div>
               <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Nama Penerima/Admin</label>
-              <input name="cashierName" type="text" placeholder="Nama Admin" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs" />
+              <input name="cashierName" type="text" defaultValue={companyInfo.adminName || ''} placeholder="Nama Admin" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs" />
             </div>
           </div>
 

@@ -404,6 +404,8 @@ export default function App() {
               <Dashboard 
                 transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
                 customers={customers} 
+                packages={packages}
+                companyInfo={companyInfo}
                 setReceiptToView={setReceiptToView} 
                 setInstansiReceiptToView={setInstansiReceiptToView} 
               />
@@ -445,6 +447,7 @@ export default function App() {
               <Transaksi 
                 customers={customers} 
                 packages={packages}
+                companyInfo={companyInfo}
                 onComplete={handleTransactionComplete} 
               />
             } />
