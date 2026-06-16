@@ -97,36 +97,44 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      checkPinState(session);
     });
 
     supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      checkPinState(session);
     });
   }, []);
 
-  const checkPinState = (currentSession) => {
-    if (currentSession) {
-      const storedPin = localStorage.getItem('device_pin');
-      if (storedPin) {
-        setHasPin(true);
-        setIsLocked(true); // Lock it if there's a PIN on mount
-      } else {
-        setHasPin(false);
-        setIsLocked(false);
-      }
+  const handlePinSetup = async (hashedPin) => {
+    try {
+      const { error } = await supabase.from('company_settings').upsert({
+        id: 1,
+        app_pin: hashedPin
+      });
+      if (error) throw error;
+      setCompanyInfo({ ...companyInfo, appPin: hashedPin });
+      localStorage.setItem('device_unlocked', 'true');
+      setIsLocked(false);
+    } catch (e) {
+      console.error('Error saving PIN to DB:', e);
+      alert('Gagal menyimpan PIN.');
     }
-  };
-
-  const handlePinSetup = () => {
-    setHasPin(true);
-    setIsLocked(false);
   };
 
   const handleUnlock = () => {
     setIsLocked(false);
   };
+
+  // Determine lock state based on session, DB pin, and local unlock flag
+  useEffect(() => {
+    if (session && !isLoading) {
+      const isDeviceUnlocked = localStorage.getItem('device_unlocked') === 'true';
+      if (!isDeviceUnlocked && companyInfo.appPin) {
+        setIsLocked(true);
+      } else {
+        setIsLocked(false);
+      }
+    }
+  }, [session, companyInfo.appPin, isLoading]);
 
   useEffect(() => {
     if (!session) {
@@ -443,12 +451,14 @@ export default function App() {
     return <Login />;
   }
 
-  if (session && !hasPin) {
+  // If session exists, data is loaded, but no DB Pin exists -> Setup mode
+  if (session && !isLoading && !companyInfo.appPin) {
     return <PinPad mode="setup" onSetup={handlePinSetup} />;
   }
 
-  if (session && hasPin && isLocked) {
-    return <PinPad mode="unlock" onUnlock={handleUnlock} />;
+  // If session exists, DB Pin exists, but device is locked -> Unlock mode
+  if (session && !isLoading && companyInfo.appPin && isLocked) {
+    return <PinPad mode="unlock" dbPin={companyInfo.appPin} onUnlock={handleUnlock} />;
   }
 
   return (

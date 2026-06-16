@@ -21,8 +21,8 @@ const Settings = ({
   }, [companyInfo]);
 
   const handleLogout = async () => {
-    if (window.confirm('Yakin ingin keluar dari aplikasi? PIN perangkat juga akan dihapus.')) {
-      localStorage.removeItem('device_pin');
+    if (window.confirm('Yakin ingin keluar dari aplikasi? Anda harus memasukkan PIN kembali saat masuk.')) {
+      localStorage.removeItem('device_unlocked');
       await supabase.auth.signOut();
       window.location.reload();
     }
