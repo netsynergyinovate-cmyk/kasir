@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, BluetoothOff, AlertCircle, Printer, User } from 'lucide-react';
+import { 
+  Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, 
+  BluetoothOff, AlertCircle, Printer, User, LogOut, Image, ChevronRight 
+} from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 
 const Settings = ({ 
@@ -50,182 +53,193 @@ const Settings = ({
   };
 
   const isConnected = btDevice && btDevice.gatt.connected;
-  const hasSavedDevice = savedDeviceName && !isConnected;
 
   return (
-    <div className="p-4 pb-32 space-y-6 animate-in fade-in duration-300">
-      
-      {/* PWA Installation Section */}
-      {deferredPrompt && (
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-3xl shadow-xl text-white relative overflow-hidden">
-          <div className="relative z-10">
-            <h3 className="font-bold text-lg flex items-center gap-2 mb-2">
-              <Printer size={22}/> Instal Aplikasi KAsir
-            </h3>
-            <p className="text-sm opacity-90 mb-5 leading-relaxed">
-              Aplikasi belum terinstal. Instal sekarang untuk akses instan dari layar HP dan fitur printer yang lebih stabil.
-            </p>
-            <button 
-              onClick={onInstall}
-              className="w-full bg-white text-blue-600 font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              Pasang Aplikasi Sekarang
-            </button>
+    <div className="pb-32 bg-gray-50 min-h-screen animate-in fade-in duration-300">
+      {/* New Gradient Header */}
+      <div className="p-6 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-b-[2rem] shadow-lg mb-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30">
+            <Building2 size={32} />
           </div>
-          {/* Decorative element */}
-          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+          <div>
+            <h1 className="text-xl font-extrabold">Pengaturan Sistem</h1>
+            <p className="text-blue-100 text-xs font-medium">Konfigurasi operasional KAsir</p>
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* Bluetooth Printer Section */}
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-        <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 border-b pb-3">
-          <Bluetooth size={18} className="text-blue-600"/> Printer Thermal Bluetooth
-        </h3>
-        
-        <div className="flex flex-col gap-4">
-          <div className={`p-4 rounded-2xl flex items-center justify-between transition-colors ${isConnected ? 'bg-green-50 border border-green-100' : 'bg-gray-50 border border-gray-100'}`}>
-            <div className="flex items-center gap-3">
-              {isConnected ? (
-                <div className="p-2 bg-green-500 text-white rounded-full">
-                  <BluetoothConnected size={20}/>
-                </div>
-              ) : (
-                <div className="p-2 bg-gray-200 text-gray-500 rounded-full">
-                  <BluetoothOff size={20}/>
-                </div>
-              )}
-              <div>
-                <p className="text-sm font-bold text-gray-800">
-                  {isConnected ? btDevice.name : (savedDeviceName || 'Tidak Ada Printer')}
-                </p>
-                <p className="text-[10px] text-gray-500 uppercase font-medium">
-                  {isConnected ? 'Status: Terhubung Aktif' : (savedDeviceName ? 'Status: Disimpan (Terputus)' : 'Status: Belum Dipasangkan')}
-                </p>
+      <div className="px-4 space-y-6">
+        {/* Section: Profil Admin */}
+        <div>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Profil Admin</h2>
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                <User size={24} />
+              </div>
+              <div className="flex-1">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase">Nama Admin</label>
+                <input 
+                  name="adminName" 
+                  value={localCompany.adminName || ''} 
+                  onChange={handleLocalChange} 
+                  onBlur={handleBlur} 
+                  type="text" 
+                  placeholder="Nama Admin"
+                  className="font-bold text-gray-800 bg-transparent border-none p-0 w-full outline-none text-base"
+                />
               </div>
             </div>
-            
-            <div className="flex gap-2">
-              {hasSavedDevice && (
-                <button 
-                  onClick={reconnectBluetooth} 
-                  disabled={isConnecting}
-                  className="text-xs font-bold text-green-600 px-4 py-2 bg-white border border-green-100 rounded-xl shadow-sm active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {isConnecting ? 'Menyambung...' : 'Sambung Ulang'}
-                </button>
-              )}
-              
-              {isConnected ? (
-                <button onClick={disconnectBluetooth} className="text-xs font-bold text-red-600 px-4 py-2 bg-white border border-red-100 rounded-xl shadow-sm active:scale-95 transition-all">
-                  Hapus
-                </button>
-              ) : (
-                <button 
-                  onClick={connectBluetooth} 
-                  disabled={isConnecting}
-                  className="text-xs font-bold text-blue-600 px-4 py-2 bg-white border border-blue-100 rounded-xl shadow-sm active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {isConnecting && !hasSavedDevice ? 'Mencari...' : 'Cari Baru'}
-                </button>
-              )}
-            </div>
-          </div>
-          
-          <p className="text-[10px] text-gray-400 italic px-1 leading-relaxed">
-            {isConnected 
-              ? 'Printer siap digunakan untuk mencetak struk kasir.' 
-              : hasSavedDevice 
-                ? 'Klik "Sambung Ulang" untuk mengaktifkan kembali koneksi printer yang tersimpan.'
-                : 'Gunakan tombol hubungkan untuk memindai printer thermal di sekitar Anda.'}
-          </p>
-        </div>
-      </div>
-
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-        <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 border-b pb-3">
-          <User size={18} className="text-blue-500"/> Pengaturan Admin
-        </h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nama Admin Bertugas</label>
-            <input 
-              name="adminName" 
-              value={localCompany.adminName || ''} 
-              onChange={handleLocalChange} 
-              onBlur={handleBlur} 
-              type="text" 
-              placeholder="Contoh: Admin Budi"
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Jasa per Transaksi (Rp)</label>
-            <input 
-              name="adminFee" 
-              value={localCompany.adminFee || ''} 
-              onChange={handleLocalChange} 
-              onBlur={handleBlur} 
-              type="number" 
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-        <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 border-b pb-3"><Building2 size={18} className="text-blue-500"/> Profil Perusahaan</h3>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Upload Logo</label>
-            <div className="flex items-center gap-3">
-              {companyInfo.logo ? (
-                 <img src={companyInfo.logo} alt="Logo" className="w-12 h-12 rounded-xl object-contain border" />
-              ) : (
-                 <div className="w-12 h-12 bg-gray-100 rounded-xl border flex items-center justify-center"><Building2 size={20} className="text-gray-400"/></div>
-              )}
-              <input type="file" accept="image/*" onChange={handleLogoUpload} className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 w-full" />
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nama Usaha / Toko</label>
-            <input name="name" value={localCompany.name || ''} onChange={handleLocalChange} onBlur={handleBlur} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"/>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Alamat</label>
-            <textarea name="address" value={localCompany.address || ''} onChange={handleLocalChange} onBlur={handleBlur} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" rows="2"></textarea>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">No. Telepon / WA</label>
-            <input name="phone" value={localCompany.phone || ''} onChange={handleLocalChange} onBlur={handleBlur} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"/>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-        <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-4 border-b pb-3"><Wifi size={18} className="text-blue-500"/> Manajemen Paket Internet</h3>
-        
-        <div className="space-y-3 mb-5">
-          {packages.map(pkg => (
-            <div key={pkg.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="pt-4 border-t border-gray-50 flex items-center justify-between">
               <div>
-                <p className="font-bold text-sm text-gray-800">{pkg.name}</p>
-                <p className="text-xs text-blue-600 font-medium">{formatRupiah(pkg.price)}</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Fee per Transaksi</p>
+                <div className="flex items-center gap-1">
+                  <span className="font-black text-emerald-600">Rp</span>
+                  <input 
+                    name="adminFee" 
+                    value={localCompany.adminFee || ''} 
+                    onChange={handleLocalChange} 
+                    onBlur={handleBlur} 
+                    type="number" 
+                    className="font-black text-emerald-600 bg-transparent border-none p-0 w-24 outline-none"
+                  />
+                </div>
               </div>
-              <button onClick={() => onDeletePackage(pkg.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
             </div>
-          ))}
+          </div>
         </div>
 
-        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-           <h4 className="text-xs font-bold text-blue-800 mb-3 uppercase tracking-wider">Tambah Paket Baru</h4>
-           <div className="space-y-3">
-             <input value={newPkgName} onChange={(e)=>setNewPkgName(e.target.value)} type="text" placeholder="Nama Paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm"/>
-             <input value={newPkgPrice} onChange={(e)=>setNewPkgPrice(e.target.value)} type="number" placeholder="Harga" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm"/>
-             <button onClick={handleAddPkg} className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm hover:bg-blue-700">Simpan Paket</button>
-           </div>
+        {/* Section: Identitas Toko */}
+        <div>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Identitas Toko</h2>
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Nama Usaha</label>
+              <input 
+                name="name" 
+                value={localCompany.name || ''} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                type="text" 
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Alamat Lengkap</label>
+              <textarea 
+                name="address" 
+                value={localCompany.address || ''} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                rows="2"
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">No. Telepon / WA</label>
+              <input 
+                name="phone" 
+                value={localCompany.phone || ''} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                type="text" 
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
+              />
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center border border-dashed border-gray-200 overflow-hidden">
+                {companyInfo.logo ? (
+                   <img src={companyInfo.logo} alt="Logo" className="w-full h-full object-contain" />
+                ) : (
+                   <Image size={20} className="text-gray-400" />
+                )}
+              </div>
+              <div className="relative">
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleLogoUpload} 
+                  className="absolute inset-0 opacity-0 cursor-pointer" 
+                />
+                <button className="text-xs font-bold text-blue-600 bg-blue-50 px-4 py-2 rounded-lg">Ganti Logo Toko</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section: Koneksi Hardware */}
+        <div>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Koneksi Hardware</h2>
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isConnected ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
+                  <Printer size={24} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Printer Bluetooth</p>
+                  <p className={`text-[10px] font-bold uppercase ${isConnected ? 'text-green-500' : 'text-gray-400'}`}>
+                    {isConnected ? `Terhubung: ${btDevice.name}` : (savedDeviceName ? 'Tersimpan (Terputus)' : 'Belum Dipasangkan')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {!isConnected && savedDeviceName && (
+                  <button onClick={reconnectBluetooth} disabled={isConnecting} className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg active:scale-95 transition-all">Sambung</button>
+                )}
+                <button onClick={isConnected ? disconnectBluetooth : connectBluetooth} disabled={isConnecting} className={`text-[10px] font-bold px-3 py-2 rounded-lg active:scale-95 transition-all ${isConnected ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'}`}>
+                  {isConnecting ? '...' : (isConnected ? 'Putus' : 'Cari')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section: Manajemen Paket */}
+        <div>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Paket Internet</h2>
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+            <div className="space-y-3">
+              {packages.map(pkg => (
+                <div key={pkg.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
+                  <div>
+                    <p className="font-bold text-sm text-gray-800">{pkg.name}</p>
+                    <p className="text-xs text-blue-600 font-bold">{formatRupiah(pkg.price)}</p>
+                  </div>
+                  <button onClick={() => onDeletePackage(pkg.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-3">
+              <h4 className="text-[10px] font-black text-blue-800 uppercase tracking-wider">Tambah Paket Baru</h4>
+              <input value={newPkgName} onChange={(e)=>setNewPkgName(e.target.value)} type="text" placeholder="Nama Paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm font-medium"/>
+              <input value={newPkgPrice} onChange={(e)=>setNewPkgPrice(e.target.value)} type="number" placeholder="Harga Paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm font-medium"/>
+              <button onClick={handleAddPkg} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg text-sm shadow-md shadow-blue-200 active:scale-95 transition-all">Simpan Paket</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Section: PWA Install (Conditional) */}
+        {deferredPrompt && (
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-xl shadow-lg text-white relative overflow-hidden">
+            <div className="relative z-10">
+              <h3 className="font-bold text-lg flex items-center gap-2 mb-2">
+                <Printer size={22}/> Instal Aplikasi KAsir
+              </h3>
+              <p className="text-xs opacity-90 mb-5 leading-relaxed">Instal aplikasi untuk akses instan dan fitur printer yang lebih stabil.</p>
+              <button onClick={onInstall} className="w-full bg-white text-indigo-600 font-black py-3 rounded-lg shadow-md active:scale-95 transition-all">Pasang Sekarang</button>
+            </div>
+            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+          </div>
+        )}
+
+        {/* Danger Zone */}
+        <div className="pt-4">
+          <button className="w-full p-4 rounded-xl border border-red-100 text-red-500 text-xs font-black flex items-center justify-center gap-2 hover:bg-red-50 transition-colors">
+            <LogOut size={16} /> KELUAR DARI APLIKASI
+          </button>
         </div>
       </div>
     </div>
