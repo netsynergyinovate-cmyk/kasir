@@ -1,7 +1,14 @@
--- Tabel Pelanggan
+-- ==========================================
+-- SCHEMA UNTUK DATABASE KASIR (SUPABASE)
+-- Tanggal Update: 2026-06-16
+-- Fitur: Admin Stats, CS Payment, Pagination
+-- ==========================================
+
+-- 1. Tabel Pelanggan
 create table if not exists customers (
   id text primary key,
   name text not null,
+  nickname text,
   address text,
   package text,
   status text default 'aktif',
@@ -9,7 +16,7 @@ create table if not exists customers (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
--- Tabel Paket Internet
+-- 2. Tabel Paket Internet
 create table if not exists packages (
   id bigint primary key generated always as identity,
   name text not null,
@@ -17,7 +24,7 @@ create table if not exists packages (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
--- Tabel Transaksi
+-- 3. Tabel Transaksi
 create table if not exists transactions (
   id text primary key,
   date timestamp with time zone not null,
@@ -27,46 +34,52 @@ create table if not exists transactions (
   service_name text,
   price bigint not null,
   status text,
-  payment_method text,
+  payment_method text, -- 'Cash', 'Transfer Bank', 'QRIS', 'CS'
   amount_paid bigint,
   cashier_name text,
   type text not null, -- 'retail' atau 'instansi'
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
--- Tabel Pengaturan Perusahaan
+-- 4. Tabel Pengaturan Perusahaan
 create table if not exists company_settings (
   id int primary key default 1,
   name text,
   address text,
   phone text,
   logo_url text,
+  admin_name text default 'Admin Utama',
+  admin_fee bigint default 10000,
+  app_pin text,
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
--- Matikan RLS untuk testing (SANGAT DISARANKAN diaktifkan kembali nanti dengan Auth)
+-- 5. MATIKAN RLS (Agar aplikasi bisa baca/tulis tanpa login Supabase)
+-- SANGAT DISARANKAN aktifkan kembali jika sudah menggunakan sistem Login/Auth.
 alter table customers disable row level security;
 alter table packages disable row level security;
 alter table transactions disable row level security;
 alter table company_settings disable row level security;
 
--- PUSH DATA AWAL (SEEDING) --
+-- 6. SEED DATA AWAL (Pengaturan & Contoh) --
 
 -- Masukkan Data Perusahaan Awal
-insert into company_settings (id, name, address, phone)
-values (1, 'PT Net Synergy Inovate', 'Jl. Teknologi Canggih No. 99, Jakarta', '0812-3456-7890')
-on conflict (id) do nothing;
+insert into company_settings (id, name, address, phone, admin_name, admin_fee)
+values (1, 'PT Net Synergy Inovate', 'Jl. Teknologi Canggih No. 99, Jakarta', '0812-3456-7890', 'Admin Utama', 10000)
+on conflict (id) do update set 
+  admin_name = excluded.admin_name,
+  admin_fee = excluded.admin_fee;
 
--- Masukkan Data Paket Internet
+-- Masukkan Data Paket Internet Awal
 insert into packages (name, price)
 values 
   ('Paket RT RW 10Mbps', 150000),
   ('Paket RT RW 20Mbps', 250000),
   ('Paket Pro 50Mbps', 400000);
 
--- Masukkan Data Pelanggan Awal
-insert into customers (id, name, address, package, status, due_date)
+-- Masukkan Data Pelanggan Contoh
+insert into customers (id, name, nickname, address, package, status, due_date)
 values 
-  ('CUST-001', 'Budi Santoso', 'Jl. Merdeka No.10', 'Paket RT RW 10Mbps', 'aktif', 15),
-  ('CUST-002', 'Siti Aminah', 'Perum Asri Blok B2', 'Paket RT RW 20Mbps', 'isolir', 5),
-  ('CUST-003', 'Warung Kopi Berkah', 'Jl. Sudirman 45', 'Paket Pro 50Mbps', 'aktif', 1);
+  ('CUST-001', 'Budi Santoso', 'Budi', 'Jl. Merdeka No.10', 'Paket RT RW 10Mbps', 'aktif', 15),
+  ('CUST-002', 'Siti Aminah', 'Siti', 'Perum Asri Blok B2', 'Paket RT RW 20Mbps', 'isolir', 5),
+  ('CUST-003', 'Warung Kopi Berkah', 'Warkop', 'Jl. Sudirman 45', 'Paket Pro 50Mbps', 'aktif', 1);

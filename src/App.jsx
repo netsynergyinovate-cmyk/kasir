@@ -25,7 +25,8 @@ const INIT_COMPANY = {
   phone: '',
   logo: null,
   adminName: 'Admin',
-  adminFee: 10000
+  adminFee: 10000,
+  appPin: null
 };
 
 export default function App() {
@@ -162,7 +163,8 @@ export default function App() {
             phone: settingsData.phone,
             logo: settingsData.logo_url,
             adminName: settingsData.admin_name || 'Admin',
-            adminFee: settingsData.admin_fee || 10000
+            adminFee: settingsData.admin_fee || 10000,
+            appPin: settingsData.app_pin || null
           });
         }
         console.log('Data berhasil dimuat.');
