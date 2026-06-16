@@ -115,7 +115,7 @@ const History = ({ transactions, setReceiptToView, setInstansiReceiptToView, onD
                       onDeleteTransaction(trx.id);
                     }
                   }}
-                  className="p-2 -mr-2 text-gray-300 hover:text-red-500 transition-colors"
+                  className="p-2 -mr-2 text-gray-400 hover:text-red-500 transition-colors"
                 >
                   <Trash2 size={16} />
                 </button>
