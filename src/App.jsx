@@ -20,7 +20,9 @@ const INIT_COMPANY = {
   name: 'PT Net Synergy Inovate',
   address: 'Loading...',
   phone: '',
-  logo: null
+  logo: null,
+  adminName: 'Admin',
+  adminFee: 10000
 };
 
 export default function App() {
@@ -113,7 +115,9 @@ export default function App() {
             name: settingsData.name,
             address: settingsData.address,
             phone: settingsData.phone,
-            logo: settingsData.logo_url
+            logo: settingsData.logo_url,
+            adminName: settingsData.admin_name || 'Admin',
+            adminFee: settingsData.admin_fee || 10000
           });
         }
         console.log('Data berhasil dimuat.');
@@ -281,7 +285,9 @@ export default function App() {
         name: newSettings.name,
         address: newSettings.address,
         phone: newSettings.phone,
-        logo_url: newSettings.logo
+        logo_url: newSettings.logo,
+        admin_name: newSettings.adminName,
+        admin_fee: newSettings.adminFee
       });
       if (error) throw error;
       setCompanyInfo(newSettings);
