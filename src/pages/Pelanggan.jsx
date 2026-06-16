@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { Search, PlusCircle, Wifi, Trash2 } from 'lucide-react';
+import { Search, PlusCircle, Wifi, Trash2, Pencil, MapPin } from 'lucide-react';
+import EditCustomerModal from '../components/EditCustomerModal';
 
-const Pelanggan = ({ customers = [], setShowAddCustomer, onDeleteCustomer }) => {
+const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDeleteCustomer, onUpdateCustomer }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingCustomer, setEditingCustomer] = useState(null);
 
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (c.nickname && c.nickname.toLowerCase().includes(searchTerm.toLowerCase())) ||
     c.address.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleSaveEdit = (updatedData) => {
+    onUpdateCustomer(updatedData);
+    setEditingCustomer(null);
+  };
 
   return (
     <div className="p-4 space-y-4 pb-32 animate-in fade-in duration-200">
@@ -18,7 +25,7 @@ const Pelanggan = ({ customers = [], setShowAddCustomer, onDeleteCustomer }) => 
           <PlusCircle size={16} /> Tambah
         </button>
       </div>
-      <div className="bg-white flex items-center p-2 rounded-2xl border border-gray-200 shadow-sm">
+      <div className="bg-white flex items-center p-2 rounded-xl border border-gray-200 shadow-sm">
         <Search size={20} className="text-gray-400 ml-2" />
         <input 
           type="text" 
@@ -28,47 +35,66 @@ const Pelanggan = ({ customers = [], setShowAddCustomer, onDeleteCustomer }) => 
           className="bg-transparent border-none outline-none p-2 w-full text-sm" 
         />
       </div>
+
       <div className="space-y-3 mt-4">
         {filteredCustomers.length > 0 ? filteredCustomers.map((cust) => (
-          <div key={cust.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 flex">
-               <div className="bg-gray-50 px-3 py-1.5 rounded-bl-xl border-b border-l border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-500">Jatuh Tempo: <span className="text-red-500">Tgl {cust.due_date || cust.dueDate}</span></p>
-               </div>
-               <button 
-                onClick={() => {
-                  if (window.confirm(`Hapus pelanggan "${cust.name}" secara permanen? Semua riwayat tidak akan hilang tapi data pelanggan akan dihapus.`)) {
-                    onDeleteCustomer(cust.id);
-                  }
-                }}
-                className="p-1.5 text-gray-300 hover:text-red-500 transition-colors"
-               >
-                 <Trash2 size={14} />
-               </button>
-            </div>
-            <div className="flex items-start gap-3 mt-2">
-              <div className="relative">
-                <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg uppercase">
-                  {cust.name.charAt(0)}
+          <div key={cust.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm group">
+            <div className="flex justify-between items-start">
+              <div className="flex gap-3">
+                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold uppercase">
+                  {cust.name.substring(0, 2)}
                 </div>
-                <div className={`absolute -bottom-1 -right-1 w-4 h-4 border-2 border-white rounded-full ${cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div>
+                  <p className="font-bold text-gray-800 leading-tight">
+                    {cust.name} {cust.nickname && <span className="text-gray-400 font-medium text-[11px]">({cust.nickname})</span>}
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                    <Wifi size={10} className="text-blue-500" /> {cust.package}
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-0.5 flex items-start gap-1">
+                    <MapPin size={10} className="text-gray-400 mt-0.5 shrink-0" /> <span className="leading-tight">{cust.address}</span>
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 pr-16">
-                <p className="font-bold text-gray-800 leading-tight">
-                  {cust.name} {cust.nickname && <span className="text-gray-400 font-medium text-[11px]">({cust.nickname})</span>}
-                </p>
-                <p className="text-xs font-medium text-blue-600 mt-0.5">{cust.package}</p>
+              
+              <div className="flex flex-col items-end gap-2">
+                <div className="bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                  <p className="text-[9px] font-bold text-gray-500">TGL <span className="text-red-500">{cust.due_date || cust.dueDate}</span></p>
+                </div>
+                <div className="flex gap-1 bg-white p-1 rounded-lg border border-gray-100 shadow-sm">
+                  <button 
+                    onClick={() => setEditingCustomer(cust)}
+                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (window.confirm(`Hapus pelanggan "${cust.name}" secara permanen? Semua riwayat tidak akan hilang tapi data pelanggan akan dihapus.`)) {
+                        onDeleteCustomer(cust.id);
+                      }
+                    }}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mt-3 pt-3 border-t border-gray-100 flex items-start gap-1.5">
-              <Wifi size={14} className="mt-0.5 text-blue-500 shrink-0" /> 
-              <span className="leading-tight">{cust.address}</span>
-            </p>
           </div>
         )) : (
           <div className="text-center py-10 opacity-50 italic text-sm">Pelanggan tidak ditemukan...</div>
         )}
       </div>
+
+      {editingCustomer && (
+        <EditCustomerModal 
+          customer={editingCustomer} 
+          packages={packages} 
+          onClose={() => setEditingCustomer(null)} 
+          onSave={handleSaveEdit} 
+        />
+      )}
     </div>
   );
 };
