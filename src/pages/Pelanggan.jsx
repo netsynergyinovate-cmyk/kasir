@@ -59,33 +59,33 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
         <div className="text-center py-10 opacity-50 italic text-sm">Pelanggan tidak ditemukan...</div>
       ) : viewMode === 'grid' ? (
         /* GRID VIEW (Widget) */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
           {filteredCustomers.map((cust) => (
-            <div key={cust.id} className={`bg-white p-5 rounded-xl border shadow-sm relative group hover:shadow-md transition-all ${cust.status !== 'aktif' ? 'border-red-100 bg-red-50/20' : 'border-gray-200'}`}>
-              <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => setEditingCustomer(cust)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={14}/></button>
-                <button onClick={() => { if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14}/></button>
+            <div key={cust.id} className={`bg-white p-3 rounded-xl border shadow-sm relative group hover:shadow-md transition-all ${cust.status !== 'aktif' ? 'border-red-100 bg-red-50/20' : 'border-gray-200'}`}>
+              <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button onClick={() => setEditingCustomer(cust)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={12}/></button>
+                <button onClick={() => { if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
               </div>
               
-              <div className="flex flex-col items-center text-center mb-4 pt-2">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-xl mb-3 ${cust.status === 'aktif' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-500 border-gray-200'} border`}>
+              <div className="flex flex-col items-center text-center mb-3 pt-2">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm mb-2 ${cust.status === 'aktif' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-500 border-gray-200'} border`}>
                   {cust.name.substring(0, 2).toUpperCase()}
                 </div>
-                <h3 className="font-bold text-gray-900 leading-tight">{cust.name} {cust.nickname && <span className="text-gray-400 font-medium text-xs">({cust.nickname})</span>}</h3>
-                <p className="text-[10px] text-gray-500 mt-1">ID: {cust.id}</p>
-                <span className={`mt-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${cust.status === 'aktif' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'} border`}>
-                  <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}></span> {cust.status}
+                <h3 className="font-bold text-gray-900 text-sm leading-tight">{cust.name}</h3>
+                {cust.nickname && <p className="text-gray-400 font-medium text-[10px] mt-0.5">({cust.nickname})</p>}
+                <span className={`mt-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${cust.status === 'aktif' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'} border`}>
+                  <span className={`w-1 h-1 rounded-full mr-1 ${cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}></span> {cust.status}
                 </span>
               </div>
               
-              <div className="border-t border-gray-100 pt-3 space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-gray-500 flex items-center gap-1.5"><Wifi size={12}/> Paket</span>
-                  <span className="font-medium text-gray-800">{cust.package}</span>
+              <div className="border-t border-gray-100 pt-2.5 space-y-1.5">
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="text-gray-400 flex items-center gap-1"><Wifi size={10}/> Paket</span>
+                  <span className="font-bold text-gray-700 truncate max-w-[80px]" title={cust.package}>{cust.package}</span>
                 </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-gray-500 flex items-center gap-1.5"><Calendar size={12}/> Bayar</span>
-                  <span className="font-medium text-gray-800">Tgl {cust.due_date || cust.dueDate}</span>
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="text-gray-400 flex items-center gap-1"><Calendar size={10}/> Tgl Bayar</span>
+                  <span className={`font-bold ${cust.status === 'aktif' ? 'text-gray-700' : 'text-red-600'}`}>{cust.due_date || cust.dueDate}</span>
                 </div>
               </div>
             </div>
