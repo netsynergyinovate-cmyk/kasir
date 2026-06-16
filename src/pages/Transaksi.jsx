@@ -179,6 +179,7 @@ const Transaksi = ({ customers, packages, onComplete }) => {
               <option value="Cash">Tunai (Cash)</option>
               <option value="Transfer Bank">Transfer Bank</option>
               <option value="QRIS">QRIS</option>
+              <option value="CS">Bayar via CS</option>
             </select>
           </div>
 
