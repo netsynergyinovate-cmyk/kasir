@@ -4,7 +4,7 @@ import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Cal
 import { formatRupiah } from '../utils/format';
 import './Dashboard.css';
 
-const Dashboard = ({ transactions, customers, setReceiptToView, setInstansiReceiptToView }) => {
+const Dashboard = ({ transactions = [], customers = [], setReceiptToView, setInstansiReceiptToView }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [currentPage, setCurrentPage] = useState(1);
