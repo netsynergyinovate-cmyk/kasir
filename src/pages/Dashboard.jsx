@@ -69,19 +69,17 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
         </div>
       </div>
 
-      {/* Modern Period Filter */}
-      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
-            <Calendar size={18} />
-          </div>
-          <h2 className="text-xs font-black text-gray-400 uppercase tracking-widest">Periode Laporan</h2>
+      {/* Professional Period Filter (Compact) */}
+      <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Calendar size={14} className="text-blue-600" />
+          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Periode</h2>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex gap-2">
           <select 
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-bold text-gray-700 appearance-none transition-all focus:border-blue-500"
+            className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 px-2 py-1.5 appearance-none focus:border-blue-500"
           >
             {months.map((name, index) => (
               <option key={index} value={index}>{name}</option>
@@ -90,7 +88,7 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
           <select 
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-bold text-gray-700 appearance-none transition-all focus:border-blue-500"
+            className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 px-2 py-1.5 appearance-none focus:border-blue-500"
           >
             {[2024, 2025, 2026, 2027].map(year => (
               <option key={year} value={year}>{year}</option>
