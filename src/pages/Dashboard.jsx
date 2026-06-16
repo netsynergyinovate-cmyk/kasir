@@ -23,15 +23,15 @@ const Dashboard = ({ transactions, customers, setReceiptToView, setInstansiRecei
 
   const monthlyIncome = filteredTransactions.reduce((acc, curr) => acc + curr.price, 0);
 
-  // Get the single latest successful transaction for the highlight
-  const latestSuccess = transactions.find(trx => 
+  // Get the single latest successful transaction for the highlight (within selected month)
+  const latestSuccess = filteredTransactions.find(trx => 
     trx.status === 'LUNAS' || trx.type === 'instansi'
   );
 
-  // Exclude latestSuccess from the paginated list if it exists
+  // Exclude latestSuccess from the paginated list if it exists (within filtered list)
   const listTransactions = latestSuccess 
-    ? transactions.filter(t => t.id !== latestSuccess.id)
-    : transactions;
+    ? filteredTransactions.filter(t => t.id !== latestSuccess.id)
+    : filteredTransactions;
 
   const totalPages = Math.ceil(listTransactions.length / itemsPerPage);
   const paginatedTrx = listTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
