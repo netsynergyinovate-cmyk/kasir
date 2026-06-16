@@ -4,6 +4,7 @@ import {
   BluetoothOff, AlertCircle, Printer, User, LogOut, Image, ChevronRight 
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
+import { supabase } from '../lib/supabase';
 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
@@ -18,6 +19,14 @@ const Settings = ({
   useEffect(() => {
     setLocalCompany(companyInfo);
   }, [companyInfo]);
+
+  const handleLogout = async () => {
+    if (window.confirm('Yakin ingin keluar dari aplikasi? PIN perangkat juga akan dihapus.')) {
+      localStorage.removeItem('device_pin');
+      await supabase.auth.signOut();
+      window.location.reload();
+    }
+  };
 
   const handleLocalChange = (e) => {
     const { name, value } = e.target;
@@ -70,6 +79,48 @@ const Settings = ({
       </div>
 
       <div className="px-4 space-y-6">
+        {/* Section: Koneksi Hardware */}
+        <div>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Koneksi Hardware</h2>
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isConnected ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
+                  <Printer size={24} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800">Printer Bluetooth</p>
+                  <p className={`text-[10px] font-bold uppercase ${isConnected ? 'text-green-500' : 'text-gray-400'}`}>
+                    {isConnected ? `Terhubung: ${btDevice.name}` : (savedDeviceName ? 'Tersimpan (Terputus)' : 'Belum Dipasangkan')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {!isConnected && savedDeviceName && (
+                  <button onClick={reconnectBluetooth} disabled={isConnecting} className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg active:scale-95 transition-all">Sambung</button>
+                )}
+                <button onClick={isConnected ? disconnectBluetooth : connectBluetooth} disabled={isConnecting} className={`text-[10px] font-bold px-3 py-2 rounded-lg active:scale-95 transition-all ${isConnected ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'}`}>
+                  {isConnecting ? '...' : (isConnected ? 'Putus' : 'Cari')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section: PWA Install (Conditional) */}
+        {deferredPrompt && (
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-xl shadow-lg text-white relative overflow-hidden">
+            <div className="relative z-10">
+              <h3 className="font-bold text-lg flex items-center gap-2 mb-2">
+                <Printer size={22}/> Instal Aplikasi KAsir
+              </h3>
+              <p className="text-xs opacity-90 mb-5 leading-relaxed">Instal aplikasi untuk akses instan dan fitur printer yang lebih stabil.</p>
+              <button onClick={onInstall} className="w-full bg-white text-indigo-600 font-black py-3 rounded-lg shadow-md active:scale-95 transition-all">Pasang Sekarang</button>
+            </div>
+            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+          </div>
+        )}
+
         {/* Section: Profil Admin */}
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Profil Admin</h2>
@@ -168,34 +219,6 @@ const Settings = ({
           </div>
         </div>
 
-        {/* Section: Koneksi Hardware */}
-        <div>
-          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Koneksi Hardware</h2>
-          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isConnected ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
-                  <Printer size={24} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-gray-800">Printer Bluetooth</p>
-                  <p className={`text-[10px] font-bold uppercase ${isConnected ? 'text-green-500' : 'text-gray-400'}`}>
-                    {isConnected ? `Terhubung: ${btDevice.name}` : (savedDeviceName ? 'Tersimpan (Terputus)' : 'Belum Dipasangkan')}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {!isConnected && savedDeviceName && (
-                  <button onClick={reconnectBluetooth} disabled={isConnecting} className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg active:scale-95 transition-all">Sambung</button>
-                )}
-                <button onClick={isConnected ? disconnectBluetooth : connectBluetooth} disabled={isConnecting} className={`text-[10px] font-bold px-3 py-2 rounded-lg active:scale-95 transition-all ${isConnected ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'}`}>
-                  {isConnecting ? '...' : (isConnected ? 'Putus' : 'Cari')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Section: Manajemen Paket */}
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Paket Internet</h2>
@@ -221,23 +244,9 @@ const Settings = ({
           </div>
         </div>
 
-        {/* Section: PWA Install (Conditional) */}
-        {deferredPrompt && (
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-xl shadow-lg text-white relative overflow-hidden">
-            <div className="relative z-10">
-              <h3 className="font-bold text-lg flex items-center gap-2 mb-2">
-                <Printer size={22}/> Instal Aplikasi KAsir
-              </h3>
-              <p className="text-xs opacity-90 mb-5 leading-relaxed">Instal aplikasi untuk akses instan dan fitur printer yang lebih stabil.</p>
-              <button onClick={onInstall} className="w-full bg-white text-indigo-600 font-black py-3 rounded-lg shadow-md active:scale-95 transition-all">Pasang Sekarang</button>
-            </div>
-            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
-          </div>
-        )}
-
         {/* Danger Zone */}
         <div className="pt-4">
-          <button className="w-full p-4 rounded-xl border border-red-100 text-red-500 text-xs font-black flex items-center justify-center gap-2 hover:bg-red-50 transition-colors">
+          <button onClick={handleLogout} className="w-full p-4 rounded-xl border border-red-100 text-red-500 text-xs font-black flex items-center justify-center gap-2 hover:bg-red-50 transition-colors">
             <LogOut size={16} /> KELUAR DARI APLIKASI
           </button>
         </div>

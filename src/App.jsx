@@ -16,6 +16,9 @@ import AddCustomerModal from './components/AddCustomerModal';
 import ReceiptThermal from './components/ReceiptThermal';
 import ReceiptA4 from './components/ReceiptA4';
 
+import Login from './pages/Login';
+import PinPad from './components/PinPad';
+
 const INIT_COMPANY = {
   name: 'PT Net Synergy Inovate',
   address: 'Loading...',
@@ -26,6 +29,10 @@ const INIT_COMPANY = {
 };
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [hasPin, setHasPin] = useState(false);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -87,6 +94,44 @@ export default function App() {
   };
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      checkPinState(session);
+    });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      checkPinState(session);
+    });
+  }, []);
+
+  const checkPinState = (currentSession) => {
+    if (currentSession) {
+      const storedPin = localStorage.getItem('device_pin');
+      if (storedPin) {
+        setHasPin(true);
+        setIsLocked(true); // Lock it if there's a PIN on mount
+      } else {
+        setHasPin(false);
+        setIsLocked(false);
+      }
+    }
+  };
+
+  const handlePinSetup = () => {
+    setHasPin(true);
+    setIsLocked(false);
+  };
+
+  const handleUnlock = () => {
+    setIsLocked(false);
+  };
+
+  useEffect(() => {
+    if (!session) {
+      setIsLoading(false);
+      return;
+    }
     const fetchData = async () => {
       console.log('Mulai mengambil data dari Supabase...');
       try {
@@ -390,6 +435,18 @@ export default function App() {
         <p className="font-bold animate-pulse">Memuat...</p>
       </div>
     );
+  }
+
+  if (!session) {
+    return <Login />;
+  }
+
+  if (session && !hasPin) {
+    return <PinPad mode="setup" onSetup={handlePinSetup} />;
+  }
+
+  if (session && hasPin && isLocked) {
+    return <PinPad mode="unlock" onUnlock={handleUnlock} />;
   }
 
   return (
