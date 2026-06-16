@@ -94,21 +94,24 @@ const Dashboard = ({ transactions, customers, setReceiptToView, setInstansiRecei
       <div>
         <div className="flex justify-between items-center mb-4 ml-1">
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Riwayat Terakhir</h2>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="nav-button border border-gray-200"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button 
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="nav-button border border-gray-200"
-            >
-              <ChevronRight size={16} />
-            </button>
+          <div className="flex items-center gap-3">
+            <Link to="/history" className="text-[10px] text-blue-600 font-bold hover:underline mr-2">Lihat Semua</Link>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="nav-button border border-gray-200"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="nav-button border border-gray-200"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
 
