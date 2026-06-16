@@ -59,7 +59,7 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
         <div className="text-center py-10 opacity-50 italic text-sm">Pelanggan tidak ditemukan...</div>
       ) : viewMode === 'grid' ? (
         /* GRID VIEW (Widget) */
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
+        <div className="grid grid-cols-2 gap-3 mt-4">
           {filteredCustomers.map((cust) => (
             <div key={cust.id} className={`bg-white p-3 rounded-xl border shadow-sm relative group hover:shadow-md transition-all ${cust.status !== 'aktif' ? 'border-red-100 bg-red-50/20' : 'border-gray-200'}`}>
               <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
