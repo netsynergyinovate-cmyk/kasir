@@ -1,3 +1,42 @@
 .dashboard-container {
-  /* Dashboard specific styles */
+  background-color: #f8fafc;
+}
+
+.card-gradient {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.2);
+}
+
+.highlight-card {
+  background: linear-gradient(to right, #f0fdf4, #ecfdf5);
+  border: 1px solid #d1fae5;
+}
+
+.super-rounded {
+  border-radius: 2.5rem;
+}
+
+.stat-card {
+  background: white;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.nav-button {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.nav-button:not(:disabled):active {
+  transform: scale(0.9);
+}
+
+.nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
