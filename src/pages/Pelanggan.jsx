@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Search, PlusCircle, Wifi, Trash2 } from 'lucide-react';
 
-const Pelanggan = ({ customers, setShowAddCustomer, onDeleteCustomer }) => {
+const Pelanggan = ({ customers = [], setShowAddCustomer, onDeleteCustomer }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredCustomers = customers.filter(c => 
