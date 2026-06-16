@@ -278,6 +278,29 @@ export default function App() {
     }
   };
 
+  const handleUpdateCustomerDB = async (updatedCustomer) => {
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          name: updatedCustomer.name,
+          nickname: updatedCustomer.nickname,
+          address: updatedCustomer.address,
+          package: updatedCustomer.package,
+          due_date: updatedCustomer.dueDate
+        })
+        .eq('id', updatedCustomer.id);
+
+      if (error) throw error;
+      
+      // Update local state
+      setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? { ...c, ...updatedCustomer } : c));
+    } catch (e) {
+      console.error('Error updating customer:', e);
+      alert('Gagal memperbarui data pelanggan!');
+    }
+  };
+
   const handleUpdateSettings = async (newSettings) => {
     try {
       const { error } = await supabase.from('company_settings').upsert({
@@ -421,8 +444,10 @@ export default function App() {
             <Route path="/customers" element={
               <Pelanggan 
                 customers={customers} 
+                packages={packages}
                 setShowAddCustomer={setShowAddCustomer} 
                 onDeleteCustomer={handleDeleteCustomerDB}
+                onUpdateCustomer={handleUpdateCustomerDB}
               />
             } />
             <Route path="/settings" element={
