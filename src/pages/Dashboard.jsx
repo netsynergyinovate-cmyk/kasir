@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, DollarSign } from 'lucide-react';
+import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, DollarSign, ChevronDown } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import './Dashboard.css';
 
@@ -76,24 +76,30 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Periode</h2>
         </div>
         <div className="flex gap-2">
-          <select 
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 px-2 py-1.5 appearance-none focus:border-blue-500"
-          >
-            {months.map((name, index) => (
-              <option key={index} value={index}>{name}</option>
-            ))}
-          </select>
-          <select 
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 px-2 py-1.5 appearance-none focus:border-blue-500"
-          >
-            {[2024, 2025, 2026, 2027].map(year => (
-              <option key={year} value={year}>{year}</option>
-            ))}
-          </select>
+          <div className="relative group">
+            <select 
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 pl-2 pr-7 py-1.5 appearance-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
+            >
+              {months.map((name, index) => (
+                <option key={index} value={index}>{name}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
+          </div>
+          <div className="relative group">
+            <select 
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 pl-2 pr-7 py-1.5 appearance-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
+            >
+              {[2024, 2025, 2026, 2027].map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
+          </div>
         </div>
       </div>
 
