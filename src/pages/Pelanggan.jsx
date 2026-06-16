@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, PlusCircle, Wifi, Trash2, Pencil, MapPin, LayoutGrid, List, Calendar } from 'lucide-react';
+import { Search, PlusCircle, Wifi, Trash2, Pencil, MapPin, LayoutGrid, List, Calendar, User } from 'lucide-react';
 import EditCustomerModal from '../components/EditCustomerModal';
 
 const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDeleteCustomer, onUpdateCustomer }) => {
@@ -69,7 +69,7 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
               
               <div className="flex flex-col items-center text-center mb-3 pt-2">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm mb-2 ${cust.status === 'aktif' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-500 border-gray-200'} border`}>
-                  {cust.name.substring(0, 2).toUpperCase()}
+                  <User size={20} />
                 </div>
                 <h3 className="font-bold text-gray-900 text-sm leading-tight">{cust.name}</h3>
                 {cust.nickname && <p className="text-gray-400 font-medium text-[10px] mt-0.5">({cust.nickname})</p>}
@@ -105,7 +105,7 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
               <div key={cust.id} className={`grid grid-cols-1 sm:grid-cols-12 gap-4 px-4 py-4 items-center hover:bg-gray-50 transition-colors group ${cust.status !== 'aktif' ? 'bg-red-50/10' : ''}`}>
                 <div className="col-span-1 sm:col-span-5 flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border shrink-0 ${cust.status === 'aktif' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                        {cust.name.substring(0, 2).toUpperCase()}
+                        <User size={16} />
                     </div>
                     <div>
                         <p className="text-sm font-bold text-gray-900 leading-none mb-1">{cust.name} {cust.nickname && <span className="text-gray-400 font-medium text-[10px]">({cust.nickname})</span>}</p>
