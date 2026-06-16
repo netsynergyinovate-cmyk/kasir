@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar } from 'lucide-react';
+import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, DollarSign } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import './Dashboard.css';
 
-const Dashboard = ({ transactions = [], customers = [], setReceiptToView, setInstansiReceiptToView }) => {
+const Dashboard = ({ transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [currentPage, setCurrentPage] = useState(1);
@@ -15,20 +15,37 @@ const Dashboard = ({ transactions = [], customers = [], setReceiptToView, setIns
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ];
 
-  // Filter for income calculation
+  // Filter for metrics and list
   const filteredTransactions = transactions.filter(trx => {
     const trxDate = new Date(trx.date);
     return trxDate.getMonth() === selectedMonth && trxDate.getFullYear() === selectedYear;
   });
 
-  const monthlyIncome = filteredTransactions.reduce((acc, curr) => acc + curr.price, 0);
+  // 1. Total Potential Target (All active customers' package prices)
+  const totalPotentialTarget = customers.reduce((acc, cust) => {
+    const pkg = packages.find(p => p.name === cust.package);
+    return acc + (pkg ? Number(pkg.price) : 0);
+  }, 0);
 
-  // Get the single latest successful transaction for the highlight (within selected month)
+  // 2. Gross Revenue (Total successful transactions in selected month)
+  const grossRevenue = filteredTransactions.reduce((acc, curr) => acc + curr.price, 0);
+
+  // 3. Remaining Target
+  const remainingTarget = totalPotentialTarget - grossRevenue;
+
+  // 4. Admin Fee Income (Jasa Kasir)
+  // Only for LUNAS transactions that are NOT 'CS'
+  const successTrxForAdmin = filteredTransactions.filter(t => 
+    (t.status === 'LUNAS' || t.type === 'instansi') && t.payment_method !== 'CS'
+  );
+  const adminIncome = successTrxForAdmin.length * (companyInfo.adminFee || 10000);
+
+  // Latest highlight (within filtered list)
   const latestSuccess = filteredTransactions.find(trx => 
     trx.status === 'LUNAS' || trx.type === 'instansi'
   );
 
-  // Exclude latestSuccess from the paginated list if it exists (within filtered list)
+  // Exclude latestSuccess from the paginated list if it exists
   const listTransactions = latestSuccess 
     ? filteredTransactions.filter(t => t.id !== latestSuccess.id)
     : filteredTransactions;
@@ -38,25 +55,59 @@ const Dashboard = ({ transactions = [], customers = [], setReceiptToView, setIns
 
   return (
     <div className="dashboard-container p-4 space-y-6 pb-32 animate-in fade-in duration-300">
-      {/* Header & Stats */}
+      
+      {/* Welcome Header */}
+      <div className="flex justify-between items-center mb-2">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 leading-tight">
+            Halo, <span className="text-blue-600">{companyInfo.adminName || 'Admin'}</span> 👋
+          </h1>
+          <p className="text-gray-500 text-xs font-medium">ISP Billing Dashboard • {months[selectedMonth]} {selectedYear}</p>
+        </div>
+        <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm border border-blue-100">
+          <Users size={24} />
+        </div>
+      </div>
+
+      {/* Metrics Grid */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="card-gradient p-5 super-rounded text-white relative overflow-hidden">
+        {/* Target Sisa Card */}
+        <div className="bg-indigo-600 p-5 super-rounded text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
           <div className="absolute -right-4 -top-4 w-20 h-20 bg-white opacity-10 rounded-full"></div>
-          <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mb-1">Pendapatan {months[selectedMonth]}</p>
-          <p className="text-xl font-black">{formatRupiah(monthlyIncome)}</p>
-          <div className="mt-4 flex items-center gap-1 text-[9px] bg-white/20 w-fit px-2 py-1 rounded-full border border-white/20">
-             <Calendar size={10} />
-             <span>{months[selectedMonth]} {selectedYear}</span>
+          <p className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest mb-1">Target Sisa</p>
+          <p className="text-lg font-black leading-none">{formatRupiah(remainingTarget > 0 ? remainingTarget : 0)}</p>
+          <div className="mt-4 flex items-center gap-1 text-[8px] bg-white/20 w-fit px-2 py-0.5 rounded-full border border-white/10">
+             <Target size={8} />
+             <span>Ekskl. Pembayaran CS</span>
           </div>
         </div>
+
+        {/* Jasa Admin Card */}
+        <div className="bg-emerald-600 p-5 super-rounded text-white shadow-xl shadow-emerald-100 relative overflow-hidden">
+          <div className="absolute -right-4 -top-4 w-20 h-20 bg-white opacity-10 rounded-full"></div>
+          <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest mb-1">Jasa Admin</p>
+          <p className="text-lg font-black leading-none">{formatRupiah(adminIncome)}</p>
+          <div className="mt-4 flex items-center gap-1 text-[8px] bg-white/20 w-fit px-2 py-0.5 rounded-full border border-white/10">
+             <TrendingUp size={8} />
+             <span>{successTrxForAdmin.length} Trx Sukses</span>
+          </div>
+        </div>
+
+        {/* Total Kotor Card */}
+        <div className="stat-card p-5 super-rounded flex flex-col justify-center">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Kotor</p>
+          <p className="text-lg font-black text-gray-900">{formatRupiah(grossRevenue)}</p>
+          <p className="text-[9px] text-gray-400 mt-1 italic font-medium leading-none">Sebelum Potong Jasa</p>
+        </div>
+
+        {/* Total Pelanggan Card */}
         <div className="stat-card p-5 super-rounded flex flex-col justify-center">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Pelanggan</p>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-              <Users size={20} />
-            </div>
-            <p className="text-2xl font-black text-gray-900">{customers.length}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-2xl font-black text-gray-900 leading-none">{customers.length}</p>
+            <Users size={14} className="text-blue-600 mb-1" />
           </div>
+          <p className="text-[9px] text-gray-400 mt-1 font-medium leading-none">Semua Terdaftar</p>
         </div>
       </div>
 
@@ -81,7 +132,7 @@ const Dashboard = ({ transactions = [], customers = [], setReceiptToView, setIns
                 </p>
                 <p className="text-[10px] font-bold text-green-600 flex items-center gap-1 mt-0.5">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                  SUKSES BARU SAJA
+                  {latestSuccess.payment_method === 'CS' ? 'SUKSES VIA CS' : 'SUKSES BARU SAJA'}
                 </p>
               </div>
               <p className="ml-auto font-black text-gray-900 text-base z-10">{formatRupiah(latestSuccess.price)}</p>
@@ -129,7 +180,7 @@ const Dashboard = ({ transactions = [], customers = [], setReceiptToView, setIns
                   </div>
                   <div>
                     <p className="font-bold text-gray-800 text-sm leading-tight">{trx.type === 'instansi' ? trx.instansiName : trx.customerName}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{new Date(trx.date).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})} • {trx.type === 'instansi' ? 'Instansi' : trx.status}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{new Date(trx.date).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})} • {trx.payment_method === 'CS' ? 'Bayar CS' : trx.status}</p>
                   </div>
                 </div>
                 <p className="font-black text-sm text-gray-900">{formatRupiah(trx.price)}</p>
