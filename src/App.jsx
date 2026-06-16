@@ -187,7 +187,7 @@ export default function App() {
     testConnection();
     requestNotificationPermission();
     requestLocationPermission();
-  }, []);
+  }, [session]);
 
   const connectBluetooth = async () => {
     setIsConnecting(true);
