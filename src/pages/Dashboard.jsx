@@ -14,6 +14,7 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
   const [activePaymentTab, setActivePaymentTab] = useState('unpaid');
   const [unpaidExpanded, setUnpaidExpanded] = useState(false);
   const [paidExpanded, setPaidExpanded] = useState(false);
+  const [reminderExpanded, setReminderExpanded] = useState(false);
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -69,6 +70,28 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
   const unpaidCustomers = activeCustomers.filter(c => !isPaidThisPeriod(c));
   const totalActiveCustomers = activeCustomers.length;
 
+  // Due-date reminders: always based on the real current date, independent of the period filter above.
+  const today = new Date();
+  const isPaidThisRealMonth = (customer) => transactions.some(trx =>
+    trx.type === 'retail' &&
+    trx.status === 'LUNAS' &&
+    (trx.customerName || '').trim().toLowerCase() === (customer.name || '').trim().toLowerCase() &&
+    new Date(trx.date).getMonth() === today.getMonth() &&
+    new Date(trx.date).getFullYear() === today.getFullYear()
+  );
+
+  const reminderList = activeCustomers
+    .filter(c => c.due_date !== null && c.due_date !== undefined && !isPaidThisRealMonth(c))
+    .map(c => ({ ...c, dueDiff: today.getDate() - Number(c.due_date) }))
+    .filter(c => c.dueDiff >= -3)
+    .sort((a, b) => b.dueDiff - a.dueDiff);
+
+  const getReminderBadge = (diff) => {
+    if (diff > 0) return { text: `Terlambat ${diff} hari`, className: 'bg-red-100 text-red-700' };
+    if (diff === 0) return { text: 'Jatuh tempo hari ini', className: 'bg-orange-100 text-orange-700' };
+    return { text: `H-${Math.abs(diff)}`, className: 'bg-amber-100 text-amber-700' };
+  };
+
   // Latest highlight (within filtered list)
   const latestSuccess = filteredTransactions.find(trx => 
     trx.status === 'LUNAS' || trx.type === 'instansi'
@@ -114,6 +137,39 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
           <Users size={24} />
         </div>
       </div>
+
+      {/* Pengingat Tagihan (due-date reminders, always real-time) */}
+      {reminderList.length > 0 && (
+        <div>
+          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">⏰ Pengingat Tagihan</h2>
+          <div className="bg-white p-5 super-rounded border border-gray-100 shadow-sm">
+            <div className="space-y-2">
+              {(reminderExpanded ? reminderList : reminderList.slice(0, 5)).map(cust => {
+                const badge = getReminderBadge(cust.dueDiff);
+                return (
+                  <div key={cust.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50">
+                    <div>
+                      <p className="font-bold text-gray-800 text-xs leading-tight">{cust.name}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{cust.package}</p>
+                    </div>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${badge.className}`}>
+                      {badge.text}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {reminderList.length > 5 && (
+              <button
+                onClick={() => setReminderExpanded(v => !v)}
+                className="w-full text-center text-[10px] font-bold text-blue-600 mt-2 py-1.5 hover:underline"
+              >
+                {reminderExpanded ? 'Tutup' : `Lihat Selengkapnya (${reminderList.length - 5})`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Professional Period Filter (Compact) */}
       <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
