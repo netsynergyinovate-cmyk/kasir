@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, DollarSign, ChevronDown } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
+import RevenueBarChart from '../components/RevenueBarChart';
 import './Dashboard.css';
 
 const Dashboard = ({ transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
@@ -78,6 +79,23 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
 
   const totalPages = Math.ceil(listTransactions.length / itemsPerPage);
   const paginatedTrx = listTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Revenue trend: 6 months ending at the selected month/year (gross revenue, same definition as "Total Kotor")
+  const revenueChartData = Array.from({ length: 6 }, (_, i) => {
+    const offset = 5 - i;
+    const monthDate = new Date(selectedYear, selectedMonth - offset, 1);
+    const monthIndex = monthDate.getMonth();
+    const yearForMonth = monthDate.getFullYear();
+
+    const monthRevenue = transactions
+      .filter(trx => {
+        const trxDate = new Date(trx.date);
+        return trxDate.getMonth() === monthIndex && trxDate.getFullYear() === yearForMonth;
+      })
+      .reduce((acc, curr) => acc + curr.price, 0);
+
+    return { label: months[monthIndex].slice(0, 3), value: monthRevenue };
+  });
 
   return (
     <div className="dashboard-container p-4 space-y-6 pb-32 animate-in fade-in duration-300">
@@ -184,6 +202,14 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
               ? `${totalCustomers - totalSuccessTrx} trx belum lunas` 
               : 'Semua lunas! 🎉'}
           </p>
+        </div>
+      </div>
+
+      {/* Revenue Chart Section */}
+      <div>
+        <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Pendapatan 6 Bulan Terakhir</h2>
+        <div className="bg-white p-5 super-rounded border border-gray-100 shadow-sm">
+          <RevenueBarChart data={revenueChartData} />
         </div>
       </div>
 
