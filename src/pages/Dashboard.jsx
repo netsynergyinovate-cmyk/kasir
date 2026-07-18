@@ -9,6 +9,7 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  const [activePaymentTab, setActivePaymentTab] = useState('unpaid');
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -47,9 +48,22 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
 
   const totalCustomers = customers.length;
   // Calculate percentage, ensure it doesn't exceed 100% or drop below 0, handle 0 customers
-  const progressPercentage = totalCustomers > 0 
-    ? Math.min(Math.round((totalSuccessTrx / totalCustomers) * 100), 100) 
+  const progressPercentage = totalCustomers > 0
+    ? Math.min(Math.round((totalSuccessTrx / totalCustomers) * 100), 100)
     : 0;
+
+  // Payment status breakdown (active customers only, for the selected month/year)
+  const activeCustomers = customers.filter(c => c.status === 'aktif');
+
+  const isPaidThisPeriod = (customer) => filteredTransactions.some(trx =>
+    trx.type === 'retail' &&
+    trx.status === 'LUNAS' &&
+    (trx.customerName || '').trim().toLowerCase() === (customer.name || '').trim().toLowerCase()
+  );
+
+  const paidCustomers = activeCustomers.filter(isPaidThisPeriod);
+  const unpaidCustomers = activeCustomers.filter(c => !isPaidThisPeriod(c));
+  const totalActiveCustomers = activeCustomers.length;
 
   // Latest highlight (within filtered list)
   const latestSuccess = filteredTransactions.find(trx => 
