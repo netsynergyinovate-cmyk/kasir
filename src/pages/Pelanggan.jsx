@@ -1,9 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, PlusCircle, Wifi, Trash2, Pencil, MapPin, LayoutGrid, List, Calendar, User } from 'lucide-react';
 import EditCustomerModal from '../components/EditCustomerModal';
 
 const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDeleteCustomer, onUpdateCustomer }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) setSearchTerm(q);
+  }, [searchParams]);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
 

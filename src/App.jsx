@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { Menu, Building2 } from 'lucide-react';
+import { Menu, Building2, Search } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 
@@ -15,6 +15,7 @@ import History from './pages/History';
 import AddCustomerModal from './components/AddCustomerModal';
 import ReceiptThermal from './components/ReceiptThermal';
 import ReceiptA4 from './components/ReceiptA4';
+import GlobalSearch from './components/GlobalSearch';
 
 import Login from './pages/Login';
 import PinPad from './components/PinPad';
@@ -35,6 +36,7 @@ export default function App() {
   const [hasPin, setHasPin] = useState(false);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
   const [customers, setCustomers] = useState([]);
@@ -485,6 +487,10 @@ export default function App() {
             <h1 className="font-bold text-gray-900 text-[15px] leading-tight truncate">{companyInfo.name}</h1>
             <p className="text-[11px] text-gray-500 font-medium">ISP Billing POS</p>
           </div>
+
+          <button onClick={() => setIsSearchOpen(true)} className="ml-auto p-2 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all shrink-0">
+            <Search size={20} />
+          </button>
         </header>
 
         <Sidebar 
@@ -557,11 +563,20 @@ export default function App() {
         <Navigation />
       </div>
 
-      <AddCustomerModal 
-        show={showAddCustomer} 
+      <AddCustomerModal
+        show={showAddCustomer}
         packages={packages}
-        onClose={() => setShowAddCustomer(false)} 
-        onAdd={handleAddCustomer} 
+        onClose={() => setShowAddCustomer(false)}
+        onAdd={handleAddCustomer}
+      />
+
+      <GlobalSearch
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        customers={customers}
+        transactions={transactions.map(t => ({ ...t, customerName: t.customer_name, instansiName: t.instansi_name }))}
+        setReceiptToView={setReceiptToView}
+        setInstansiReceiptToView={setInstansiReceiptToView}
       />
       
       <ReceiptThermal 
