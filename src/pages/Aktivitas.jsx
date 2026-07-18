@@ -1,0 +1,125 @@
+import React, { useState } from 'react';
+import { Search, Calendar, Filter } from 'lucide-react';
+import { formatRupiah } from '../utils/format';
+
+const Aktivitas = ({ transactions = [] }) => {
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [cashierFilter, setCashierFilter] = useState('');
+
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+
+  const filteredByPeriod = transactions.filter(trx => {
+    const trxDate = new Date(trx.date);
+    return trxDate.getMonth() === Number(selectedMonth) && trxDate.getFullYear() === Number(selectedYear);
+  });
+
+  const filteredTransactions = cashierFilter
+    ? filteredByPeriod.filter(trx => (trx.cashierName || '').toLowerCase().includes(cashierFilter.toLowerCase()))
+    : filteredByPeriod;
+
+  const cashierSummary = filteredByPeriod.reduce((acc, trx) => {
+    const name = trx.cashierName || 'Tanpa Nama';
+    if (!acc[name]) acc[name] = { count: 0, total: 0 };
+    acc[name].count += 1;
+    acc[name].total += trx.price;
+    return acc;
+  }, {});
+
+  const cashierSummaryList = Object.entries(cashierSummary)
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.total - a.total);
+
+  return (
+    <div className="p-4 space-y-4 pb-32 animate-in fade-in duration-200">
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-xl font-bold text-gray-800">Aktivitas Kasir</h2>
+      </div>
+
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="relative">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none text-xs font-bold text-gray-700 appearance-none pl-9"
+            >
+              {months.map((name, index) => (
+                <option key={index} value={index}>{name}</option>
+              ))}
+            </select>
+            <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" />
+          </div>
+          <div className="relative">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none text-xs font-bold text-gray-700 appearance-none pl-9"
+            >
+              {years.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" />
+          </div>
+        </div>
+
+        <div className="bg-gray-50 flex items-center p-2 rounded-xl border border-gray-100">
+          <Search size={18} className="text-gray-400 ml-1" />
+          <input
+            type="text"
+            placeholder="Cari nama kasir..."
+            value={cashierFilter}
+            onChange={(e) => setCashierFilter(e.target.value)}
+            className="bg-transparent border-none outline-none p-2 w-full text-xs font-medium"
+          />
+        </div>
+      </div>
+
+      {cashierSummaryList.length > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+          {cashierSummaryList.map(c => (
+            <div key={c.name} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 truncate">{c.name}</p>
+              <p className="text-lg font-black text-gray-900">{formatRupiah(c.total)}</p>
+              <p className="text-[10px] text-gray-500 mt-1">{c.count} transaksi</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-3 mt-2">
+        {filteredTransactions.length > 0 ? (
+          filteredTransactions.map((trx) => (
+            <div key={trx.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-black text-blue-700">{trx.cashierName || 'Tanpa Nama'}</span>
+                <span className="text-[10px] text-gray-400">
+                  {new Date(trx.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {' '}
+                  {new Date(trx.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-gray-800">
+                  {trx.type === 'instansi' ? trx.instansiName : trx.customerName}
+                </p>
+                <p className="font-black text-sm text-gray-900">{formatRupiah(trx.price)}</p>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="py-10 text-center">
+            <p className="text-gray-400 text-xs font-medium">Tidak ada aktivitas pada periode ini</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Aktivitas;

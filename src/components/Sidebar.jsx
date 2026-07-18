@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { X, Home, Users, Printer, Settings as SettingsIcon, Building2, ChevronRight } from 'lucide-react';
+import { X, Home, Users, Printer, Settings as SettingsIcon, Building2, ChevronRight, Activity } from 'lucide-react';
 
 const Sidebar = ({ isOpen, setIsOpen, companyInfo }) => {
   return (
@@ -35,6 +35,9 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo }) => {
             </NavLink>
             <NavLink to="/pos" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-3 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
               <Printer size={20} /> Kasir (58mm)
+            </NavLink>
+            <NavLink to="/aktivitas" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-3 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+              <Activity size={20} /> Aktivitas Kasir
             </NavLink>
             <NavLink to="/settings" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-3 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
               <SettingsIcon size={20} /> Pengaturan

@@ -12,6 +12,7 @@ import Transaksi from './pages/Transaksi';
 import Settings from './pages/Settings';
 import Instansi from './pages/Instansi';
 import History from './pages/History';
+import Aktivitas from './pages/Aktivitas';
 import AddCustomerModal from './components/AddCustomerModal';
 import ReceiptThermal from './components/ReceiptThermal';
 import ReceiptA4 from './components/ReceiptA4';
@@ -556,6 +557,11 @@ export default function App() {
             } />
             <Route path="/instansi" element={
                <Instansi onComplete={handleInstansiComplete} />
+            } />
+            <Route path="/aktivitas" element={
+              <Aktivitas
+                transactions={transactions.map(t => ({ ...t, customerName: t.customer_name, instansiName: t.instansi_name, cashierName: t.cashier_name }))}
+              />
             } />
           </Routes>
         </main>
