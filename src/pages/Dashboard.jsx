@@ -12,6 +12,8 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
   const [activePaymentTab, setActivePaymentTab] = useState('unpaid');
+  const [unpaidExpanded, setUnpaidExpanded] = useState(false);
+  const [paidExpanded, setPaidExpanded] = useState(false);
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -236,25 +238,46 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
                 </button>
               </div>
 
-              <div className="space-y-2">
-                {(activePaymentTab === 'unpaid' ? unpaidCustomers : paidCustomers).length > 0 ? (
-                  (activePaymentTab === 'unpaid' ? unpaidCustomers : paidCustomers).map(cust => (
-                    <div key={cust.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50">
-                      <div>
-                        <p className="font-bold text-gray-800 text-xs leading-tight">{cust.name}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{cust.package}</p>
-                      </div>
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${activePaymentTab === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                        {activePaymentTab === 'paid' ? 'Lunas' : 'Belum Bayar'}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-center text-gray-400 text-xs font-medium py-6">
-                    {activePaymentTab === 'unpaid' ? 'Semua pelanggan sudah bayar bulan ini 🎉' : 'Belum ada pelanggan yang membayar bulan ini'}
-                  </p>
-                )}
-              </div>
+              {(() => {
+                const activeList = activePaymentTab === 'unpaid' ? unpaidCustomers : paidCustomers;
+                const isExpanded = activePaymentTab === 'unpaid' ? unpaidExpanded : paidExpanded;
+                const visibleList = isExpanded ? activeList : activeList.slice(0, 5);
+                const toggleExpanded = () => {
+                  if (activePaymentTab === 'unpaid') setUnpaidExpanded(v => !v);
+                  else setPaidExpanded(v => !v);
+                };
+
+                return (
+                  <div className="space-y-2">
+                    {activeList.length > 0 ? (
+                      visibleList.map(cust => (
+                        <div key={cust.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50">
+                          <div>
+                            <p className="font-bold text-gray-800 text-xs leading-tight">{cust.name}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{cust.package}</p>
+                          </div>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${activePaymentTab === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                            {activePaymentTab === 'paid' ? 'Lunas' : 'Belum Bayar'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-center text-gray-400 text-xs font-medium py-6">
+                        {activePaymentTab === 'unpaid' ? 'Semua pelanggan sudah bayar bulan ini 🎉' : 'Belum ada pelanggan yang membayar bulan ini'}
+                      </p>
+                    )}
+
+                    {activeList.length > 5 && (
+                      <button
+                        onClick={toggleExpanded}
+                        className="w-full text-center text-[10px] font-bold text-blue-600 mt-2 py-1.5 hover:underline"
+                      >
+                        {isExpanded ? 'Tutup' : `Lihat Selengkapnya (${activeList.length - 5})`}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           ) : (
             <p className="text-center text-gray-400 text-xs font-medium py-6">Belum ada pelanggan aktif</p>
