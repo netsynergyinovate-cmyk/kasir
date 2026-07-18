@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, DollarSign, ChevronDown } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
+import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import './Dashboard.css';
 
 const Dashboard = ({ transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
@@ -183,6 +184,55 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
               ? `${totalCustomers - totalSuccessTrx} trx belum lunas` 
               : 'Semua lunas! 🎉'}
           </p>
+        </div>
+      </div>
+
+      {/* Payment Status Section */}
+      <div>
+        <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Status Pembayaran Bulan Ini</h2>
+        <div className="bg-white p-5 super-rounded border border-gray-100 shadow-sm">
+          {totalActiveCustomers > 0 ? (
+            <>
+              <PaymentStatusDonut paidCount={paidCustomers.length} unpaidCount={unpaidCustomers.length} />
+
+              <div className="flex gap-2 mt-5 mb-3">
+                <button
+                  onClick={() => setActivePaymentTab('unpaid')}
+                  className={`flex-1 py-2 rounded-xl text-[11px] font-bold transition-all ${activePaymentTab === 'unpaid' ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-50 text-gray-500'}`}
+                >
+                  Belum Bayar ({unpaidCustomers.length})
+                </button>
+                <button
+                  onClick={() => setActivePaymentTab('paid')}
+                  className={`flex-1 py-2 rounded-xl text-[11px] font-bold transition-all ${activePaymentTab === 'paid' ? 'bg-green-600 text-white shadow-sm' : 'bg-gray-50 text-gray-500'}`}
+                >
+                  Sudah Bayar ({paidCustomers.length})
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {(activePaymentTab === 'unpaid' ? unpaidCustomers : paidCustomers).length > 0 ? (
+                  (activePaymentTab === 'unpaid' ? unpaidCustomers : paidCustomers).map(cust => (
+                    <div key={cust.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50">
+                      <div>
+                        <p className="font-bold text-gray-800 text-xs leading-tight">{cust.name}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{cust.package}</p>
+                      </div>
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${activePaymentTab === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                        {activePaymentTab === 'paid' ? 'Lunas' : 'Belum Bayar'}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-gray-400 text-xs font-medium py-6">
+                    {activePaymentTab === 'unpaid' ? 'Semua pelanggan sudah bayar bulan ini 🎉' : 'Belum ada pelanggan yang membayar bulan ini'}
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="text-center text-gray-400 text-xs font-medium py-6">Belum ada pelanggan aktif</p>
+          )}
         </div>
       </div>
 
