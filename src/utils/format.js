@@ -11,6 +11,18 @@ export const formatRupiah = (angka) => {
   return 'Rp ' + hasil;
 };
 
+export const formatRupiahCompact = (angka) => {
+  if (angka === null || angka === undefined) return '0';
+  const value = Math.floor(angka);
+  if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(1).replace('.', ',')}jt`;
+  }
+  if (value >= 1000) {
+    return `${Math.round(value / 1000)}rb`;
+  }
+  return `${value}`;
+};
+
 export const formatDate = (isoString) => {
   if (!isoString) return '';
   const date = new Date(isoString);
