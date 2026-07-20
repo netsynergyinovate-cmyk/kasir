@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Search, Calendar, Filter, FileText, Building2, ChevronRight, Trash2 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 
 const History = ({ transactions, setReceiptToView, setInstansiReceiptToView, onDeleteTransaction }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
@@ -23,8 +24,9 @@ const History = ({ transactions, setReceiptToView, setInstansiReceiptToView, onD
     
     const matchesMonth = trxDate.getMonth() === Number(selectedMonth);
     const matchesYear = trxDate.getFullYear() === Number(selectedYear);
+    const matchesDay = selectedDay === 'all' || trxDate.getDate() === Number(selectedDay);
 
-    return matchesSearch && matchesMonth && matchesYear;
+    return matchesSearch && matchesMonth && matchesYear && matchesDay;
   });
 
   const totalIncome = filteredTransactions.reduce((acc, curr) => acc + curr.price, 0);
@@ -36,16 +38,16 @@ const History = ({ transactions, setReceiptToView, setInstansiReceiptToView, onD
       </div>
 
       {/* Stats Summary for Filtered Data */}
-      <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
+      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Pendapatan Filter</p>
         <p className="text-2xl font-black text-blue-600">{formatRupiah(totalIncome)}</p>
         <p className="text-[10px] text-gray-500 mt-1 font-medium italic">
-          Bulan {months[selectedMonth]} {selectedYear} • {filteredTransactions.length} Transaksi
+          {selectedDay !== 'all' ? `${selectedDay} ` : ''}{months[selectedMonth]} {selectedYear} • {filteredTransactions.length} Transaksi
         </p>
       </div>
 
       {/* Filter Section */}
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 space-y-3">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
         <div className="flex gap-2">
           <div className="flex-1 bg-gray-50 flex items-center p-2 rounded-xl border border-gray-100">
             <Search size={18} className="text-gray-400 ml-1" />
@@ -59,7 +61,21 @@ const History = ({ transactions, setReceiptToView, setInstansiReceiptToView, onD
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="relative">
+            <select 
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value)}
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none text-xs font-bold text-gray-700 appearance-none pl-9"
+            >
+              <option value="all">Semua Hari</option>
+              {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => i + 1).map(day => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+            <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" />
+          </div>
+
           <div className="relative">
             <select 
               value={selectedMonth}

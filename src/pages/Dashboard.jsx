@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, DollarSign, ChevronDown } from 'lucide-react';
+import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import './Dashboard.css';
 
 const Dashboard = ({ transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
+  const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [currentPage, setCurrentPage] = useState(1);
@@ -21,10 +22,16 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ];
 
-  // Filter for metrics and list
-  const filteredTransactions = transactions.filter(trx => {
+  // Filter for metrics and list (month and year)
+  const transactionsThisMonth = transactions.filter(trx => {
     const trxDate = new Date(trx.date);
     return trxDate.getMonth() === selectedMonth && trxDate.getFullYear() === selectedYear;
+  });
+
+  // Filter for metrics and list (with day filter)
+  const filteredTransactions = transactionsThisMonth.filter(trx => {
+    const trxDate = new Date(trx.date);
+    return selectedDay === 'all' || trxDate.getDate() === Number(selectedDay);
   });
 
   // 1. Total Potential Target (All active customers' package prices)
@@ -33,7 +40,7 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
     return acc + (pkg ? Number(pkg.price) : 0);
   }, 0);
 
-  // 2. Gross Revenue (Total successful transactions in selected month)
+  // 2. Gross Revenue (Total successful transactions in selected period)
   const grossRevenue = filteredTransactions.reduce((acc, curr) => acc + curr.price, 0);
 
   // 3. Remaining Target
@@ -60,7 +67,7 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
   // Payment status breakdown (active customers only, for the selected month/year)
   const activeCustomers = customers.filter(c => c.status === 'aktif');
 
-  const isPaidThisPeriod = (customer) => filteredTransactions.some(trx =>
+  const isPaidThisPeriod = (customer) => transactionsThisMonth.some(trx =>
     trx.type === 'retail' &&
     trx.status === 'LUNAS' &&
     (trx.customerName || '').trim().toLowerCase() === (customer.name || '').trim().toLowerCase()
@@ -178,6 +185,19 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Periode</h2>
         </div>
         <div className="flex gap-2">
+          <div className="relative group">
+            <select 
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value)}
+              className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 pl-2 pr-7 py-1.5 appearance-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
+            >
+              <option value="all">Semua Hari</option>
+              {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => i + 1).map(day => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
+          </div>
           <div className="relative group">
             <select 
               value={selectedMonth}

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Search, Calendar, Filter } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 
 const Aktivitas = ({ transactions = [] }) => {
+  const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [cashierFilter, setCashierFilter] = useState('');
@@ -15,7 +16,10 @@ const Aktivitas = ({ transactions = [] }) => {
 
   const filteredByPeriod = transactions.filter(trx => {
     const trxDate = new Date(trx.date);
-    return trxDate.getMonth() === Number(selectedMonth) && trxDate.getFullYear() === Number(selectedYear);
+    const matchesMonth = trxDate.getMonth() === Number(selectedMonth);
+    const matchesYear = trxDate.getFullYear() === Number(selectedYear);
+    const matchesDay = selectedDay === 'all' || trxDate.getDate() === Number(selectedDay);
+    return matchesMonth && matchesYear && matchesDay;
   });
 
   const filteredTransactions = cashierFilter
@@ -41,7 +45,20 @@ const Aktivitas = ({ transactions = [] }) => {
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="relative">
+            <select
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value)}
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none text-xs font-bold text-gray-700 appearance-none pl-9"
+            >
+              <option value="all">Semua Hari</option>
+              {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => i + 1).map(day => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+            <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" />
+          </div>
           <div className="relative">
             <select
               value={selectedMonth}
