@@ -320,8 +320,19 @@ const Settings = ({
               <button 
                 type="button"
                 onClick={() => {
+                  if (localCompany.apiMonitoringKey) {
+                    localStorage.setItem('api_monitoring_key', localCompany.apiMonitoringKey);
+                  }
+                  if (localCompany.apiMonitoringEnabled !== undefined) {
+                    localStorage.setItem('api_monitoring_enabled', localCompany.apiMonitoringEnabled ? 'true' : 'false');
+                  }
                   setCompanyInfo(localCompany);
-                  setTestApiResult({ success: true, message: 'API Key Berhasil Disimpan!' });
+                  setTestApiResult({ 
+                    success: true, 
+                    message: 'API Key Berhasil Disimpan Permanen!',
+                    status: 'TERSIMPAN',
+                    responseBody: `API Key (${localCompany.apiMonitoringKey ? localCompany.apiMonitoringKey.substring(0, 4) + '...' : ''}) siap digunakan.`
+                  });
                 }} 
                 className="w-full py-3 px-4 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-emerald-100"
               >

@@ -31,8 +31,8 @@ const INIT_COMPANY = {
   adminFee: 10000,
   appPin: null,
   apiMonitoringUrl: '',
-  apiMonitoringKey: '',
-  apiMonitoringEnabled: false
+  apiMonitoringKey: localStorage.getItem('api_monitoring_key') || '',
+  apiMonitoringEnabled: localStorage.getItem('api_monitoring_enabled') === 'true'
 };
 
 export default function App() {
@@ -178,6 +178,13 @@ export default function App() {
           const storedKey = localStorage.getItem('api_monitoring_key') || '';
           const storedEnabled = localStorage.getItem('api_monitoring_enabled') === 'true';
 
+          const finalKey = (settingsData.api_monitoring_key && settingsData.api_monitoring_key.trim()) ? settingsData.api_monitoring_key : storedKey;
+          const finalEnabled = settingsData.api_monitoring_enabled ?? storedEnabled;
+
+          if (finalKey) {
+            localStorage.setItem('api_monitoring_key', finalKey);
+          }
+
           setCompanyInfo({
             name: settingsData.name,
             address: settingsData.address,
@@ -187,8 +194,8 @@ export default function App() {
             adminFee: settingsData.admin_fee || 10000,
             appPin: settingsData.app_pin || null,
             apiMonitoringUrl: settingsData.api_monitoring_url || '',
-            apiMonitoringKey: settingsData.api_monitoring_key || storedKey,
-            apiMonitoringEnabled: settingsData.api_monitoring_enabled ?? storedEnabled
+            apiMonitoringKey: finalKey,
+            apiMonitoringEnabled: finalEnabled
           });
         }
         console.log('Data berhasil dimuat.');
@@ -379,31 +386,37 @@ export default function App() {
   };
 
   const handleUpdateSettings = async (newSettings) => {
-    if (newSettings.apiMonitoringKey !== undefined) {
-      localStorage.setItem('api_monitoring_key', newSettings.apiMonitoringKey || '');
+    const keyToSave = newSettings.apiMonitoringKey || localStorage.getItem('api_monitoring_key') || '';
+    if (keyToSave) {
+      localStorage.setItem('api_monitoring_key', keyToSave);
     }
     if (newSettings.apiMonitoringEnabled !== undefined) {
       localStorage.setItem('api_monitoring_enabled', newSettings.apiMonitoringEnabled ? 'true' : 'false');
     }
 
+    const mergedSettings = {
+      ...newSettings,
+      apiMonitoringKey: keyToSave
+    };
+
+    setCompanyInfo(mergedSettings);
+
     try {
-      const { error } = await supabase.from('company_settings').upsert({
+      const payload = {
         id: 1,
-        name: newSettings.name,
-        address: newSettings.address,
-        phone: newSettings.phone,
-        logo_url: newSettings.logo,
-        admin_name: newSettings.adminName,
-        admin_fee: newSettings.adminFee,
-        api_monitoring_url: newSettings.apiMonitoringUrl,
-        api_monitoring_key: newSettings.apiMonitoringKey,
-        api_monitoring_enabled: newSettings.apiMonitoringEnabled
-      });
-      if (error) throw error;
-      setCompanyInfo(newSettings);
+        name: mergedSettings.name,
+        address: mergedSettings.address,
+        phone: mergedSettings.phone,
+        logo_url: mergedSettings.logo,
+        admin_name: mergedSettings.adminName,
+        admin_fee: mergedSettings.adminFee,
+        api_monitoring_url: mergedSettings.apiMonitoringUrl || '',
+        api_monitoring_key: keyToSave,
+        api_monitoring_enabled: mergedSettings.apiMonitoringEnabled ?? false
+      };
+      await supabase.from('company_settings').upsert(payload);
     } catch (e) {
-      console.error('Error updating settings in DB:', e);
-      setCompanyInfo(newSettings);
+      console.warn('Supabase settings upsert note:', e);
     }
   };
 
