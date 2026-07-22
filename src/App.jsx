@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Menu, Building2, Search } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
+import { sendPaymentToBillingSystem } from './utils/billingApi';
 
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
@@ -28,7 +29,10 @@ const INIT_COMPANY = {
   logo: null,
   adminName: 'Admin',
   adminFee: 10000,
-  appPin: null
+  appPin: null,
+  apiMonitoringUrl: '',
+  apiMonitoringKey: '',
+  apiMonitoringEnabled: false
 };
 
 export default function App() {
@@ -178,7 +182,10 @@ export default function App() {
             logo: settingsData.logo_url,
             adminName: settingsData.admin_name || 'Admin',
             adminFee: settingsData.admin_fee || 10000,
-            appPin: settingsData.app_pin || null
+            appPin: settingsData.app_pin || null,
+            apiMonitoringUrl: settingsData.api_monitoring_url || '',
+            apiMonitoringKey: settingsData.api_monitoring_key || '',
+            apiMonitoringEnabled: settingsData.api_monitoring_enabled ?? false
           });
         }
         console.log('Data berhasil dimuat.');
@@ -291,6 +298,9 @@ export default function App() {
       setReceiptToView(newTrx);
       showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
       console.log('Transaksi berhasil disimpan ke database.');
+
+      // Automasi pengiriman data ke Billing Monitoring System
+      sendPaymentToBillingSystem(newTrx, companyInfo);
     } catch (e) {
       console.error('DB Insert Error:', e.message);
       alert('Gagal simpan ke DB: ' + e.message);
@@ -314,6 +324,9 @@ export default function App() {
       setTransactions([newTrx, ...transactions]);
       setInstansiReceiptToView(newTrx);
       showNotification('Invoice Instansi Berhasil', `${newTrx.instansiName} - ${formatRupiah(newTrx.price)}`);
+
+      // Automasi pengiriman data ke Billing Monitoring System
+      sendPaymentToBillingSystem(newTrx, companyInfo);
     } catch (e) {
       alert('Gagal menyimpan invoice: ' + e.message);
     }
@@ -371,7 +384,10 @@ export default function App() {
         phone: newSettings.phone,
         logo_url: newSettings.logo,
         admin_name: newSettings.adminName,
-        admin_fee: newSettings.adminFee
+        admin_fee: newSettings.adminFee,
+        api_monitoring_url: newSettings.apiMonitoringUrl,
+        api_monitoring_key: newSettings.apiMonitoringKey,
+        api_monitoring_enabled: newSettings.apiMonitoringEnabled
       });
       if (error) throw error;
       setCompanyInfo(newSettings);

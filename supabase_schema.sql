@@ -51,8 +51,16 @@ create table if not exists company_settings (
   admin_name text default 'Admin Utama',
   admin_fee bigint default 10000,
   app_pin text,
+  api_monitoring_url text,
+  api_monitoring_key text,
+  api_monitoring_enabled boolean default false,
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
+
+-- Migrasi skema untuk menambahkan kolom jika tabel sudah ada sebelumnya
+alter table company_settings add column if not exists api_monitoring_url text;
+alter table company_settings add column if not exists api_monitoring_key text;
+alter table company_settings add column if not exists api_monitoring_enabled boolean default false;
 
 -- 5. MATIKAN RLS (Agar aplikasi bisa baca/tulis tanpa login Supabase)
 -- SANGAT DISARANKAN aktifkan kembali jika sudah menggunakan sistem Login/Auth.

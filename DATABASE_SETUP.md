@@ -49,8 +49,16 @@ create table if not exists company_settings (
   logo_url text,
   admin_name text default 'Admin Utama',
   admin_fee bigint default 10000,
+  app_pin text,
+  api_monitoring_url text,
+  api_monitoring_key text,
+  api_monitoring_enabled boolean default false,
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
+
+alter table company_settings add column if not exists api_monitoring_url text;
+alter table company_settings add column if not exists api_monitoring_key text;
+alter table company_settings add column if not exists api_monitoring_enabled boolean default false;
 
 -- ======================================================
 -- 2. KONFIGURASI KEAMANAN RLS (ROW LEVEL SECURITY)

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, 
-  BluetoothOff, AlertCircle, Printer, User, LogOut, Image, ChevronRight 
+  BluetoothOff, AlertCircle, Printer, User, LogOut, Image, ChevronRight,
+  Key, Globe, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { supabase } from '../lib/supabase';
+import { testBillingSystemConnection } from '../utils/billingApi';
 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
@@ -14,11 +16,26 @@ const Settings = ({
   const [newPkgName, setNewPkgName] = useState('');
   const [newPkgPrice, setNewPkgPrice] = useState('');
   const [localCompany, setLocalCompany] = useState(companyInfo);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isTestingApi, setIsTestingApi] = useState(false);
+  const [testApiResult, setTestApiResult] = useState(null);
 
   // Sync local state when companyInfo prop changes (e.g., after initial fetch)
   useEffect(() => {
     setLocalCompany(companyInfo);
   }, [companyInfo]);
+
+  const handleTestApi = async () => {
+    if (!localCompany.apiMonitoringUrl || !localCompany.apiMonitoringKey) {
+      setTestApiResult({ success: false, message: 'Harap isi URL Endpoint dan API Key terlebih dahulu.' });
+      return;
+    }
+    setIsTestingApi(true);
+    setTestApiResult(null);
+    const result = await testBillingSystemConnection(localCompany.apiMonitoringUrl, localCompany.apiMonitoringKey);
+    setTestApiResult(result);
+    setIsTestingApi(false);
+  };
 
   const handleLogout = async () => {
     if (window.confirm('Yakin ingin keluar dari aplikasi? Anda harus memasukkan PIN kembali saat masuk.')) {
@@ -240,6 +257,105 @@ const Settings = ({
               <input value={newPkgName} onChange={(e)=>setNewPkgName(e.target.value)} type="text" placeholder="Nama Paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm font-medium"/>
               <input value={newPkgPrice} onChange={(e)=>setNewPkgPrice(e.target.value)} type="number" placeholder="Harga Paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm font-medium"/>
               <button onClick={handleAddPkg} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg text-sm shadow-md shadow-blue-200 active:scale-95 transition-all">Simpan Paket</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Section: Integrasi Billing Monitoring System */}
+        <div>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 flex items-center gap-1.5">
+            <Activity size={14} className="text-blue-600" /> Integrasi Monitoring System
+          </h2>
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <p className="text-sm font-bold text-gray-800">Automasi Pengiriman Data</p>
+                <p className="text-xs text-gray-400">Kirim data pembayaran lunas ke billing monitoring eksternal</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  name="apiMonitoringEnabled"
+                  checked={localCompany.apiMonitoringEnabled || false} 
+                  onChange={(e) => {
+                    const updated = { ...localCompany, apiMonitoringEnabled: e.target.checked };
+                    setLocalCompany(updated);
+                    setCompanyInfo(updated);
+                  }} 
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">URL Endpoint API Billing</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                  <Globe size={16} />
+                </div>
+                <input 
+                  name="apiMonitoringUrl" 
+                  value={localCompany.apiMonitoringUrl || ''} 
+                  onChange={handleLocalChange} 
+                  onBlur={handleBlur} 
+                  type="url" 
+                  placeholder="https://monitoring-billing.com/api/v1/payments"
+                  className="w-full pl-9 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">API Key Monitoring</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                  <Key size={16} />
+                </div>
+                <input 
+                  name="apiMonitoringKey" 
+                  value={localCompany.apiMonitoringKey || ''} 
+                  onChange={handleLocalChange} 
+                  onBlur={handleBlur} 
+                  type={showApiKey ? 'text' : 'password'} 
+                  placeholder="Masukkan API Key / Secret Token"
+                  className="w-full pl-9 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowApiKey(!showApiKey)} 
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button 
+                type="button"
+                onClick={handleTestApi} 
+                disabled={isTestingApi}
+                className="w-full py-3 px-4 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isTestingApi ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+                    Menguji Koneksi...
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} /> Test Koneksi API
+                  </>
+                )}
+              </button>
+
+              {testApiResult && (
+                <div className={`p-3 rounded-xl text-xs font-medium flex items-start gap-2 ${testApiResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {testApiResult.success ? <CheckCircle2 size={16} className="shrink-0 mt-0.5" /> : <XCircle size={16} className="shrink-0 mt-0.5" />}
+                  <span>{testApiResult.message}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
