@@ -289,7 +289,10 @@ const Settings = ({
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">URL Endpoint API Billing</label>
+              <div className="flex justify-between items-center mb-1 ml-1">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase">URL Endpoint API Billing</label>
+                <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">Opsional</span>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <Globe size={16} />
@@ -299,15 +302,18 @@ const Settings = ({
                   value={localCompany.apiMonitoringUrl || ''} 
                   onChange={handleLocalChange} 
                   onBlur={handleBlur} 
-                  type="url" 
-                  placeholder="https://monitoring-billing.com/api/v1/payments"
+                  type="text" 
+                  placeholder="https://monitoring-billing.com/api/v1/payments (Diisi jika sudah ada)"
                   className="w-full pl-9 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">API Key Monitoring</label>
+              <div className="flex justify-between items-center mb-1 ml-1">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase">API Key Monitoring</label>
+                <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">Dapat Diisi Sekarang</span>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <Key size={16} />
@@ -318,7 +324,7 @@ const Settings = ({
                   onChange={handleLocalChange} 
                   onBlur={handleBlur} 
                   type={showApiKey ? 'text' : 'password'} 
-                  placeholder="Masukkan API Key / Secret Token"
+                  placeholder="Masukkan API Key / Secret Token Anda"
                   className="w-full pl-9 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
                 />
                 <button 
@@ -332,6 +338,17 @@ const Settings = ({
             </div>
 
             <div className="pt-2 flex flex-col gap-2">
+              <button 
+                type="button"
+                onClick={() => {
+                  setCompanyInfo(localCompany);
+                  setTestApiResult({ success: true, message: 'API Key & Konfigurasi Integrasi Berhasil Disimpan!' });
+                }} 
+                className="w-full py-3 px-4 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-emerald-100"
+              >
+                <Key size={16} /> Simpan API Key & Konfigurasi
+              </button>
+
               <button 
                 type="button"
                 onClick={handleTestApi} 
