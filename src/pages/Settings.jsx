@@ -26,23 +26,16 @@ const Settings = ({
   }, [companyInfo]);
 
   const handleTestApi = async () => {
-    if (!localCompany.apiMonitoringUrl) {
-      setTestApiResult({ 
-        success: false, 
-        message: 'Pengujian koneksi membutuhkan URL Endpoint. API Key Anda sudah tersimpan, pengujian dapat dilakukan setelah URL Endpoint diisi nanti.' 
-      });
-      return;
-    }
     if (!localCompany.apiMonitoringKey) {
       setTestApiResult({ 
         success: false, 
-        message: 'Harap isi API Key terlebih dahulu.' 
+        message: 'Harap isi API Key Aplikasi Monitoring terlebih dahulu.' 
       });
       return;
     }
     setIsTestingApi(true);
     setTestApiResult(null);
-    const result = await testBillingSystemConnection(localCompany.apiMonitoringUrl, localCompany.apiMonitoringKey);
+    const result = await testBillingSystemConnection(localCompany.apiMonitoringUrl || '', localCompany.apiMonitoringKey);
     setTestApiResult(result);
     setIsTestingApi(false);
   };
@@ -280,7 +273,7 @@ const Settings = ({
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <p className="text-sm font-bold text-gray-800">Automasi Pengiriman Data</p>
-                <p className="text-xs text-gray-400">Kirim data pembayaran lunas ke billing monitoring eksternal</p>
+                <p className="text-xs text-gray-400">Kirim data pembayaran lunas ke billing monitoring via API Key</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -299,31 +292,7 @@ const Settings = ({
             </div>
 
             <div>
-              <div className="flex justify-between items-center mb-1 ml-1">
-                <label className="block text-[10px] font-bold text-gray-400 uppercase">URL Endpoint API Billing</label>
-                <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">Opsional</span>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                  <Globe size={16} />
-                </div>
-                <input 
-                  name="apiMonitoringUrl" 
-                  value={localCompany.apiMonitoringUrl || ''} 
-                  onChange={handleLocalChange} 
-                  onBlur={handleBlur} 
-                  type="text" 
-                  placeholder="https://monitoring-billing.com/api/v1/payments (Diisi jika sudah ada)"
-                  className="w-full pl-9 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1 ml-1">
-                <label className="block text-[10px] font-bold text-gray-400 uppercase">API Key Monitoring</label>
-                <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">Dapat Diisi Sekarang</span>
-              </div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">API Key Monitoring</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <Key size={16} />
@@ -334,7 +303,7 @@ const Settings = ({
                   onChange={handleLocalChange} 
                   onBlur={handleBlur} 
                   type={showApiKey ? 'text' : 'password'} 
-                  placeholder="Masukkan API Key / Secret Token Anda"
+                  placeholder="Masukkan API Key Aplikasi Monitoring"
                   className="w-full pl-9 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
                 />
                 <button 
@@ -352,11 +321,11 @@ const Settings = ({
                 type="button"
                 onClick={() => {
                   setCompanyInfo(localCompany);
-                  setTestApiResult({ success: true, message: 'API Key & Konfigurasi Integrasi Berhasil Disimpan!' });
+                  setTestApiResult({ success: true, message: 'API Key Berhasil Disimpan!' });
                 }} 
                 className="w-full py-3 px-4 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-emerald-100"
               >
-                <Key size={16} /> Simpan API Key & Konfigurasi
+                <Key size={16} /> Simpan API Key
               </button>
 
               <button 
