@@ -26,8 +26,18 @@ const Settings = ({
   }, [companyInfo]);
 
   const handleTestApi = async () => {
-    if (!localCompany.apiMonitoringUrl || !localCompany.apiMonitoringKey) {
-      setTestApiResult({ success: false, message: 'Harap isi URL Endpoint dan API Key terlebih dahulu.' });
+    if (!localCompany.apiMonitoringUrl) {
+      setTestApiResult({ 
+        success: false, 
+        message: 'Pengujian koneksi membutuhkan URL Endpoint. API Key Anda sudah tersimpan, pengujian dapat dilakukan setelah URL Endpoint diisi nanti.' 
+      });
+      return;
+    }
+    if (!localCompany.apiMonitoringKey) {
+      setTestApiResult({ 
+        success: false, 
+        message: 'Harap isi API Key terlebih dahulu.' 
+      });
       return;
     }
     setIsTestingApi(true);
