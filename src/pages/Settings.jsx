@@ -347,9 +347,17 @@ const Settings = ({
               </button>
 
               {testApiResult && (
-                <div className={`p-3 rounded-xl text-xs font-medium flex items-start gap-2 ${testApiResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                  {testApiResult.success ? <CheckCircle2 size={16} className="shrink-0 mt-0.5" /> : <XCircle size={16} className="shrink-0 mt-0.5" />}
-                  <span>{testApiResult.message}</span>
+                <div className={`p-3.5 rounded-xl text-xs font-medium space-y-1.5 ${testApiResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                  <div className="flex items-center gap-2 font-bold">
+                    {testApiResult.success ? <CheckCircle2 size={16} className="shrink-0 text-emerald-600" /> : <XCircle size={16} className="shrink-0 text-red-600" />}
+                    <span>{testApiResult.message}</span>
+                  </div>
+                  {testApiResult.status && (
+                    <div className="text-[11px] opacity-90 pl-6 flex flex-wrap gap-2">
+                      <span className="bg-white/80 px-2 py-0.5 rounded font-mono font-bold">{testApiResult.status}</span>
+                      {testApiResult.responseBody && <span className="italic truncate">{testApiResult.responseBody}</span>}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -175,6 +175,9 @@ export default function App() {
         if (transData) setTransactions(transData);
         if (pkgData) setPackages(pkgData);
         if (settingsData) {
+          const storedKey = localStorage.getItem('api_monitoring_key') || '';
+          const storedEnabled = localStorage.getItem('api_monitoring_enabled') === 'true';
+
           setCompanyInfo({
             name: settingsData.name,
             address: settingsData.address,
@@ -184,8 +187,8 @@ export default function App() {
             adminFee: settingsData.admin_fee || 10000,
             appPin: settingsData.app_pin || null,
             apiMonitoringUrl: settingsData.api_monitoring_url || '',
-            apiMonitoringKey: settingsData.api_monitoring_key || '',
-            apiMonitoringEnabled: settingsData.api_monitoring_enabled ?? false
+            apiMonitoringKey: settingsData.api_monitoring_key || storedKey,
+            apiMonitoringEnabled: settingsData.api_monitoring_enabled ?? storedEnabled
           });
         }
         console.log('Data berhasil dimuat.');
@@ -376,6 +379,13 @@ export default function App() {
   };
 
   const handleUpdateSettings = async (newSettings) => {
+    if (newSettings.apiMonitoringKey !== undefined) {
+      localStorage.setItem('api_monitoring_key', newSettings.apiMonitoringKey || '');
+    }
+    if (newSettings.apiMonitoringEnabled !== undefined) {
+      localStorage.setItem('api_monitoring_enabled', newSettings.apiMonitoringEnabled ? 'true' : 'false');
+    }
+
     try {
       const { error } = await supabase.from('company_settings').upsert({
         id: 1,
@@ -392,7 +402,8 @@ export default function App() {
       if (error) throw error;
       setCompanyInfo(newSettings);
     } catch (e) {
-      console.error('Error updating settings:', e);
+      console.error('Error updating settings in DB:', e);
+      setCompanyInfo(newSettings);
     }
   };
 

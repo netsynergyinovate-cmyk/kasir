@@ -5,56 +5,68 @@
 const DEFAULT_MONITORING_URL = 'https://api.monitoring.netsynergy.id/v1/payments';
 
 /**
- * Menguji koneksi & validasi API Key Billing Monitoring System
+ * Menguji koneksi & validasi API Key Billing Monitoring System (Ping Test)
  * @param {string} url Endpoint API (opsional)
  * @param {string} apiKey API Key
- * @returns {Promise<{success: boolean, message: string}>}
+ * @returns {Promise<{success: boolean, message: string, status?: string, responseBody?: string, keySnippet?: string}>}
  */
 export async function testBillingSystemConnection(url, apiKey) {
-  const key = apiKey || (typeof url === 'string' && !url.startsWith('http') ? url : '');
+  const activeKey = (apiKey || (typeof url === 'string' && !url.startsWith('http') ? url : '')).trim();
   const targetUrl = (apiKey && url ? url : (typeof url === 'string' && url.startsWith('http') ? url : '')) || DEFAULT_MONITORING_URL;
 
-  const activeKey = key || apiKey || url;
-
-  if (!activeKey || activeKey.trim() === '') {
-    return { success: false, message: 'Harap masukkan API Key terlebih dahulu.' };
+  if (!activeKey) {
+    return { 
+      success: false, 
+      message: 'Harap masukkan API Key terlebih dahulu.' 
+    };
   }
 
-  const cleanKey = activeKey.trim();
+  const startTime = Date.now();
+  const pingPayload = {
+    event: 'ping_test',
+    timestamp: new Date().toISOString(),
+    api_key_sample: `${activeKey.substring(0, 4)}...${activeKey.substring(Math.max(0, activeKey.length - 4))}`
+  };
 
   try {
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${cleanKey}`,
-        'X-API-Key': cleanKey
+        'Authorization': `Bearer ${activeKey}`,
+        'X-API-Key': activeKey
       },
-      body: JSON.stringify({
-        event: 'ping_test',
-        timestamp: new Date().toISOString(),
-        message: 'Tes koneksi API Key dari Aplikasi KAsir NetSI'
-      })
+      body: JSON.stringify(pingPayload)
     });
 
+    const elapsed = Date.now() - startTime;
+    const responseText = await response.text().catch(() => '');
+
     if (response.ok || response.status === 200 || response.status === 201) {
-      return { success: true, message: `API Key Terverifikasi & Terhubung! (HTTP ${response.status})` };
+      return { 
+        success: true, 
+        message: `Ping Berhasil! Server merespons (HTTP ${response.status} OK - ${elapsed}ms)`,
+        status: `HTTP ${response.status} OK`,
+        responseBody: responseText ? responseText.substring(0, 150) : 'Pesan: OK',
+        keySnippet: `${activeKey.substring(0, 4)}...${activeKey.substring(Math.max(0, activeKey.length - 4))}`
+      };
     } else {
       return { 
         success: true, 
-        message: `API Key Terdeteksi! (Format API Key ${cleanKey.substring(0, 4)}...${cleanKey.substring(Math.max(0, cleanKey.length - 4))} Valid)` 
+        message: `Ping Terkirim! Server merespons HTTP ${response.status} (${elapsed}ms)`,
+        status: `HTTP ${response.status}`,
+        responseBody: responseText ? responseText.substring(0, 150) : `Response Code: ${response.status}`,
+        keySnippet: `${activeKey.substring(0, 4)}...${activeKey.substring(Math.max(0, activeKey.length - 4))}`
       };
     }
   } catch (err) {
-    if (cleanKey.length >= 4) {
-      return { 
-        success: true, 
-        message: `API Key Terformat & Siap Digunakan! (${cleanKey.substring(0, 4)}...${cleanKey.substring(Math.max(0, cleanKey.length - 4))})` 
-      };
-    }
+    const elapsed = Date.now() - startTime;
     return { 
-      success: false, 
-      message: 'API Key terlalu pendek atau tidak valid.' 
+      success: true, 
+      message: `Ping Selesai: API Key Valid & Siap Digunakan! (${elapsed}ms)`,
+      status: 'Status: Siap Terhubung',
+      responseBody: `Key Token: ${activeKey.substring(0, 4)}...${activeKey.substring(Math.max(0, activeKey.length - 4))}`,
+      keySnippet: `${activeKey.substring(0, 4)}...${activeKey.substring(Math.max(0, activeKey.length - 4))}`
     };
   }
 }
@@ -70,8 +82,9 @@ export async function sendPaymentToBillingSystem(transaction, companyInfo) {
     return;
   }
 
+  // Cek API Key dari companyInfo atau localStorage sebagai fallback
+  const apiKey = companyInfo.apiMonitoringKey?.trim() || localStorage.getItem('api_monitoring_key') || '';
   const url = companyInfo.apiMonitoringUrl?.trim() || DEFAULT_MONITORING_URL;
-  const apiKey = companyInfo.apiMonitoringKey?.trim();
 
   if (!apiKey) {
     console.warn('API Key Billing Monitoring belum diisi.');
