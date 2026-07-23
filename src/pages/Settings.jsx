@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, 
   BluetoothOff, AlertCircle, Printer, User, LogOut, Image, ChevronRight,
-  Key, Globe, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send
+  Key, Globe, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send,
+  Zap, Clock, RefreshCw, Server, ShieldCheck
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { supabase } from '../lib/supabase';
-import { testBillingSystemConnection } from '../utils/billingApi';
+import { testBillingSystemConnection, getEbillingLogs, clearEbillingLogs } from '../utils/billingApi';
 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
@@ -19,11 +20,37 @@ const Settings = ({
   const [showApiKey, setShowApiKey] = useState(false);
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [testApiResult, setTestApiResult] = useState(null);
+  const [ebillingLogs, setEbillingLogs] = useState([]);
+  const [livePingStatus, setLivePingStatus] = useState(null);
 
-  // Sync local state when companyInfo prop changes (e.g., after initial fetch)
+  // Sync local state & load API Key guarantee from localStorage
   useEffect(() => {
-    setLocalCompany(companyInfo);
+    const savedKey = localStorage.getItem('api_monitoring_key') || '';
+    const keyToUse = companyInfo.apiMonitoringKey || savedKey;
+
+    setLocalCompany(prev => ({
+      ...companyInfo,
+      apiMonitoringKey: keyToUse
+    }));
+
+    setEbillingLogs(getEbillingLogs());
   }, [companyInfo]);
+
+  // Periodic Live Ping Heartbeat (Menjalankan tes ping tiap 10 detik saat API Key ada)
+  useEffect(() => {
+    const activeKey = localCompany.apiMonitoringKey || localStorage.getItem('api_monitoring_key') || '';
+    if (!activeKey) return;
+
+    const runPing = async () => {
+      const res = await testBillingSystemConnection('', activeKey);
+      setLivePingStatus(res);
+      setEbillingLogs(getEbillingLogs());
+    };
+
+    runPing();
+    const intervalId = setInterval(runPing, 10000);
+    return () => clearInterval(intervalId);
+  }, [localCompany.apiMonitoringKey]);
 
   const handleTestApi = async () => {
     if (!localCompany.apiMonitoringKey) {
@@ -267,13 +294,39 @@ const Settings = ({
         {/* Section: Integrasi Billing Monitoring System */}
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 flex items-center gap-1.5">
-            <Activity size={14} className="text-blue-600" /> Integrasi Monitoring System
+            <Activity size={14} className="text-blue-600" /> Integrasi E-Billing Monitoring System
           </h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+            
+            {/* Live Ping Heartbeat Status */}
+            <div className="bg-gradient-to-r from-slate-900 to-blue-950 p-4 rounded-xl text-white shadow-md flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold flex items-center gap-1.5">
+                    <Zap size={14} className="text-amber-400 fill-amber-400" /> Status Ping Live E-Billing
+                  </p>
+                  <p className="text-[11px] text-blue-200">
+                    {livePingStatus ? livePingStatus.message : 'Memulai pengujian ping otomatis...'}
+                  </p>
+                </div>
+              </div>
+              {livePingStatus?.latencyMs && (
+                <div className="text-right shrink-0">
+                  <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold px-2 py-1 rounded-md border border-emerald-500/30">
+                    {livePingStatus.latencyMs}ms
+                  </span>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <p className="text-sm font-bold text-gray-800">Automasi Pengiriman Data</p>
-                <p className="text-xs text-gray-400">Kirim data pembayaran lunas ke billing monitoring via API Key</p>
+                <p className="text-xs text-gray-400">Kirim data pembayaran lunas secara otomatis ke E-Billing</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -284,6 +337,7 @@ const Settings = ({
                     const updated = { ...localCompany, apiMonitoringEnabled: e.target.checked };
                     setLocalCompany(updated);
                     setCompanyInfo(updated);
+                    localStorage.setItem('api_monitoring_enabled', e.target.checked ? 'true' : 'false');
                   }} 
                   className="sr-only peer"
                 />
@@ -292,7 +346,14 @@ const Settings = ({
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">API Key Monitoring</label>
+              <div className="flex justify-between items-center mb-1 ml-1">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase">API Key Monitoring (E-Billing)</label>
+                {localCompany.apiMonitoringKey && (
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <ShieldCheck size={12} /> Terpasang & Aktif
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <Key size={16} />
@@ -300,8 +361,16 @@ const Settings = ({
                 <input 
                   name="apiMonitoringKey" 
                   value={localCompany.apiMonitoringKey || ''} 
-                  onChange={handleLocalChange} 
-                  onBlur={handleBlur} 
+                  onChange={(e) => {
+                    handleLocalChange(e);
+                    localStorage.setItem('api_monitoring_key', e.target.value);
+                  }} 
+                  onBlur={() => {
+                    handleBlur();
+                    if (localCompany.apiMonitoringKey) {
+                      localStorage.setItem('api_monitoring_key', localCompany.apiMonitoringKey);
+                    }
+                  }} 
                   type={showApiKey ? 'text' : 'password'} 
                   placeholder="Masukkan API Key Aplikasi Monitoring"
                   className="w-full pl-9 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-blue-500 transition-colors"
@@ -330,13 +399,13 @@ const Settings = ({
                   setTestApiResult({ 
                     success: true, 
                     message: 'API Key Berhasil Disimpan Permanen!',
-                    status: 'TERSIMPAN',
-                    responseBody: `API Key (${localCompany.apiMonitoringKey ? localCompany.apiMonitoringKey.substring(0, 4) + '...' : ''}) siap digunakan.`
+                    status: 'TERSIMPAN & AKTIF',
+                    responseBody: `Token (${localCompany.apiMonitoringKey ? localCompany.apiMonitoringKey.substring(0, 4) + '...' : ''}) siap digunakan.`
                   });
                 }} 
                 className="w-full py-3 px-4 bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-emerald-100"
               >
-                <Key size={16} /> Simpan API Key
+                <Key size={16} /> Simpan API Key Permanen
               </button>
 
               <button 
@@ -348,11 +417,11 @@ const Settings = ({
                 {isTestingApi ? (
                   <>
                     <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
-                    Menguji Koneksi...
+                    Menguji Ping Server...
                   </>
                 ) : (
                   <>
-                    <Send size={16} /> Test Koneksi API
+                    <Send size={16} /> Tes Ping API Sekarang
                   </>
                 )}
               </button>
@@ -372,6 +441,59 @@ const Settings = ({
                 </div>
               )}
             </div>
+
+            {/* Riwayat Log Pengiriman E-Billing */}
+            <div className="pt-4 border-t border-gray-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Server size={16} className="text-blue-600" />
+                  <h4 className="text-xs font-black text-gray-700 uppercase tracking-wider">Log Pengiriman Kasir ke E-Billing</h4>
+                </div>
+                {ebillingLogs.length > 0 && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      if (window.confirm('Bersihkan semua riwayat log pengiriman E-Billing?')) {
+                        clearEbillingLogs();
+                        setEbillingLogs([]);
+                      }
+                    }} 
+                    className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-2 py-1 rounded-md transition-colors"
+                  >
+                    Hapus Log
+                  </button>
+                )}
+              </div>
+
+              {ebillingLogs.length > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {ebillingLogs.map(log => (
+                    <div key={log.id} className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-blue-700">{log.customer_name}</span>
+                        <span className="font-mono text-gray-400 text-[10px]">{log.dateFormatted}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600 font-medium">Kasir: <strong className="text-gray-800">{log.cashier_name}</strong> ({formatRupiah(log.price)})</span>
+                        <span className="bg-emerald-100 text-emerald-700 font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <CheckCircle2 size={10} /> {log.response_code}
+                        </span>
+                      </div>
+                      {log.message && (
+                        <p className="text-[10px] text-gray-500 italic border-t border-gray-100/60 pt-1 mt-1 truncate">
+                          {log.message} • Token: {log.api_key_used}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 bg-gray-50 rounded-xl text-center text-xs text-gray-400 italic">
+                  Belum ada log pengiriman. Log akan otomatis tercatat setiap kali kasir menyelesaikan transaksi.
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
 
