@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lock, Delete, Fingerprint } from 'lucide-react';
 import { supabase } from '../lib/supabase'; 
 
-const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup }) => {
+const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup, onSkip }) => {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [step, setStep] = useState(mode === 'setup' ? 'create' : 'enter'); // 'create', 'confirm', 'enter'
@@ -134,6 +134,16 @@ const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup }) => {
           </button>
         </div>
         
+        {mode === 'setup' && onSkip && (
+          <button 
+            type="button"
+            onClick={onSkip}
+            className="mt-8 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-5 py-2.5 rounded-xl transition-all shadow-sm border border-blue-100 active:scale-95"
+          >
+            Lewati (Masuk Tanpa PIN)
+          </button>
+        )}
+
         {step === 'enter' && (
           <button 
             onClick={async () => {

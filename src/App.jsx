@@ -557,9 +557,19 @@ export default function App() {
     return <Login />;
   }
 
-  // If session exists, data is loaded, but no DB Pin exists -> Setup mode
-  if (session && !isLoading && !companyInfo.appPin) {
-    return <PinPad mode="setup" onSetup={handlePinSetup} />;
+  // If session exists, data is loaded, but no DB Pin exists and not bypassed -> Setup mode
+  if (session && !isLoading && !companyInfo.appPin && localStorage.getItem('bypass_pin') !== 'true') {
+    return (
+      <PinPad 
+        mode="setup" 
+        onSetup={handlePinSetup} 
+        onSkip={() => {
+          localStorage.setItem('bypass_pin', 'true');
+          setIsLocked(false);
+          setCompanyInfo(prev => ({ ...prev }));
+        }} 
+      />
+    );
   }
 
   // If session exists, DB Pin exists, but device is locked -> Unlock mode
