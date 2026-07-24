@@ -257,6 +257,7 @@ export async function fetchCustomersFromEbilling(url, apiKey) {
   }
 
   try {
+    console.log(`Menghubungi API Real E-Billing: ${targetUrl}...`);
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
@@ -282,89 +283,31 @@ export async function fetchCustomersFromEbilling(url, apiKey) {
           price: Number(c.price || c.billing_amount || c.harga || 0),
           status: c.status || 'aktif',
           due_date: parseInt(c.due_date || c.dueDate || c.tgl_bayar || 15),
-          source: 'E-Billing',
+          source: 'E-Billing System (Real API)',
           last_synced: new Date().toISOString()
         }));
         return {
           success: true,
           customers: mappedCustomers,
-          message: `Berhasil mengambil ${mappedCustomers.length} data pelanggan dari E-Billing System.`
+          message: `Berhasil mengambil ${mappedCustomers.length} data pelanggan REAL dari E-Billing System.`
         };
       }
+    } else {
+      console.warn(`API Real E-Billing merespons HTTP ${response.status}`);
+      return {
+        success: false,
+        customers: [],
+        message: `Gagal terhubung ke API Real E-Billing (${targetUrl}). Server merespons status HTTP ${response.status}. Periksa URL API & Token Key.`
+      };
     }
   } catch (err) {
-    console.warn('Gagal fetch live data dari E-Billing API, menggunakan format respons E-Billing:', err);
+    console.warn('Gagal fetch live data dari E-Billing API:', err);
+    return {
+      success: false,
+      customers: [],
+      message: `Gagal terhubung ke server E-Billing (${targetUrl}): ${err.message}. Pastikan URL API E-Billing valid dan dapat diakses.`
+    };
   }
-
-  // Sample data fallback jika E-Billing server offline / di lingkungan pengujian
-  const mockEbillingCustomers = [
-    {
-      id: 'CUST-EB-001',
-      pppoe_id: 'budi_rt01@net',
-      name: 'Budi Santoso (E-Billing)',
-      nickname: 'Budi',
-      address: 'Jl. Merdeka No. 10, RT 01',
-      package: 'Paket RT RW 10Mbps',
-      phone: '081234567890',
-      ip_address: '10.20.1.101',
-      price: 150000,
-      status: 'aktif',
-      due_date: 15,
-      source: 'E-Billing',
-      last_synced: new Date().toISOString()
-    },
-    {
-      id: 'CUST-EB-002',
-      pppoe_id: 'siti_asri@net',
-      name: 'Siti Aminah (E-Billing)',
-      nickname: 'Siti',
-      address: 'Perum Asri Blok B2 No 5',
-      package: 'Paket RT RW 20Mbps',
-      phone: '081987654321',
-      ip_address: '10.20.1.102',
-      price: 250000,
-      status: 'aktif',
-      due_date: 10,
-      source: 'E-Billing',
-      last_synced: new Date().toISOString()
-    },
-    {
-      id: 'CUST-EB-003',
-      pppoe_id: 'warkop_berkah@net',
-      name: 'Warung Kopi Berkah',
-      nickname: 'Warkop',
-      address: 'Jl. Sudirman No 45',
-      package: 'Paket Pro 50Mbps',
-      phone: '085712349988',
-      ip_address: '10.20.1.103',
-      price: 400000,
-      status: 'aktif',
-      due_date: 1,
-      source: 'E-Billing',
-      last_synced: new Date().toISOString()
-    },
-    {
-      id: 'CUST-EB-004',
-      pppoe_id: 'ahmad_dharma@net',
-      name: 'Ahmad Dahlan',
-      nickname: 'Ahmad',
-      address: 'Jl. Mawar No. 12',
-      package: 'Paket RT RW 20Mbps',
-      phone: '081399887766',
-      ip_address: '10.20.1.104',
-      price: 250000,
-      status: 'aktif',
-      due_date: 20,
-      source: 'E-Billing',
-      last_synced: new Date().toISOString()
-    }
-  ];
-
-  return {
-    success: true,
-    customers: mockEbillingCustomers,
-    message: `Berhasil menyinkronkan ${mockEbillingCustomers.length} pelanggan E-Billing (Sinkronisasi Aktif).`
-  };
 }
 
 /**
