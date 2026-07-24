@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, Wifi, RefreshCw, Key, Search } from 'lucide-react';
+import { X, Calendar, Wifi, RefreshCw, Key, Search, Phone, Network } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { fetchCustomerByPppoe } from '../utils/billingApi';
 
@@ -8,6 +8,8 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState('');
+  const [ipAddress, setIpAddress] = useState('');
   const [selectedPackage, setSelectedPackage] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [isFetchingEbilling, setIsFetchingEbilling] = useState(false);
@@ -31,6 +33,8 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
       setName(c.name || '');
       setNickname(c.nickname || '');
       setAddress(c.address || '');
+      setPhone(c.phone || '');
+      setIpAddress(c.ip_address || c.ipAddress || '');
       if (c.package) setSelectedPackage(c.package);
       if (c.due_date) setDueDate(c.due_date.toString());
       setEbillingMessage({ type: 'success', text: `Data E-Billing terhubung! Nama: ${c.name}` });
@@ -48,6 +52,9 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
       name,
       nickname,
       address,
+      phone,
+      ip_address: ipAddress,
+      ipAddress: ipAddress,
       package: selectedPackage,
       status: 'aktif',
       dueDate: parseInt(dueDate) || 15
@@ -59,6 +66,8 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
     setName('');
     setNickname('');
     setAddress('');
+    setPhone('');
+    setIpAddress('');
     setSelectedPackage('');
     setDueDate('');
     setEbillingMessage(null);
@@ -134,6 +143,33 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
                 onChange={(e) => setNickname(e.target.value)}
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" 
                 placeholder="Contoh: Budi"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase flex items-center gap-1">
+                <Phone size={12}/> No. WhatsApp / HP
+              </label>
+              <input 
+                type="text" 
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" 
+                placeholder="081234567890"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase flex items-center gap-1">
+                <Network size={12}/> IP Address PPPoE
+              </label>
+              <input 
+                type="text" 
+                value={ipAddress}
+                onChange={(e) => setIpAddress(e.target.value)}
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono" 
+                placeholder="10.20.1.101"
               />
             </div>
           </div>

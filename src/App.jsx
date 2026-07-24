@@ -352,6 +352,11 @@ export default function App() {
         nickname: newCust.nickname,
         address: newCust.address,
         package: newCust.package,
+        phone: newCust.phone || null,
+        ip_address: newCust.ip_address || newCust.ipAddress || null,
+        price: newCust.price ? Number(newCust.price) : null,
+        source: newCust.source || 'kasir',
+        last_synced: newCust.last_synced || null,
         due_date: newCust.dueDate || newCust.due_date,
         status: newCust.status || 'aktif'
       }]);
@@ -374,6 +379,9 @@ export default function App() {
           nickname: updatedCustomer.nickname,
           address: updatedCustomer.address,
           package: updatedCustomer.package,
+          phone: updatedCustomer.phone || null,
+          ip_address: updatedCustomer.ip_address || updatedCustomer.ipAddress || null,
+          price: updatedCustomer.price ? Number(updatedCustomer.price) : null,
           due_date: updatedCustomer.dueDate || updatedCustomer.due_date
         })
         .eq('id', updatedCustomer.id);
@@ -407,6 +415,11 @@ export default function App() {
           nickname: c.nickname,
           address: c.address,
           package: c.package,
+          phone: c.phone || null,
+          ip_address: c.ip_address || null,
+          price: c.price || null,
+          source: c.source || 'E-Billing',
+          last_synced: c.last_synced || new Date().toISOString(),
           status: c.status,
           due_date: c.due_date
         }));

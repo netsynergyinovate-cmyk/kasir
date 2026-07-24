@@ -12,6 +12,11 @@ create table if not exists customers (
   nickname text,
   address text,
   package text,
+  phone text,
+  ip_address text,
+  price bigint,
+  source text default 'kasir',
+  last_synced timestamp with time zone,
   status text default 'aktif',
   due_date int,
   created_at timestamp with time zone default timezone('utc'::text, now())
@@ -63,6 +68,11 @@ alter table company_settings add column if not exists api_monitoring_url text;
 alter table company_settings add column if not exists api_monitoring_key text;
 alter table company_settings add column if not exists api_monitoring_enabled boolean default false;
 alter table customers add column if not exists pppoe_id text;
+alter table customers add column if not exists phone text;
+alter table customers add column if not exists ip_address text;
+alter table customers add column if not exists price bigint;
+alter table customers add column if not exists source text default 'kasir';
+alter table customers add column if not exists last_synced timestamp with time zone;
 alter table transactions add column if not exists pppoe_id text;
 
 -- 5. Tabel Ping Logs (Keep-Alive Database)

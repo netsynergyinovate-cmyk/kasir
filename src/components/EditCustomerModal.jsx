@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Key } from 'lucide-react';
+import { X, Key, Phone, Network } from 'lucide-react';
 
 const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -8,6 +8,8 @@ const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
     name: '',
     nickname: '',
     address: '',
+    phone: '',
+    ip_address: '',
     package: '',
     dueDate: ''
   });
@@ -20,6 +22,8 @@ const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
         name: customer.name || '',
         nickname: customer.nickname || '',
         address: customer.address || '',
+        phone: customer.phone || '',
+        ip_address: customer.ip_address || customer.ipAddress || '',
         package: customer.package || '',
         dueDate: customer.due_date || customer.dueDate || ''
       });
@@ -68,6 +72,22 @@ const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
               <input name="nickname" value={formData.nickname} onChange={handleChange} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
+                <Phone size={12}/> No. WhatsApp / HP
+              </label>
+              <input name="phone" value={formData.phone} onChange={handleChange} type="text" placeholder="081234567890" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
+                <Network size={12}/> IP Address PPPoE
+              </label>
+              <input name="ip_address" value={formData.ip_address} onChange={handleChange} type="text" placeholder="10.20.1.101" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-mono" />
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Alamat</label>
             <textarea required name="address" value={formData.address} onChange={handleChange} rows="2" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"></textarea>

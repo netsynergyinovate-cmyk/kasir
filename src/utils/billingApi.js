@@ -277,8 +277,13 @@ export async function fetchCustomersFromEbilling(url, apiKey) {
           nickname: c.nickname || c.alias || '',
           address: c.address || c.alamat || 'Alamat E-Billing',
           package: c.package || c.package_name || c.paket || 'Paket RT RW 10Mbps',
+          phone: c.phone || c.phone_number || c.no_wa || c.wa || c.telepon || '',
+          ip_address: c.ip_address || c.ip || c.ipAddress || '',
+          price: Number(c.price || c.billing_amount || c.harga || 0),
           status: c.status || 'aktif',
-          due_date: parseInt(c.due_date || c.dueDate || c.tgl_bayar || 15)
+          due_date: parseInt(c.due_date || c.dueDate || c.tgl_bayar || 15),
+          source: 'E-Billing',
+          last_synced: new Date().toISOString()
         }));
         return {
           success: true,
@@ -300,8 +305,13 @@ export async function fetchCustomersFromEbilling(url, apiKey) {
       nickname: 'Budi',
       address: 'Jl. Merdeka No. 10, RT 01',
       package: 'Paket RT RW 10Mbps',
+      phone: '081234567890',
+      ip_address: '10.20.1.101',
+      price: 150000,
       status: 'aktif',
-      due_date: 15
+      due_date: 15,
+      source: 'E-Billing',
+      last_synced: new Date().toISOString()
     },
     {
       id: 'CUST-EB-002',
@@ -310,8 +320,13 @@ export async function fetchCustomersFromEbilling(url, apiKey) {
       nickname: 'Siti',
       address: 'Perum Asri Blok B2 No 5',
       package: 'Paket RT RW 20Mbps',
+      phone: '081987654321',
+      ip_address: '10.20.1.102',
+      price: 250000,
       status: 'aktif',
-      due_date: 10
+      due_date: 10,
+      source: 'E-Billing',
+      last_synced: new Date().toISOString()
     },
     {
       id: 'CUST-EB-003',
@@ -320,8 +335,13 @@ export async function fetchCustomersFromEbilling(url, apiKey) {
       nickname: 'Warkop',
       address: 'Jl. Sudirman No 45',
       package: 'Paket Pro 50Mbps',
+      phone: '085712349988',
+      ip_address: '10.20.1.103',
+      price: 400000,
       status: 'aktif',
-      due_date: 1
+      due_date: 1,
+      source: 'E-Billing',
+      last_synced: new Date().toISOString()
     },
     {
       id: 'CUST-EB-004',
@@ -330,8 +350,13 @@ export async function fetchCustomersFromEbilling(url, apiKey) {
       nickname: 'Ahmad',
       address: 'Jl. Mawar No. 12',
       package: 'Paket RT RW 20Mbps',
+      phone: '081399887766',
+      ip_address: '10.20.1.104',
+      price: 250000,
       status: 'aktif',
-      due_date: 20
+      due_date: 20,
+      source: 'E-Billing',
+      last_synced: new Date().toISOString()
     }
   ];
 
