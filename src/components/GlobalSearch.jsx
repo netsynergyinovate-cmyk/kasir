@@ -11,11 +11,18 @@ const GlobalSearch = ({ isOpen, onClose, customers = [], transactions = [], setR
   const q = query.trim().toLowerCase();
 
   const matchedCustomers = q
-    ? customers.filter(c =>
-        c.name.toLowerCase().includes(q) ||
-        (c.nickname && c.nickname.toLowerCase().includes(q)) ||
-        (c.address && c.address.toLowerCase().includes(q))
-      ).slice(0, 8)
+    ? customers.filter(c => {
+        const nameMatch = c.name.toLowerCase().includes(q);
+        const nickMatch = c.nickname && c.nickname.toLowerCase().includes(q);
+        const addrMatch = c.address && c.address.toLowerCase().includes(q);
+        const pppoeMatch = (c.pppoe_id || c.pppoeId || '').toLowerCase().includes(q);
+        const custIdMatch = (c.custid || c.customer_id || '').toLowerCase().includes(q);
+        const phoneMatch = (c.phone || '').toLowerCase().includes(q);
+        const ipMatch = (c.ip_address || c.ipAddress || '').toLowerCase().includes(q);
+        const macMatch = (c.mac_address || '').toLowerCase().includes(q);
+        const snMatch = (c.serial_number || '').toLowerCase().includes(q);
+        return nameMatch || nickMatch || addrMatch || pppoeMatch || custIdMatch || phoneMatch || ipMatch || macMatch || snMatch;
+      }).slice(0, 10)
     : [];
 
   const matchedTransactions = q

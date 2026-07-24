@@ -7,6 +7,8 @@
 -- 1. Tabel Pelanggan
 create table if not exists customers (
   id text primary key,
+  custid text,
+  customer_id text,
   pppoe_id text,
   name text not null,
   nickname text,
@@ -14,9 +16,13 @@ create table if not exists customers (
   package text,
   phone text,
   ip_address text,
+  mac_address text,
+  serial_number text,
+  router_name text,
   price bigint,
   source text default 'kasir',
   last_synced timestamp with time zone,
+  last_payment_date text,
   status text default 'aktif',
   due_date int,
   created_at timestamp with time zone default timezone('utc'::text, now())
@@ -74,6 +80,10 @@ alter table customers add column if not exists custid text;
 alter table customers add column if not exists customer_id text;
 alter table customers add column if not exists phone text;
 alter table customers add column if not exists ip_address text;
+alter table customers add column if not exists mac_address text;
+alter table customers add column if not exists serial_number text;
+alter table customers add column if not exists router_name text;
+alter table customers add column if not exists last_payment_date text;
 alter table customers add column if not exists price bigint;
 alter table customers add column if not exists source text default 'kasir';
 alter table customers add column if not exists last_synced timestamp with time zone;

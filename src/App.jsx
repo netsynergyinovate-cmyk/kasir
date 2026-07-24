@@ -349,6 +349,8 @@ export default function App() {
     try {
       const { error } = await supabase.from('customers').insert([{
         id: newCust.id,
+        custid: newCust.custid || newCust.customer_id || null,
+        customer_id: newCust.customer_id || newCust.custid || null,
         pppoe_id: newCust.pppoe_id || newCust.pppoeId || null,
         name: newCust.name,
         nickname: newCust.nickname,
@@ -356,9 +358,13 @@ export default function App() {
         package: newCust.package,
         phone: newCust.phone || null,
         ip_address: newCust.ip_address || newCust.ipAddress || null,
+        mac_address: newCust.mac_address || newCust.macAddress || null,
+        serial_number: newCust.serial_number || newCust.serialNumber || null,
+        router_name: newCust.router_name || newCust.routerName || null,
         price: newCust.price ? Number(newCust.price) : null,
         source: newCust.source || 'kasir',
         last_synced: newCust.last_synced || null,
+        last_payment_date: newCust.last_payment_date || null,
         due_date: newCust.dueDate || newCust.due_date,
         status: newCust.status || 'aktif'
       }]);
@@ -376,6 +382,8 @@ export default function App() {
       const { error } = await supabase
         .from('customers')
         .update({
+          custid: updatedCustomer.custid || updatedCustomer.customer_id || null,
+          customer_id: updatedCustomer.customer_id || updatedCustomer.custid || null,
           pppoe_id: updatedCustomer.pppoe_id || updatedCustomer.pppoeId || null,
           name: updatedCustomer.name,
           nickname: updatedCustomer.nickname,
@@ -383,6 +391,9 @@ export default function App() {
           package: updatedCustomer.package,
           phone: updatedCustomer.phone || null,
           ip_address: updatedCustomer.ip_address || updatedCustomer.ipAddress || null,
+          mac_address: updatedCustomer.mac_address || updatedCustomer.macAddress || null,
+          serial_number: updatedCustomer.serial_number || updatedCustomer.serialNumber || null,
+          router_name: updatedCustomer.router_name || updatedCustomer.routerName || null,
           price: updatedCustomer.price ? Number(updatedCustomer.price) : null,
           due_date: updatedCustomer.dueDate || updatedCustomer.due_date
         })
@@ -412,6 +423,8 @@ export default function App() {
       try {
         const payloadSupabase = newOrUpdated.map(c => ({
           id: c.id,
+          custid: c.custid || c.customer_id || null,
+          customer_id: c.customer_id || c.custid || null,
           pppoe_id: c.pppoe_id,
           name: c.name,
           nickname: c.nickname,
@@ -419,9 +432,13 @@ export default function App() {
           package: c.package,
           phone: c.phone || null,
           ip_address: c.ip_address || null,
+          mac_address: c.mac_address || null,
+          serial_number: c.serial_number || null,
+          router_name: c.router_name || null,
           price: c.price || null,
           source: c.source || 'E-Billing',
           last_synced: c.last_synced || new Date().toISOString(),
+          last_payment_date: c.last_payment_date || null,
           status: c.status,
           due_date: c.due_date
         }));

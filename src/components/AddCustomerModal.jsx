@@ -15,6 +15,11 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
   const [isFetchingEbilling, setIsFetchingEbilling] = useState(false);
   const [ebillingMessage, setEbillingMessage] = useState(null);
 
+  const [custid, setCustid] = useState('');
+  const [macAddress, setMacAddress] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
+  const [routerName, setRouterName] = useState('');
+
   if (!show) return null;
 
   const handleFetchEbilling = async () => {
@@ -30,14 +35,18 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
 
     if (res.success && res.customer) {
       const c = res.customer;
+      setCustid(c.custid || c.customer_id || c.id || '');
       setName(c.name || '');
       setNickname(c.nickname || '');
       setAddress(c.address || '');
       setPhone(c.phone || '');
       setIpAddress(c.ip_address || c.ipAddress || '');
+      setMacAddress(c.mac_address || c.macAddress || '');
+      setSerialNumber(c.serial_number || c.serialNumber || '');
+      setRouterName(c.router_name || c.routerName || '');
       if (c.package) setSelectedPackage(c.package);
       if (c.due_date) setDueDate(c.due_date.toString());
-      setEbillingMessage({ type: 'success', text: `Data E-Billing terhubung! Nama: ${c.name}` });
+      setEbillingMessage({ type: 'success', text: `Data E-Billing terhubung! custid: ${c.custid || c.id}, Nama: ${c.name}` });
     } else {
       setEbillingMessage({ type: 'error', text: res.message || 'Pelanggan tidak ditemukan di E-Billing.' });
     }
@@ -46,7 +55,9 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
   const handleSubmit = (e) => {
     e.preventDefault();
     const newCustomer = {
-      id: `CUST-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: custid ? custid : `CUST-${Math.floor(1000 + Math.random() * 9000)}`,
+      custid: custid || null,
+      customer_id: custid || null,
       pppoe_id: pppoeId.trim() || null,
       pppoeId: pppoeId.trim() || null,
       name,
@@ -55,6 +66,9 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
       phone,
       ip_address: ipAddress,
       ipAddress: ipAddress,
+      mac_address: macAddress,
+      serial_number: serialNumber,
+      router_name: routerName,
       package: selectedPackage,
       status: 'aktif',
       dueDate: parseInt(dueDate) || 15

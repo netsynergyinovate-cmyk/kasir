@@ -321,12 +321,12 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-100">
-                  <span className="text-[10px] font-bold text-blue-800 uppercase flex items-center gap-1"><Key size={12}/> ID PPPoE</span>
-                  <p className="font-mono font-bold text-blue-900 text-xs mt-1">{selectedDetailCust.pppoe_id || selectedDetailCust.pppoeId || '-'}</p>
+                  <span className="text-[10px] font-bold text-blue-800 uppercase flex items-center gap-1"><Key size={12}/> custid / ID E-Billing</span>
+                  <p className="font-mono font-bold text-blue-900 text-xs mt-1">{selectedDetailCust.custid || selectedDetailCust.customer_id || selectedDetailCust.id || '-'}</p>
                 </div>
-                <div className="bg-purple-50/70 p-3 rounded-xl border border-purple-100">
-                  <span className="text-[10px] font-bold text-purple-800 uppercase flex items-center gap-1"><Network size={12}/> IP Address</span>
-                  <p className="font-mono font-bold text-purple-900 text-xs mt-1">{selectedDetailCust.ip_address || selectedDetailCust.ipAddress || '-'}</p>
+                <div className="bg-indigo-50/70 p-3 rounded-xl border border-indigo-100">
+                  <span className="text-[10px] font-bold text-indigo-800 uppercase flex items-center gap-1"><Key size={12}/> ID PPPoE</span>
+                  <p className="font-mono font-bold text-indigo-900 text-xs mt-1">{selectedDetailCust.pppoe_id || selectedDetailCust.pppoeId || '-'}</p>
                 </div>
               </div>
 
@@ -337,7 +337,7 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
                 </div>
                 {selectedDetailCust.price && (
                   <div className="flex justify-between py-1 border-b border-gray-50 text-xs">
-                    <span className="text-gray-500 font-medium">Nominal Tagihan E-Billing:</span>
+                    <span className="text-gray-500 font-medium">Tagihan E-Billing:</span>
                     <span className="font-black text-emerald-600">{formatRupiah(selectedDetailCust.price)}</span>
                   </div>
                 )}
@@ -345,12 +345,42 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
                   <span className="text-gray-500 font-medium">Tanggal Bayar Bulanan:</span>
                   <span className="font-bold text-gray-800">Tgl {selectedDetailCust.due_date || selectedDetailCust.dueDate} setiap bulan</span>
                 </div>
+                {selectedDetailCust.last_payment_date && (
+                  <div className="flex justify-between py-1 border-b border-gray-50 text-xs">
+                    <span className="text-gray-500 font-medium">Bayar Terakhir:</span>
+                    <span className="font-bold text-gray-800">{selectedDetailCust.last_payment_date}</span>
+                  </div>
+                )}
                 {selectedDetailCust.phone && (
                   <div className="flex justify-between py-1 border-b border-gray-50 text-xs">
-                    <span className="text-gray-500 font-medium">No. Telepon / WA:</span>
+                    <span className="text-gray-500 font-medium">No. WA / HP:</span>
                     <a href={`https://wa.me/${selectedDetailCust.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="font-bold text-green-600 hover:underline flex items-center gap-1">
                       {selectedDetailCust.phone} <ExternalLink size={12}/>
                     </a>
+                  </div>
+                )}
+                {selectedDetailCust.ip_address && (
+                  <div className="flex justify-between py-1 border-b border-gray-50 text-xs">
+                    <span className="text-gray-500 font-medium">IP Address PPPoE:</span>
+                    <span className="font-mono font-bold text-gray-800">{selectedDetailCust.ip_address}</span>
+                  </div>
+                )}
+                {selectedDetailCust.mac_address && (
+                  <div className="flex justify-between py-1 border-b border-gray-50 text-xs">
+                    <span className="text-gray-500 font-medium">MAC Address:</span>
+                    <span className="font-mono font-bold text-gray-800">{selectedDetailCust.mac_address}</span>
+                  </div>
+                )}
+                {selectedDetailCust.serial_number && (
+                  <div className="flex justify-between py-1 border-b border-gray-50 text-xs">
+                    <span className="text-gray-500 font-medium">Serial Number (SN ONU):</span>
+                    <span className="font-mono font-bold text-gray-800">{selectedDetailCust.serial_number}</span>
+                  </div>
+                )}
+                {selectedDetailCust.router_name && (
+                  <div className="flex justify-between py-1 border-b border-gray-50 text-xs">
+                    <span className="text-gray-500 font-medium">Router / Server:</span>
+                    <span className="font-bold text-gray-800">{selectedDetailCust.router_name}</span>
                   </div>
                 )}
                 <div className="flex justify-between py-1 border-b border-gray-50 text-xs">
@@ -358,7 +388,7 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
                   <span className="font-medium text-gray-800 text-right max-w-[200px]">{selectedDetailCust.address}</span>
                 </div>
                 <div className="flex justify-between py-1 text-xs">
-                  <span className="text-gray-500 font-medium">Sumber Data:</span>
+                  <span className="text-gray-500 font-medium">Sumber Data & Sinkron:</span>
                   <span className="font-bold text-indigo-600">{selectedDetailCust.source || 'E-Billing System'}</span>
                 </div>
               </div>

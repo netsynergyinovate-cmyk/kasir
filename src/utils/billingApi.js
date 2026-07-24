@@ -286,9 +286,13 @@ export async function fetchCustomersFromEbilling(url, apiKey) {
           package: c.package || c.package_name || c.paket || 'Paket RT RW 10Mbps',
           phone: c.phone || c.phone_number || c.no_wa || c.wa || c.telepon || '',
           ip_address: c.ip_address || c.ip || c.ipAddress || '',
-          price: Number(c.price || c.billing_amount || c.harga || 0),
+          mac_address: c.mac_address || c.mac || c.macAddress || '',
+          serial_number: c.serial_number || c.sn || c.serialNumber || '',
+          router_name: c.router_name || c.mikrotik || c.server || c.router || '',
+          price: Number(c.price || c.billing_amount || c.harga || c.tagihan || 0),
           status: c.status || 'aktif',
           due_date: parseInt(c.due_date || c.dueDate || c.tgl_bayar || 15),
+          last_payment_date: c.last_payment_date || c.tgl_bayar_terakhir || '',
           source: 'E-Billing System (Real API)',
           last_synced: new Date().toISOString()
         }));
