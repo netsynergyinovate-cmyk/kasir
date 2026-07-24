@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, Printer, Key } from 'lucide-react';
+import { Wifi, Printer, Key, UserCheck, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import './Transaksi.css';
 
-const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
+const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) => {
   const [selectedCust, setSelectedCust] = useState('');
   const [activePackage, setActivePackage] = useState(null);
   const [status, setStatus] = useState('LUNAS');
@@ -11,30 +11,34 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
   const [change, setChange] = useState(0);
   const [searchCust, setSearchCust] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedCustomerData, setSelectedCustomerData] = useState(null);
 
   const filteredCustomers = customers.filter(c => {
     const term = searchCust.toLowerCase();
     const pppoe = (c.pppoe_id || c.pppoeId || '').toLowerCase();
+    const custIdStr = (c.custid || c.customer_id || c.id || '').toLowerCase();
     return (
       c.name.toLowerCase().includes(term) || 
       (c.nickname && c.nickname.toLowerCase().includes(term)) ||
       c.address.toLowerCase().includes(term) ||
-      pppoe.includes(term)
+      pppoe.includes(term) ||
+      custIdStr.includes(term)
     );
   });
 
   useEffect(() => {
-    if(selectedCust) {
+    if (selectedCust) {
       const cust = customers.find(c => c.id === selectedCust);
-      if(cust) {
+      if (cust) {
+        setSelectedCustomerData(cust);
         const pkg = packages.find(p => p.name === cust.package);
-        if(pkg) {
+        if (pkg) {
           setActivePackage(pkg);
-          // Auto fill bayar jika tunai
-          setAmountPaid(''); 
+          setAmountPaid('');
         }
       }
     } else {
+      setSelectedCustomerData(null);
       setActivePackage(null);
       setAmountPaid('');
     }
@@ -61,8 +65,10 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
 
   const handleSelectCustomer = (cust) => {
     setSelectedCust(cust.id);
+    setSelectedCustomerData(cust);
     const pppoe = cust.pppoe_id || cust.pppoeId;
-    setSearchCust(`${cust.name}${cust.nickname ? ` (${cust.nickname})` : ''}${pppoe ? ` - [${pppoe}]` : ''}`);
+    const custId = cust.custid || cust.customer_id || cust.id;
+    setSearchCust(`${cust.name} - [ID: ${custId}]${pppoe ? ` (${pppoe})` : ''}`);
     setIsSearching(false);
   };
 
@@ -70,22 +76,32 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     
-    if(!activePackage) return;
+    if (!selectedCustomerData) {
+      alert('Wajib memilih pelanggan dari daftar dropdown / auto-complete!');
+      return;
+    }
+
+    if (!activePackage) {
+      alert('Paket langganan pelanggan tidak ditemukan!');
+      return;
+    }
     
     const bayar = Number(amountPaid) || activePackage.price;
-    
     const selectedDate = formData.get('printDate') ? new Date(formData.get('printDate')) : new Date();
-    // Jika tanggal dipilih manual, pastikan jamnya menggunakan jam saat ini (real-time)
     const now = new Date();
     selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
     
-    const targetCust = customers.find(c => c.id === selectedCust);
+    const targetCust = selectedCustomerData;
+    const custIdValue = targetCust.custid || targetCust.customer_id || targetCust.pppoe_id || targetCust.pppoeId || targetCust.id;
     
     const newTransaction = {
       id: `INV-${Date.now()}`,
       date: selectedDate.toISOString(),
-      customerName: targetCust?.name || 'Pelanggan Umum',
-      pppoeId: targetCust?.pppoe_id || targetCust?.pppoeId || null,
+      custid: custIdValue,
+      customerId: custIdValue,
+      customer_id: custIdValue,
+      customerName: targetCust.name,
+      pppoeId: targetCust.pppoe_id || targetCust.pppoeId || null,
       packageName: activePackage.name,
       price: activePackage.price,
       status: status,
@@ -98,6 +114,7 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
     onComplete(newTransaction);
     e.target.reset();
     setSelectedCust('');
+    setSelectedCustomerData(null);
     setSearchCust('');
     setAmountPaid('');
     setStatus('LUNAS');
@@ -106,37 +123,84 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
   return (
     <div className="transaksi-container p-4 pb-32 animate-in fade-in duration-300">
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-6 text-white mb-6 shadow-xl shadow-blue-200">
-        <h2 className="text-xl font-bold">Transaksi Baru</h2>
-        <p className="text-blue-100 text-xs mt-1">Buat tagihan untuk pelanggan retail</p>
+        <h2 className="text-xl font-bold">Transaksi Pembayaran Retail</h2>
+        <p className="text-blue-100 text-xs mt-1">Pilih pelanggan dari database / E-Billing Runsnet untuk memproses transaksi</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Status Toggle */}
         <div className="flex bg-gray-100 p-1.5 rounded-2xl">
            <button type="button" onClick={() => setStatus('LUNAS')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${status === 'LUNAS' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>LUNAS</button>
            <button type="button" onClick={() => setStatus('KASBON')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${status === 'KASBON' ? 'bg-white text-orange-500 shadow-sm' : 'text-gray-500'}`}>KASBON</button>
         </div>
 
         <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
-          <div className="relative">
-            <label className="block text-sm font-bold text-gray-700 mb-2">Pilih Pelanggan</label>
-            <div className="relative">
-              <input 
-                type="text" 
-                required
-                placeholder="Ketik nama, ID PPPoE, atau panggilan..." 
-                value={searchCust}
+          
+          {/* Customer Selection Section (Mandatory Dropdown & Auto-complete) */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <label className="block text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                <UserCheck size={16} className="text-blue-600"/> Pilih Pelanggan (Mandatori Dropdown)
+              </label>
+              {selectedCustomerData && (
+                <span className="bg-emerald-100 text-emerald-800 font-bold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <CheckCircle2 size={12}/> Tersambung
+                </span>
+              )}
+            </div>
+
+            {/* Quick Select Dropdown */}
+            <div>
+              <select 
+                value={selectedCust}
                 onChange={(e) => {
-                  setSearchCust(e.target.value);
-                  setIsSearching(true);
-                  if(!e.target.value) setSelectedCust('');
+                  const found = customers.find(c => c.id === e.target.value);
+                  if (found) handleSelectCustomer(found);
+                  else {
+                    setSelectedCust('');
+                    setSearchCust('');
+                  }
                 }}
-                onFocus={() => setIsSearching(true)}
-                className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium"
-              />
+                className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs font-bold text-gray-800 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Dropdown: Pilih Pelanggan dari Daftar --</option>
+                {customers.map(c => {
+                  const custId = c.custid || c.customer_id || c.pppoe_id || c.id;
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name} - [custid: {custId}] ({c.package || 'Paket RT RW'})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Auto-complete Search Box */}
+            <div className="relative">
+              <div className="relative">
+                <Search size={18} className="absolute left-3.5 top-3.5 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Ketik untuk mencari (Nama, custid, ID PPPoE)..." 
+                  value={searchCust}
+                  onChange={(e) => {
+                    setSearchCust(e.target.value);
+                    setIsSearching(true);
+                    if (!e.target.value) {
+                      setSelectedCust('');
+                      setSelectedCustomerData(null);
+                    }
+                  }}
+                  onFocus={() => setIsSearching(true)}
+                  className={`w-full pl-10 pr-3.5 py-3.5 bg-gray-50 border rounded-xl outline-none text-xs font-medium transition-all ${selectedCustomerData ? 'border-emerald-500 bg-emerald-50/20 font-bold text-emerald-900' : 'border-gray-200 focus:ring-2 focus:ring-blue-500'}`}
+                />
+              </div>
+
               {isSearching && searchCust.length > 0 && (
                 <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
                   {filteredCustomers.length > 0 ? filteredCustomers.map(c => {
                     const pppoe = c.pppoe_id || c.pppoeId;
+                    const custId = c.custid || c.customer_id || c.id;
                     return (
                       <div 
                         key={c.id} 
@@ -144,14 +208,17 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
                         className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0"
                       >
                         <div className="flex justify-between items-center">
-                          <p className="font-bold text-sm text-gray-800">{c.name} {c.nickname && <span className="text-blue-600 font-medium text-[11px]">({c.nickname})</span>}</p>
-                          {pppoe && (
-                            <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 flex items-center gap-1">
-                              <Key size={10} /> {pppoe}
-                            </span>
-                          )}
+                          <p className="font-bold text-xs text-gray-800">
+                            {c.name} {c.nickname && <span className="text-blue-600 font-normal">({c.nickname})</span>}
+                          </p>
+                          <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                            custid: {custId}
+                          </span>
                         </div>
-                        <p className="text-[10px] text-gray-500">{c.address}</p>
+                        <div className="flex justify-between items-center mt-1 text-[10px] text-gray-500">
+                          <span>{c.address}</span>
+                          {pppoe && <span className="font-mono text-blue-600 font-bold">{pppoe}</span>}
+                        </div>
                       </div>
                     );
                   }) : (
@@ -160,6 +227,36 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
                 </div>
               )}
             </div>
+
+            {/* Selected Customer Info Box */}
+            {selectedCustomerData ? (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-2xl border border-blue-200 space-y-2 animate-in fade-in">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">Pelanggan Terpilih</span>
+                    <h4 className="font-extrabold text-gray-900 text-sm">{selectedCustomerData.name}</h4>
+                  </div>
+                  <span className="bg-indigo-600 text-white font-mono font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-sm">
+                    custid: {selectedCustomerData.custid || selectedCustomerData.customer_id || selectedCustomerData.pppoe_id || selectedCustomerData.id}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-blue-200/60">
+                  <div>
+                    <span className="text-gray-500 text-[10px] block">ID PPPoE:</span>
+                    <span className="font-mono font-bold text-blue-700">{selectedCustomerData.pppoe_id || selectedCustomerData.pppoeId || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 text-[10px] block">Paket Internet:</span>
+                    <span className="font-bold text-gray-800">{selectedCustomerData.package}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-medium flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0 text-amber-600" />
+                <span>Kasir <strong>wajib memilih pelanggan</strong> dari dropdown / pencarian di atas untuk menghindari kesalahan cocok data (no_match).</span>
+              </div>
+            )}
           </div>
 
           {activePackage && (
@@ -247,8 +344,12 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
           </div>
         </div>
 
-        <button type="submit" disabled={!activePackage} className="w-full bg-blue-600 text-white font-black text-lg py-4 rounded-2xl mt-4 shadow-xl shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2">
-          <Printer size={20} /> Cetak Struk (58mm)
+        <button 
+          type="submit" 
+          disabled={!selectedCustomerData || !activePackage} 
+          className="w-full bg-blue-600 text-white font-black text-lg py-4 rounded-2xl mt-4 shadow-xl shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95"
+        >
+          <Printer size={20} /> {!selectedCustomerData ? 'Pilih Pelanggan Dulu' : 'Cetak Struk (58mm)'}
         </button>
       </form>
     </div>

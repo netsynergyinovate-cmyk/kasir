@@ -163,9 +163,13 @@ export async function sendPaymentToBillingSystem(transaction, companyInfo) {
     return;
   }
 
+  const activeCustId = transaction.custid || transaction.customerId || transaction.customer_id || transaction.pppoeId || transaction.pppoe_id || transaction.pppoe || transaction.id || '';
+
   const payload = {
     event: 'payment_verified',
     transaction_id: transaction.id,
+    custid: activeCustId,
+    customer_id: activeCustId,
     date: transaction.date || new Date().toISOString(),
     customer_name: transaction.customerName || transaction.customer_name || transaction.instansiName || transaction.instansi_name || '',
     pppoe_id: transaction.pppoeId || transaction.pppoe_id || transaction.pppoe || '',
@@ -272,7 +276,9 @@ export async function fetchCustomersFromEbilling(url, apiKey) {
       if (data && (Array.isArray(data) || Array.isArray(data.customers) || Array.isArray(data.data))) {
         const rawList = Array.isArray(data) ? data : (data.customers || data.data);
         const mappedCustomers = rawList.map((c, index) => ({
-          id: c.id || `CUST-EB-${Date.now()}-${index}`,
+          id: c.id || c.custid || c.customer_id || `CUST-EB-${Date.now()}-${index}`,
+          custid: c.custid || c.customer_id || c.id || c.pppoe_id || c.pppoeId || '',
+          customer_id: c.customer_id || c.custid || c.id || c.pppoe_id || c.pppoeId || '',
           pppoe_id: c.pppoe_id || c.pppoeId || c.username || c.id_pppoe || `pppoe_${c.name ? c.name.toLowerCase().replace(/\s+/g, '_') : index}`,
           name: c.name || c.customer_name || 'Pelanggan E-Billing',
           nickname: c.nickname || c.alias || '',

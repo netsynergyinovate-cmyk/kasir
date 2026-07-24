@@ -34,6 +34,8 @@ create table if not exists packages (
 create table if not exists transactions (
   id text primary key,
   date timestamp with time zone not null,
+  custid text,
+  customer_id text,
   customer_name text,
   instansi_name text,
   package_name text,
@@ -68,12 +70,16 @@ alter table company_settings add column if not exists api_monitoring_url text;
 alter table company_settings add column if not exists api_monitoring_key text;
 alter table company_settings add column if not exists api_monitoring_enabled boolean default false;
 alter table customers add column if not exists pppoe_id text;
+alter table customers add column if not exists custid text;
+alter table customers add column if not exists customer_id text;
 alter table customers add column if not exists phone text;
 alter table customers add column if not exists ip_address text;
 alter table customers add column if not exists price bigint;
 alter table customers add column if not exists source text default 'kasir';
 alter table customers add column if not exists last_synced timestamp with time zone;
 alter table transactions add column if not exists pppoe_id text;
+alter table transactions add column if not exists custid text;
+alter table transactions add column if not exists customer_id text;
 
 -- 5. Tabel Ping Logs (Keep-Alive Database)
 create table if not exists ping_logs (

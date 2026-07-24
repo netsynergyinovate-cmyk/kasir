@@ -293,6 +293,8 @@ export default function App() {
       const { error } = await supabase.from('transactions').insert([{
         id: newTrx.id,
         date: newTrx.date,
+        custid: newTrx.custid || newTrx.customerId || newTrx.pppoeId || null,
+        customer_id: newTrx.customerId || newTrx.custid || newTrx.pppoeId || null,
         customer_name: newTrx.customerName,
         pppoe_id: newTrx.pppoeId || newTrx.pppoe_id || null,
         package_name: newTrx.packageName,
