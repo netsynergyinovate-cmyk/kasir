@@ -125,6 +125,9 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
       await printLine('PELANGGAN:');
       await boldOn();
       await printLine(transaction.customerName.toUpperCase());
+      if (transaction.pppoeId || transaction.pppoe_id) {
+        await printLine('ID PPPoE: ' + (transaction.pppoeId || transaction.pppoe_id));
+      }
       await boldOff();
       await printLine('LAYANAN: ' + transaction.packageName);
       await printLine('--------------------------------');
@@ -234,6 +237,9 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
             <div className="space-y-1 mb-4">
                <p className="font-bold text-xs uppercase border-b border-black inline-block mb-1">DATA PELANGGAN:</p>
                <p className="font-bold text-sm uppercase leading-tight">{transaction.customerName}</p>
+               {(transaction.pppoeId || transaction.pppoe_id) && (
+                 <p className="text-[10px] font-mono font-bold text-gray-700">ID PPPoE: {transaction.pppoeId || transaction.pppoe_id}</p>
+               )}
                <div className="flex justify-between text-[11px] mt-1 italic">
                  <span>LAYANAN: {transaction.packageName}</span>
                </div>

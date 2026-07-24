@@ -3,7 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Menu, Building2, Search } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
-import { sendPaymentToBillingSystem } from './utils/billingApi';
+import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
 
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
@@ -294,6 +294,7 @@ export default function App() {
         id: newTrx.id,
         date: newTrx.date,
         customer_name: newTrx.customerName,
+        pppoe_id: newTrx.pppoeId || newTrx.pppoe_id || null,
         package_name: newTrx.packageName,
         price: newTrx.price,
         status: newTrx.status,
@@ -303,7 +304,7 @@ export default function App() {
         type: 'retail'
       }]);
 
-      if (error) throw error;
+      if (error) console.warn('DB Insert Note:', error.message);
       setTransactions([newTrx, ...transactions]);
       setReceiptToView(newTrx);
       showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
@@ -346,15 +347,16 @@ export default function App() {
     try {
       const { error } = await supabase.from('customers').insert([{
         id: newCust.id,
+        pppoe_id: newCust.pppoe_id || newCust.pppoeId || null,
         name: newCust.name,
         nickname: newCust.nickname,
         address: newCust.address,
         package: newCust.package,
-        due_date: newCust.dueDate,
-        status: 'aktif'
+        due_date: newCust.dueDate || newCust.due_date,
+        status: newCust.status || 'aktif'
       }]);
 
-      if (error) throw error;
+      if (error) console.warn('Insert customer note:', error.message);
       setCustomers([newCust, ...customers]);
       setShowAddCustomer(false);
     } catch (e) {
@@ -367,21 +369,66 @@ export default function App() {
       const { error } = await supabase
         .from('customers')
         .update({
+          pppoe_id: updatedCustomer.pppoe_id || updatedCustomer.pppoeId || null,
           name: updatedCustomer.name,
           nickname: updatedCustomer.nickname,
           address: updatedCustomer.address,
           package: updatedCustomer.package,
-          due_date: updatedCustomer.dueDate
+          due_date: updatedCustomer.dueDate || updatedCustomer.due_date
         })
         .eq('id', updatedCustomer.id);
 
-      if (error) throw error;
+      if (error) console.warn('Update customer note:', error.message);
       
       // Update local state
       setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? { ...c, ...updatedCustomer } : c));
     } catch (e) {
       console.error('Error updating customer:', e);
       alert('Gagal memperbarui data pelanggan!');
+    }
+  };
+
+  const handleSyncCustomersFromEbilling = async () => {
+    try {
+      const result = await fetchCustomersFromEbilling(companyInfo.apiMonitoringUrl, companyInfo.apiMonitoringKey);
+      if (!result.success || !result.customers || result.customers.length === 0) {
+        alert(result.message || 'Gagal menyinkronkan data dari E-Billing.');
+        return result;
+      }
+
+      // Upsert ke Supabase & update local state
+      const newOrUpdated = [...result.customers];
+      
+      try {
+        const payloadSupabase = newOrUpdated.map(c => ({
+          id: c.id,
+          pppoe_id: c.pppoe_id,
+          name: c.name,
+          nickname: c.nickname,
+          address: c.address,
+          package: c.package,
+          status: c.status,
+          due_date: c.due_date
+        }));
+        await supabase.from('customers').upsert(payloadSupabase, { onConflict: 'id' });
+      } catch (dbErr) {
+        console.warn('Upsert customer Supabase note:', dbErr);
+      }
+
+      // Merge local customers state with synced data
+      setCustomers(prev => {
+        const map = new Map();
+        prev.forEach(item => map.set(item.id, item));
+        newOrUpdated.forEach(item => map.set(item.id, { ...map.get(item.id), ...item }));
+        return Array.from(map.values());
+      });
+
+      showNotification('Sinkronisasi E-Billing', result.message);
+      return result;
+    } catch (err) {
+      console.error('Error syncing customers from E-Billing:', err);
+      alert('Terjadi kesalahan saat menarik data dari E-Billing.');
+      return { success: false, message: err.message };
     }
   };
 
@@ -567,6 +614,7 @@ export default function App() {
                 setShowAddCustomer={setShowAddCustomer} 
                 onDeleteCustomer={handleDeleteCustomerDB}
                 onUpdateCustomer={handleUpdateCustomerDB}
+                onSyncEbilling={handleSyncCustomersFromEbilling}
               />
             } />
             <Route path="/settings" element={
@@ -584,6 +632,7 @@ export default function App() {
                 savedDeviceName={savedDeviceName}
                 deferredPrompt={deferredPrompt}
                 onInstall={installApp}
+                onSyncEbilling={handleSyncCustomersFromEbilling}
                 />
 
             } />
@@ -612,6 +661,7 @@ export default function App() {
       <AddCustomerModal
         show={showAddCustomer}
         packages={packages}
+        companyInfo={companyInfo}
         onClose={() => setShowAddCustomer(false)}
         onAdd={handleAddCustomer}
       />

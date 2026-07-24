@@ -7,6 +7,7 @@
 -- 1. Tabel Pelanggan
 create table if not exists customers (
   id text primary key,
+  pppoe_id text,
   name text not null,
   nickname text,
   address text,
@@ -61,13 +62,29 @@ create table if not exists company_settings (
 alter table company_settings add column if not exists api_monitoring_url text;
 alter table company_settings add column if not exists api_monitoring_key text;
 alter table company_settings add column if not exists api_monitoring_enabled boolean default false;
+alter table customers add column if not exists pppoe_id text;
+alter table transactions add column if not exists pppoe_id text;
 
--- 5. MATIKAN RLS (Agar aplikasi bisa baca/tulis tanpa login Supabase)
+-- 5. Tabel Ping Logs (Keep-Alive Database)
+create table if not exists ping_logs (
+  id bigint primary key generated always as identity,
+  pinged_at timestamp with time zone default timezone('utc'::text, now()),
+  source text default 'unknown'
+);
+
+-- (Opsional) Otomatisasi Ping Langsung dari Dalam PostgreSQL Supabase (pg_cron)
+-- Un-comment 3 baris di bawah jika ingin PostgreSQL Supabase melakukan ping internal setiap jam 00:00 UTC:
+-- create extension if not exists pg_cron;
+-- select cron.schedule('auto-keepalive-24h', '0 0 * * *', $$ insert into ping_logs (source) values ('pg_cron_internal'); $$);
+
+
+-- 6. MATIKAN RLS (Agar aplikasi bisa baca/tulis tanpa login Supabase)
 -- SANGAT DISARANKAN aktifkan kembali jika sudah menggunakan sistem Login/Auth.
 alter table customers disable row level security;
 alter table packages disable row level security;
 alter table transactions disable row level security;
 alter table company_settings disable row level security;
+alter table ping_logs disable row level security;
 
 -- 6. SEED DATA AWAL (Pengaturan & Contoh) --
 

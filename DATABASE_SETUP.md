@@ -60,6 +60,12 @@ alter table company_settings add column if not exists api_monitoring_url text;
 alter table company_settings add column if not exists api_monitoring_key text;
 alter table company_settings add column if not exists api_monitoring_enabled boolean default false;
 
+create table if not exists ping_logs (
+  id bigint primary key generated always as identity,
+  pinged_at timestamp with time zone default timezone('utc'::text, now()),
+  source text default 'unknown'
+);
+
 -- ======================================================
 -- 2. KONFIGURASI KEAMANAN RLS (ROW LEVEL SECURITY)
 -- ======================================================
@@ -69,12 +75,14 @@ alter table customers enable row level security;
 alter table packages enable row level security;
 alter table transactions enable row level security;
 alter table company_settings enable row level security;
+alter table ping_logs enable row level security;
 
 -- Hapus kebijakan lama jika sebelumnya pernah dibuat agar tidak error
 drop policy if exists "Enable public access for customers" on customers;
 drop policy if exists "Enable public access for packages" on packages;
 drop policy if exists "Enable public access for transactions" on transactions;
 drop policy if exists "Enable public access for company_settings" on company_settings;
+drop policy if exists "Enable public access for ping_logs" on ping_logs;
 
 -- Buat Kebijakan Publik (Membuka akses untuk Anon Key dari Vercel)
 create policy "Enable public access for customers" 
@@ -88,6 +96,10 @@ on transactions for all using (true) with check (true);
 
 create policy "Enable public access for company_settings" 
 on company_settings for all using (true) with check (true);
+
+create policy "Enable public access for ping_logs" 
+on ping_logs for all using (true) with check (true);
+
 
 
 -- ======================================================

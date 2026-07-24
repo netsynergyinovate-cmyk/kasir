@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Key } from 'lucide-react';
 
 const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
   const [formData, setFormData] = useState({
     id: '',
+    pppoe_id: '',
     name: '',
     nickname: '',
     address: '',
@@ -15,6 +16,7 @@ const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
     if (customer) {
       setFormData({
         id: customer.id,
+        pppoe_id: customer.pppoe_id || customer.pppoeId || '',
         name: customer.name || '',
         nickname: customer.nickname || '',
         address: customer.address || '',
@@ -37,19 +39,34 @@ const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="bg-blue-600 p-4 text-white flex justify-between items-center">
-          <h2 className="font-bold text-lg">Edit Pelanggan</h2>
+      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        <div className="bg-blue-600 p-4 text-white flex justify-between items-center shrink-0">
+          <h2 className="font-bold text-lg">Edit Data Pelanggan</h2>
           <button onClick={onClose} className="p-1 hover:bg-blue-700 rounded-lg transition-colors"><X size={20}/></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nama Lengkap</label>
-            <input required name="name" value={formData.name} onChange={handleChange} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" />
+            <label className="block text-xs font-bold text-blue-900 uppercase mb-1 flex items-center gap-1">
+              <Key size={14} className="text-blue-600"/> ID PPPoE (E-Billing)
+            </label>
+            <input 
+              name="pppoe_id" 
+              value={formData.pppoe_id} 
+              onChange={handleChange} 
+              type="text" 
+              placeholder="Contoh: budi_rt01@net"
+              className="w-full p-3 bg-blue-50/60 border border-blue-200 rounded-xl outline-none text-xs font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500" 
+            />
           </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nama Panggilan</label>
-            <input name="nickname" value={formData.nickname} onChange={handleChange} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nama Lengkap</label>
+              <input required name="name" value={formData.name} onChange={handleChange} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nama Panggilan</label>
+              <input name="nickname" value={formData.nickname} onChange={handleChange} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Alamat</label>
@@ -70,7 +87,7 @@ const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
               <input required name="dueDate" value={formData.dueDate} onChange={handleChange} type="number" min="1" max="31" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium" />
             </div>
           </div>
-          <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl mt-6 shadow-md hover:bg-blue-700 active:scale-95 transition-all">
+          <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl mt-4 shadow-md hover:bg-blue-700 active:scale-95 transition-all">
             Simpan Perubahan
           </button>
         </form>

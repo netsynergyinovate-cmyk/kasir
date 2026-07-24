@@ -12,13 +12,15 @@ import { testBillingSystemConnection, getEbillingLogs, clearEbillingLogs } from 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
   btDevice, isConnecting, connectBluetooth, disconnectBluetooth, reconnectBluetooth, savedDeviceName,
-  deferredPrompt, onInstall
+  deferredPrompt, onInstall, onSyncEbilling
 }) => {
   const [newPkgName, setNewPkgName] = useState('');
   const [newPkgPrice, setNewPkgPrice] = useState('');
   const [localCompany, setLocalCompany] = useState(companyInfo);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isTestingApi, setIsTestingApi] = useState(false);
+  const [isSyncingCust, setIsSyncingCust] = useState(false);
+  const [syncCustResult, setSyncCustResult] = useState(null);
   const [testApiResult, setTestApiResult] = useState(null);
   const [ebillingLogs, setEbillingLogs] = useState([]);
   const [livePingStatus, setLivePingStatus] = useState(null);
@@ -425,6 +427,33 @@ const Settings = ({
                   </>
                 )}
               </button>
+
+              {onSyncEbilling && (
+                <button 
+                  type="button"
+                  onClick={async () => {
+                    setIsSyncingCust(true);
+                    setSyncCustResult(null);
+                    const res = await onSyncEbilling();
+                    setSyncCustResult(res);
+                    setIsSyncingCust(false);
+                  }} 
+                  disabled={isSyncingCust}
+                  className="w-full py-3 px-4 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 border border-indigo-100"
+                >
+                  <RefreshCw size={16} className={isSyncingCust ? "animate-spin text-indigo-600" : "text-indigo-600"} />
+                  {isSyncingCust ? 'Sedang Menarik Pelanggan E-Billing...' : 'Tarik Data Pelanggan dari E-Billing'}
+                </button>
+              )}
+
+              {syncCustResult && (
+                <div className={`p-3.5 rounded-xl text-xs font-medium space-y-1.5 ${syncCustResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                  <div className="flex items-center gap-2 font-bold">
+                    {syncCustResult.success ? <CheckCircle2 size={16} className="shrink-0 text-emerald-600" /> : <XCircle size={16} className="shrink-0 text-red-600" />}
+                    <span>{syncCustResult.message}</span>
+                  </div>
+                </div>
+              )}
 
               {testApiResult && (
                 <div className={`p-3.5 rounded-xl text-xs font-medium space-y-1.5 ${testApiResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>

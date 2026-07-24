@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, Printer } from 'lucide-react';
+import { Wifi, Printer, Key } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import './Transaksi.css';
 
@@ -12,12 +12,17 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
   const [searchCust, setSearchCust] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchCust.toLowerCase()) || 
-    (c.nickname && c.nickname.toLowerCase().includes(searchCust.toLowerCase())) ||
-    c.address.toLowerCase().includes(searchCust.toLowerCase())
-  );
-  
+  const filteredCustomers = customers.filter(c => {
+    const term = searchCust.toLowerCase();
+    const pppoe = (c.pppoe_id || c.pppoeId || '').toLowerCase();
+    return (
+      c.name.toLowerCase().includes(term) || 
+      (c.nickname && c.nickname.toLowerCase().includes(term)) ||
+      c.address.toLowerCase().includes(term) ||
+      pppoe.includes(term)
+    );
+  });
+
   useEffect(() => {
     if(selectedCust) {
       const cust = customers.find(c => c.id === selectedCust);
@@ -56,7 +61,8 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
 
   const handleSelectCustomer = (cust) => {
     setSelectedCust(cust.id);
-    setSearchCust(`${cust.name}${cust.nickname ? ` (${cust.nickname})` : ''}`);
+    const pppoe = cust.pppoe_id || cust.pppoeId;
+    setSearchCust(`${cust.name}${cust.nickname ? ` (${cust.nickname})` : ''}${pppoe ? ` - [${pppoe}]` : ''}`);
     setIsSearching(false);
   };
 
@@ -70,7 +76,6 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
     
     const selectedDate = formData.get('printDate') ? new Date(formData.get('printDate')) : new Date();
     // Jika tanggal dipilih manual, pastikan jamnya menggunakan jam saat ini (real-time)
-    // Agar tidak default ke 00:00 UTC (07:00 WIB)
     const now = new Date();
     selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
     
@@ -80,6 +85,7 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
       id: `INV-${Date.now()}`,
       date: selectedDate.toISOString(),
       customerName: targetCust?.name || 'Pelanggan Umum',
+      pppoeId: targetCust?.pppoe_id || targetCust?.pppoeId || null,
       packageName: activePackage.name,
       price: activePackage.price,
       status: status,
@@ -117,7 +123,7 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
               <input 
                 type="text" 
                 required
-                placeholder="Ketik nama atau nama panggilan..." 
+                placeholder="Ketik nama, ID PPPoE, atau panggilan..." 
                 value={searchCust}
                 onChange={(e) => {
                   setSearchCust(e.target.value);
@@ -129,16 +135,26 @@ const Transaksi = ({ customers, packages, companyInfo, onComplete }) => {
               />
               {isSearching && searchCust.length > 0 && (
                 <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
-                  {filteredCustomers.length > 0 ? filteredCustomers.map(c => (
-                    <div 
-                      key={c.id} 
-                      onClick={() => handleSelectCustomer(c)}
-                      className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0"
-                    >
-                      <p className="font-bold text-sm text-gray-800">{c.name} {c.nickname && <span className="text-blue-600 font-medium text-[11px]">({c.nickname})</span>}</p>
-                      <p className="text-[10px] text-gray-500">{c.address}</p>
-                    </div>
-                  )) : (
+                  {filteredCustomers.length > 0 ? filteredCustomers.map(c => {
+                    const pppoe = c.pppoe_id || c.pppoeId;
+                    return (
+                      <div 
+                        key={c.id} 
+                        onClick={() => handleSelectCustomer(c)}
+                        className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0"
+                      >
+                        <div className="flex justify-between items-center">
+                          <p className="font-bold text-sm text-gray-800">{c.name} {c.nickname && <span className="text-blue-600 font-medium text-[11px]">({c.nickname})</span>}</p>
+                          {pppoe && (
+                            <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 flex items-center gap-1">
+                              <Key size={10} /> {pppoe}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-500">{c.address}</p>
+                      </div>
+                    );
+                  }) : (
                     <div className="p-4 text-center text-xs text-gray-400 italic">Pelanggan tidak ditemukan...</div>
                   )}
                 </div>

@@ -1,0 +1,26 @@
+name: Supabase Database Keep-Alive 24h
+
+on:
+  schedule:
+    # Otomatis berjalan 1x24 jam sekali (setiap jam 00:00 UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Memungkinkan pengujian manual melalui tombol Run Workflow di GitHub Actions
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Supabase Ping Script
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://yogrqoqwbuztmlioakjg.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvZ3Jxb3F3YnV6dG1saW9ha2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDk5MzQsImV4cCI6MjA5NzEyNTkzNH0.8HDejJbDlBB8LxBDG73b730crZ6DO2IZ6wHAa-aD6sU' }}
+        run: node scripts/ping-supabase.js
