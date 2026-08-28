@@ -105,13 +105,35 @@ export default function App() {
   };
 
   useEffect(() => {
+    // 1. Pulihkan sesi pengguna dari penyimpanan lokal jika tersedia
+    const savedUser = localStorage.getItem('kasir_user');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed) {
+          setSession({ user: parsed });
+        }
+      } catch (e) {
+        console.error('Error parsing kasir_user from storage:', e);
+      }
+    }
+
+    // 2. Hubungkan listener Supabase Auth
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+      if (session) {
+        setSession(session);
+        localStorage.setItem('kasir_user', JSON.stringify(session.user));
+      }
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setSession(session);
+        localStorage.setItem('kasir_user', JSON.stringify(session.user));
+      }
     });
+
+    return () => subscription?.unsubscribe();
   }, []);
 
   const handlePinSetup = async (hashedPin) => {
@@ -573,7 +595,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <Login />;
+    return <Login onLoginSuccess={(userSession) => setSession(userSession)} />;
   }
 
   // If session exists, data is loaded, but no DB Pin exists and not bypassed -> Setup mode
@@ -627,6 +649,7 @@ export default function App() {
           isOpen={isSidebarOpen} 
           setIsOpen={setIsSidebarOpen} 
           companyInfo={companyInfo} 
+          session={session}
         />
 
         <main className="flex-1 overflow-y-auto relative">
@@ -661,6 +684,7 @@ export default function App() {
             } />
             <Route path="/settings" element={
               <Settings 
+                session={session}
                 packages={packages} 
                 onAddPackage={handleAddPackageDB}
                 onDeletePackage={handleDeletePackageDB}
@@ -676,7 +700,6 @@ export default function App() {
                 onInstall={installApp}
                 onSyncEbilling={handleSyncCustomersFromEbilling}
                 />
-
             } />
             <Route path="/pos" element={
               <Transaksi 

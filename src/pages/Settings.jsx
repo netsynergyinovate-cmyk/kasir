@@ -12,7 +12,7 @@ import { testBillingSystemConnection, getEbillingLogs, clearEbillingLogs } from 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
   btDevice, isConnecting, connectBluetooth, disconnectBluetooth, reconnectBluetooth, savedDeviceName,
-  deferredPrompt, onInstall, onSyncEbilling
+  deferredPrompt, onInstall, onSyncEbilling, session
 }) => {
   const [newPkgName, setNewPkgName] = useState('');
   const [newPkgPrice, setNewPkgPrice] = useState('');
@@ -24,6 +24,9 @@ const Settings = ({
   const [testApiResult, setTestApiResult] = useState(null);
   const [ebillingLogs, setEbillingLogs] = useState([]);
   const [livePingStatus, setLivePingStatus] = useState(null);
+
+  const currentUser = session?.user;
+  const isSuper = currentUser?.email?.includes('superadmin') || currentUser?.user_metadata?.role === 'superadmin';
 
   // Sync local state & load API Key guarantee from localStorage
   useEffect(() => {
@@ -70,9 +73,14 @@ const Settings = ({
   };
 
   const handleLogout = async () => {
-    if (window.confirm('Yakin ingin keluar dari aplikasi? Anda harus memasukkan PIN kembali saat masuk.')) {
+    if (window.confirm('Yakin ingin keluar dari aplikasi? Anda harus login kembali saat masuk.')) {
       localStorage.removeItem('device_unlocked');
-      await supabase.auth.signOut();
+      localStorage.removeItem('kasir_user');
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('Signout note:', e);
+      }
       window.location.reload();
     }
   };
@@ -172,21 +180,47 @@ const Settings = ({
 
         {/* Section: Profil Admin */}
         <div>
-          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Profil Admin</h2>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Profil & Akun Pengguna</h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+            
+            {/* Akun Yang Sedang Login */}
+            <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${isSuper ? 'bg-gradient-to-tr from-purple-600 to-indigo-600 shadow-sm' : 'bg-blue-600 shadow-sm'}`}>
+                  {isSuper ? <Crown size={18} /> : <ShieldCheck size={18} />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-gray-800">{isSuper ? 'Super Administrator' : (currentUser?.user_metadata?.name || 'Admin Kasir')}</span>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isSuper ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {isSuper ? 'Super Admin' : 'Admin'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 font-mono mt-0.5">{currentUser?.email || 'admin@kasir.com'}</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={handleLogout} 
+                className="text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Ganti Akun
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4 pt-1">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
                 <User size={24} />
               </div>
               <div className="flex-1">
-                <label className="block text-[10px] font-bold text-gray-400 uppercase">Nama Admin</label>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase">Nama Kasir di Struk</label>
                 <input 
                   name="adminName" 
                   value={localCompany.adminName || ''} 
                   onChange={handleLocalChange} 
                   onBlur={handleBlur} 
                   type="text" 
-                  placeholder="Nama Admin"
+                  placeholder="Nama Admin / Kasir"
                   className="font-bold text-gray-800 bg-transparent border-none p-0 w-full outline-none text-base"
                 />
               </div>

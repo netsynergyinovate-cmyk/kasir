@@ -148,7 +148,12 @@ const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup, onSkip }) => {
           <button 
             onClick={async () => {
               localStorage.removeItem('device_unlocked');
-              await supabase.auth.signOut();
+              localStorage.removeItem('kasir_user');
+              try {
+                await supabase.auth.signOut();
+              } catch (e) {
+                console.warn('Signout note:', e);
+              }
               window.location.reload();
             }} 
             className="mt-12 text-xs font-bold text-gray-400 hover:text-red-500 transition-colors"
