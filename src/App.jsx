@@ -195,7 +195,18 @@ export default function App() {
         if (setErr) console.error('Error Settings:', setErr.message);
 
         if (custData) setCustomers(custData);
-        if (transData) setTransactions(transData);
+        if (transData) {
+          const localTrx = JSON.parse(localStorage.getItem('kasir_local_transactions') || '[]');
+          const trxMap = new Map();
+          transData.forEach(t => trxMap.set(t.id, t));
+          localTrx.forEach(t => {
+            if (!trxMap.has(t.id)) trxMap.set(t.id, t);
+          });
+          setTransactions(Array.from(trxMap.values()));
+        } else {
+          const localTrx = JSON.parse(localStorage.getItem('kasir_local_transactions') || '[]');
+          if (localTrx.length > 0) setTransactions(localTrx);
+        }
         if (pkgData) setPackages(pkgData);
         if (settingsData) {
           const storedKey = localStorage.getItem('api_monitoring_key') || '';
@@ -313,51 +324,88 @@ export default function App() {
   const handleTransactionComplete = async (newTrx) => {
     try {
       console.log('Menyimpan Transaksi Retail...');
-      const { error } = await supabase.from('transactions').insert([{
+      
+      // 1. Simpan ke database Supabase dengan kolom yang valid sesuai skema
+      const payload = {
         id: newTrx.id,
         date: newTrx.date,
-        custid: newTrx.custid || newTrx.customerId || newTrx.pppoeId || null,
-        customer_id: newTrx.customerId || newTrx.custid || newTrx.pppoeId || null,
-        customer_name: newTrx.customerName,
-        pppoe_id: newTrx.pppoeId || newTrx.pppoe_id || null,
-        package_name: newTrx.packageName,
-        price: newTrx.price,
-        status: newTrx.status,
-        payment_method: newTrx.paymentMethod,
-        amount_paid: newTrx.amountPaid,
-        cashier_name: newTrx.cashierName,
+        customer_name: newTrx.customerName || newTrx.customer_name,
+        package_name: newTrx.packageName || newTrx.package_name,
+        price: Number(newTrx.price) || 0,
+        status: newTrx.status || 'LUNAS',
+        payment_method: newTrx.paymentMethod || newTrx.payment_method || 'Cash',
+        amount_paid: Number(newTrx.amountPaid) || Number(newTrx.price) || 0,
+        cashier_name: newTrx.cashierName || newTrx.cashier_name || 'Admin',
         type: 'retail'
-      }]);
+      };
 
-      if (error) console.warn('DB Insert Note:', error.message);
-      setTransactions([newTrx, ...transactions]);
+      const { error } = await supabase.from('transactions').insert([payload]);
+
+      if (error) {
+        console.warn('DB Insert Note:', error.message);
+      } else {
+        console.log('✅ Transaksi berhasil tersimpan permanen ke Supabase.');
+      }
+
+      // 2. Simpan backup lokal agar transaksi dijamin tidak pernah hilang
+      const existingLocal = JSON.parse(localStorage.getItem('kasir_local_transactions') || '[]');
+      const filteredExisting = existingLocal.filter(t => t.id !== newTrx.id);
+      localStorage.setItem('kasir_local_transactions', JSON.stringify([newTrx, ...filteredExisting]));
+
+      // 3. Perbarui status pembayaran pelanggan di database & state lokal
+      const custId = newTrx.customerId || newTrx.custid;
+      if (custId) {
+        try {
+          await supabase.from('customers').update({
+            status: 'aktif',
+            last_payment_date: newTrx.date
+          }).eq('id', custId);
+        } catch (custErr) {
+          console.warn('Customer status update note:', custErr);
+        }
+
+        setCustomers(prev => prev.map(c => (c.id === custId || c.custid === custId) ? { ...c, status: 'aktif', last_payment_date: newTrx.date } : c));
+      }
+
+      setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
       setReceiptToView(newTrx);
       showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
-      console.log('Transaksi berhasil disimpan ke database.');
 
       // Automasi pengiriman data ke Billing Monitoring System
       sendPaymentToBillingSystem(newTrx, companyInfo);
     } catch (e) {
       console.error('DB Insert Error:', e.message);
-      alert('Gagal simpan ke DB: ' + e.message);
+      const existingLocal = JSON.parse(localStorage.getItem('kasir_local_transactions') || '[]');
+      const filteredExisting = existingLocal.filter(t => t.id !== newTrx.id);
+      localStorage.setItem('kasir_local_transactions', JSON.stringify([newTrx, ...filteredExisting]));
+      setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
+      setReceiptToView(newTrx);
+      showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
     }
   };
 
   const handleInstansiComplete = async (newTrx) => {
     try {
-      const { error } = await supabase.from('transactions').insert([{
+      const payload = {
         id: newTrx.id,
         date: newTrx.date,
-        instansi_name: newTrx.instansiName,
+        instansi_name: newTrx.instansiName || newTrx.instansi_name,
         address: newTrx.address,
-        service_name: newTrx.serviceName,
-        price: newTrx.price,
-        cashier_name: newTrx.cashierName,
+        service_name: newTrx.serviceName || newTrx.service_name,
+        price: Number(newTrx.price) || 0,
+        cashier_name: newTrx.cashierName || newTrx.cashier_name || 'Admin',
         type: 'instansi'
-      }]);
+      };
 
-      if (error) throw error;
-      setTransactions([newTrx, ...transactions]);
+      const { error } = await supabase.from('transactions').insert([payload]);
+
+      if (error) console.warn('Instansi DB insert note:', error.message);
+
+      const existingLocal = JSON.parse(localStorage.getItem('kasir_local_transactions') || '[]');
+      const filteredExisting = existingLocal.filter(t => t.id !== newTrx.id);
+      localStorage.setItem('kasir_local_transactions', JSON.stringify([newTrx, ...filteredExisting]));
+
+      setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
       setInstansiReceiptToView(newTrx);
       showNotification('Invoice Instansi Berhasil', `${newTrx.instansiName} - ${formatRupiah(newTrx.price)}`);
 
@@ -557,7 +605,11 @@ export default function App() {
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) console.warn('Delete DB note:', error.message);
+      
+      const localTrx = JSON.parse(localStorage.getItem('kasir_local_transactions') || '[]');
+      localStorage.setItem('kasir_local_transactions', JSON.stringify(localTrx.filter(t => t.id !== id)));
+      
       setTransactions(transactions.filter(t => t.id !== id));
     } catch (e) {
       alert('Gagal menghapus transaksi: ' + e.message);

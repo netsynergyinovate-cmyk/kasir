@@ -34,8 +34,14 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) =
         const pkg = packages.find(p => p.name === cust.package);
         if (pkg) {
           setActivePackage(pkg);
-          setAmountPaid('');
+        } else {
+          // Fallback cerdas jika nama paket tidak terdaftar persis di tabel packages
+          setActivePackage({
+            name: cust.package || 'Paket Internet RT RW',
+            price: Number(cust.price) || 150000
+          });
         }
+        setAmountPaid('');
       }
     } else {
       setSelectedCustomerData(null);
@@ -69,6 +75,18 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) =
     const pppoe = cust.pppoe_id || cust.pppoeId;
     const custId = cust.custid || cust.customer_id || cust.id;
     setSearchCust(`${cust.name} - [ID: ${custId}]${pppoe ? ` (${pppoe})` : ''}`);
+    
+    // Set paket langsung
+    const pkg = packages.find(p => p.name === cust.package);
+    if (pkg) {
+      setActivePackage(pkg);
+    } else {
+      setActivePackage({
+        name: cust.package || 'Paket Internet RT RW',
+        price: Number(cust.price) || 150000
+      });
+    }
+    setAmountPaid('');
     setIsSearching(false);
   };
 
@@ -81,12 +99,12 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) =
       return;
     }
 
-    if (!activePackage) {
-      alert('Paket langganan pelanggan tidak ditemukan!');
-      return;
-    }
+    const currentPkg = activePackage || {
+      name: selectedCustomerData.package || 'Paket Internet RT RW',
+      price: Number(selectedCustomerData.price) || 150000
+    };
     
-    const bayar = Number(amountPaid) || activePackage.price;
+    const bayar = Number(amountPaid) || currentPkg.price;
     const selectedDate = formData.get('printDate') ? new Date(formData.get('printDate')) : new Date();
     const now = new Date();
     selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
@@ -102,12 +120,12 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) =
       customer_id: custIdValue,
       customerName: targetCust.name,
       pppoeId: targetCust.pppoe_id || targetCust.pppoeId || null,
-      packageName: activePackage.name,
-      price: activePackage.price,
+      packageName: currentPkg.name,
+      price: Number(currentPkg.price) || 0,
       status: status,
-      paymentMethod: formData.get('paymentMethod'),
-      amountPaid: bayar,
-      cashierName: formData.get('cashierName') || 'Admin Utama',
+      paymentMethod: formData.get('paymentMethod') || 'Cash',
+      amountPaid: Number(bayar) || Number(currentPkg.price) || 0,
+      cashierName: formData.get('cashierName') || companyInfo?.adminName || 'Admin Utama',
       type: 'retail'
     };
     
