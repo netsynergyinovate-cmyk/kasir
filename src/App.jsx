@@ -775,8 +775,9 @@ export default function App() {
             <Route path="/pos" element={
               <Transaksi 
                 customers={customers} 
-                packages={packages}
+                packages={packages} 
                 companyInfo={companyInfo}
+                session={session}
                 onComplete={handleTransactionComplete} 
               />
             } />

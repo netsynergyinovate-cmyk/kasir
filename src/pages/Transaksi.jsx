@@ -45,7 +45,8 @@ const resolvePackageAndPrice = (cust, packagesList = []) => {
   return { name: rawPkg || 'NET HOME 10 Mbps', price: 200000 };
 };
 
-const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) => {
+const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComplete }) => {
+  const defaultCashierName = session?.user?.user_metadata?.name || session?.user?.name || (session?.user?.email?.includes('superadmin') ? 'Super Admin' : (session?.user?.email?.includes('admin') ? 'Admin Kasir' : (companyInfo?.adminName || 'Admin Kasir')));
   const [selectedCust, setSelectedCust] = useState('');
   const [activePackage, setActivePackage] = useState(null);
   const [status, setStatus] = useState('LUNAS');
@@ -347,8 +348,8 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) =
               <input name="printDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs" />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Nama Penerima/Admin</label>
-              <input name="cashierName" type="text" defaultValue={companyInfo.adminName || ''} placeholder="Nama Admin" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs" />
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Nama Penerima/Kasir</label>
+              <input name="cashierName" type="text" defaultValue={defaultCashierName} placeholder="Nama Admin / Kasir" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs font-bold text-gray-800" />
             </div>
           </div>
 
