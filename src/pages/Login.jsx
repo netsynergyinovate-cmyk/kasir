@@ -76,6 +76,8 @@ const Login = ({ onLoginSuccess }) => {
       // 2. Jika Supabase Auth berhasil
       if (authSuccess && userSession) {
         localStorage.setItem('kasir_user', JSON.stringify(userSession.user));
+        localStorage.setItem('device_unlocked', 'true');
+        localStorage.setItem('bypass_pin', 'true');
         if (onLoginSuccess) onLoginSuccess(userSession);
         return;
       }
@@ -102,6 +104,8 @@ const Login = ({ onLoginSuccess }) => {
         };
         const sessionObj = { user: adminUser, access_token: 'local-admin-token' };
         localStorage.setItem('kasir_user', JSON.stringify(adminUser));
+        localStorage.setItem('device_unlocked', 'true');
+        localStorage.setItem('bypass_pin', 'true');
         if (onLoginSuccess) onLoginSuccess(sessionObj);
         return;
       }
@@ -119,6 +123,8 @@ const Login = ({ onLoginSuccess }) => {
         };
         const sessionObj = { user: superUser, access_token: 'local-superadmin-token' };
         localStorage.setItem('kasir_user', JSON.stringify(superUser));
+        localStorage.setItem('device_unlocked', 'true');
+        localStorage.setItem('bypass_pin', 'true');
         if (onLoginSuccess) onLoginSuccess(sessionObj);
         return;
       }
@@ -142,6 +148,8 @@ const Login = ({ onLoginSuccess }) => {
         };
         const sessionObj = { user: customUser, access_token: 'local-custom-token' };
         localStorage.setItem('kasir_user', JSON.stringify(customUser));
+        localStorage.setItem('device_unlocked', 'true');
+        localStorage.setItem('bypass_pin', 'true');
         if (onLoginSuccess) onLoginSuccess(sessionObj);
         return;
       }
@@ -220,6 +228,8 @@ const Login = ({ onLoginSuccess }) => {
           }
         };
         localStorage.setItem('kasir_user', JSON.stringify(sessionObj.user));
+        localStorage.setItem('device_unlocked', 'true');
+        localStorage.setItem('bypass_pin', 'true');
         if (onLoginSuccess) onLoginSuccess(sessionObj);
       }, 1000);
 
