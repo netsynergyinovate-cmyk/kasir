@@ -3,6 +3,48 @@ import { Wifi, Printer, Key, UserCheck, AlertCircle, CheckCircle2, Search } from
 import { formatRupiah } from '../utils/format';
 import './Transaksi.css';
 
+const resolvePackageAndPrice = (cust, packagesList = []) => {
+  if (!cust) return null;
+  const rawPkg = cust.package || '';
+  const cleanPkg = rawPkg.toLowerCase().trim();
+  
+  // 1. Jika pelanggan memiliki harga khusus yang tersimpan
+  if (cust.price && Number(cust.price) > 0) {
+    return {
+      name: rawPkg || 'NET HOME 10 Mbps',
+      price: Number(cust.price)
+    };
+  }
+
+  // 2. Cocokkan dengan daftar master paket
+  if (cleanPkg && packagesList && packagesList.length > 0) {
+    const exact = packagesList.find(p => p.name.toLowerCase().trim() === cleanPkg);
+    if (exact) return { name: exact.name, price: Number(exact.price) };
+
+    const fuzzy = packagesList.find(p => 
+      p.name.toLowerCase().includes(cleanPkg) || cleanPkg.includes(p.name.toLowerCase())
+    );
+    if (fuzzy) return { name: fuzzy.name, price: Number(fuzzy.price) };
+  }
+
+  // 3. Aturan Standar Berdasarkan Mbps (10 Mbps = 200rb, 15 Mbps = 250rb, 20 Mbps = 250rb)
+  if (cleanPkg.includes('15') || cleanPkg.includes('15 mbps') || cleanPkg.includes('15mbps')) {
+    return { name: rawPkg || 'NET HOME 15 Mbps', price: 250000 };
+  }
+  if (cleanPkg.includes('20') || cleanPkg.includes('20 mbps') || cleanPkg.includes('20mbps')) {
+    return { name: rawPkg || 'NET HOME 20 Mbps', price: 250000 };
+  }
+  if (cleanPkg.includes('10') || cleanPkg.includes('10 mbps') || cleanPkg.includes('10mbps')) {
+    return { name: rawPkg || 'NET HOME 10 Mbps', price: 200000 };
+  }
+  if (cleanPkg.includes('50') || cleanPkg.includes('50 mbps') || cleanPkg.includes('50mbps')) {
+    return { name: rawPkg || 'NET HOME 50 Mbps', price: 400000 };
+  }
+
+  // 4. Default standar 10 Mbps = Rp 200.000
+  return { name: rawPkg || 'NET HOME 10 Mbps', price: 200000 };
+};
+
 const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) => {
   const [selectedCust, setSelectedCust] = useState('');
   const [activePackage, setActivePackage] = useState(null);
@@ -31,16 +73,8 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) =
       const cust = customers.find(c => c.id === selectedCust);
       if (cust) {
         setSelectedCustomerData(cust);
-        const pkg = packages.find(p => p.name === cust.package);
-        if (pkg) {
-          setActivePackage(pkg);
-        } else {
-          // Fallback cerdas jika nama paket tidak terdaftar persis di tabel packages
-          setActivePackage({
-            name: cust.package || 'Paket Internet RT RW',
-            price: Number(cust.price) || 150000
-          });
-        }
+        const resolved = resolvePackageAndPrice(cust, packages);
+        setActivePackage(resolved);
         setAmountPaid('');
       }
     } else {
@@ -76,16 +110,9 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) =
     const custId = cust.custid || cust.customer_id || cust.id;
     setSearchCust(`${cust.name} - [ID: ${custId}]${pppoe ? ` (${pppoe})` : ''}`);
     
-    // Set paket langsung
-    const pkg = packages.find(p => p.name === cust.package);
-    if (pkg) {
-      setActivePackage(pkg);
-    } else {
-      setActivePackage({
-        name: cust.package || 'Paket Internet RT RW',
-        price: Number(cust.price) || 150000
-      });
-    }
+    // Set paket langsung dengan aturan harga Mbps yang akurat
+    const resolved = resolvePackageAndPrice(cust, packages);
+    setActivePackage(resolved);
     setAmountPaid('');
     setIsSearching(false);
   };
@@ -99,10 +126,7 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) =
       return;
     }
 
-    const currentPkg = activePackage || {
-      name: selectedCustomerData.package || 'Paket Internet RT RW',
-      price: Number(selectedCustomerData.price) || 150000
-    };
+    const currentPkg = activePackage || resolvePackageAndPrice(selectedCustomerData, packages);
     
     const bayar = Number(amountPaid) || currentPkg.price;
     const selectedDate = formData.get('printDate') ? new Date(formData.get('printDate')) : new Date();
@@ -278,16 +302,40 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, onComplete }) =
           </div>
 
           {activePackage && (
-            <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 animate-in slide-in-from-top-2">
-              <div className="flex justify-between items-start mb-2">
+            <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 animate-in slide-in-from-top-2 space-y-2.5">
+              <div className="flex justify-between items-start">
                 <div>
                   <p className="text-xs text-blue-600 font-bold uppercase">Paket Berlangganan</p>
-                  <p className="font-bold text-gray-800">{activePackage.name}</p>
+                  <p className="font-bold text-gray-800 text-sm">{activePackage.name}</p>
                 </div>
                 <Wifi size={20} className="text-blue-500 opacity-50"/>
               </div>
-              <div className="mt-3 pt-3 border-t border-blue-200/50 flex justify-between items-end">
-                <span className="text-xs text-gray-500">Total Tagihan</span>
+
+              {packages && packages.length > 0 && (
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Ganti Pilihan Paket:</label>
+                  <select
+                    value={activePackage.name}
+                    onChange={(e) => {
+                      const sel = packages.find(p => p.name === e.target.value);
+                      if (sel) {
+                        setActivePackage({ name: sel.name, price: Number(sel.price) });
+                        setAmountPaid(sel.price.toString());
+                      }
+                    }}
+                    className="w-full p-2.5 bg-white border border-blue-200 rounded-xl text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-blue-400"
+                  >
+                    {packages.map(p => (
+                      <option key={p.id || p.name} value={p.name}>
+                        {p.name} - {formatRupiah(p.price)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-2.5 border-t border-blue-200/50 flex justify-between items-end">
+                <span className="text-xs text-gray-500 font-semibold">Total Tagihan</span>
                 <span className="text-xl font-black text-blue-700">{formatRupiah(activePackage.price)}</span>
               </div>
             </div>
