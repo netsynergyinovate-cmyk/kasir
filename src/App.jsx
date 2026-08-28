@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { Menu, Building2, Search } from 'lucide-react';
+import { Menu, Building2, Search, LogOut } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
@@ -105,31 +105,32 @@ export default function App() {
   };
 
   useEffect(() => {
-    // 1. Pulihkan sesi pengguna dari penyimpanan lokal jika tersedia
+    // 1. Cek apakah ada sesi akun kasir yang aktif
     const savedUser = localStorage.getItem('kasir_user');
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
-        if (parsed) {
+        if (parsed && (parsed.email || parsed.role || parsed.id)) {
           setSession({ user: parsed });
+        } else {
+          setSession(null);
         }
       } catch (e) {
         console.error('Error parsing kasir_user from storage:', e);
+        setSession(null);
       }
+    } else {
+      // Jika belum ada user yang login, tampilkan halaman Login
+      setSession(null);
     }
 
-    // 2. Hubungkan listener Supabase Auth
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setSession(session);
-        localStorage.setItem('kasir_user', JSON.stringify(session.user));
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setSession(session);
-        localStorage.setItem('kasir_user', JSON.stringify(session.user));
+    // 2. Hubungkan listener Supabase Auth jika ada user aktif
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
+      if (authSession && localStorage.getItem('kasir_user')) {
+        setSession(authSession);
+        localStorage.setItem('kasir_user', JSON.stringify(authSession.user));
+      } else if (!localStorage.getItem('kasir_user')) {
+        setSession(null);
       }
     });
 
@@ -640,9 +641,27 @@ export default function App() {
             <p className="text-[11px] text-gray-500 font-medium">ISP Billing POS</p>
           </div>
 
-          <button onClick={() => setIsSearchOpen(true)} className="ml-auto p-2 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all shrink-0">
-            <Search size={20} />
-          </button>
+          <div className="ml-auto flex items-center gap-1.5 shrink-0">
+            <button onClick={() => setIsSearchOpen(true)} className="p-2 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
+              <Search size={18} />
+            </button>
+            <button 
+              onClick={async () => {
+                if (window.confirm('Keluar dari akun dan kembali ke halaman login?')) {
+                  localStorage.removeItem('device_unlocked');
+                  localStorage.removeItem('kasir_user');
+                  try {
+                    await supabase.auth.signOut();
+                  } catch (e) {}
+                  setSession(null);
+                }
+              }} 
+              title="Keluar / Ganti Akun"
+              className="p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl active:scale-95 transition-all"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
         </header>
 
         <Sidebar 
