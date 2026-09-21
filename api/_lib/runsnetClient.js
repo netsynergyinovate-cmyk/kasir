@@ -8,41 +8,37 @@ const getBaseUrl = () => process.env.RUNSNET_BASE_URL || 'https://app.runsnet.id
 // ==========================================================================
 // KONFIGURASI YANG WAJIB DIISI SEBELUM SINKRON BISA BENAR-BENAR MENGIRIM APA PUN.
 //
-// Nilainya SENGAJA diisi 'REPLACE_ME' (bukan ditebak) karena Runsnet tidak
-// punya API resmi. Diisi dari hasil tangkapan DevTools (Network tab -> Copy as cURL)
-// saat superadmin melakukan pencarian invoice & mass action pembayaran secara manual
-// di app.runsnet.id. Sampai diisi, searchInvoice() dan payInvoiceCash() menolak
-// mengirim apa pun dan mencatat status 'skipped_not_configured' di log.
-//
-// Cara isi: ganti 'REPLACE_ME' dengan nilai asli, lalu commit & deploy ulang.
+// Arsitektur asli Runsnet (dikonfirmasi lewat tangkapan DevTools 2026-09-21): SEMUA navigasi
+// lewat satu file `view/index.php`, dengan satu parameter GET "kunci menu" (nama tetap,
+// nilainya menentukan halaman/aksi apa yang dijalankan) ditambah data1/data2/data3 untuk
+// parameter aksi. Field yang masih 'REPLACE_ME' di bawah sengaja diisi begitu (bukan ditebak),
+// karena Runsnet tidak punya API resmi. Sampai diisi, fungsi terkait menolak mengirim apa pun
+// dan mencatat status 'skipped_not_configured' di log.
 // ==========================================================================
 const CONFIG = {
-  // Path (relatif ke BASE_URL) endpoint pencarian invoice, dari request yang dikirim
-  // saat mengetik di kolom search halaman Main Menu > FTTH > Invoice.
-  searchPath: 'REPLACE_ME',
-  // Nama field POST/GET yang membawa kata kunci pencarian.
-  searchQueryField: 'REPLACE_ME',
-  // Nama field di hasil pencarian (JSON/HTML) yang berisi ID invoice unik untuk dipakai
-  // pada langkah pembayaran.
-  searchResultIdField: 'REPLACE_ME',
-  // Path endpoint mass action "Buat Pembayaran".
-  paymentPath: 'REPLACE_ME',
-  // Nama field yang menyatakan metode pembayaran tunai (dan nilainya), dari request yang
-  // terekam sampai sebelum tombol final "Bayar" ditekan.
-  paymentMethodField: 'REPLACE_ME',
-  paymentMethodValue: 'REPLACE_ME',
-  // Nama field yang membawa ID invoice pada request pembayaran.
-  paymentInvoiceIdField: 'REPLACE_ME',
+  // Nama parameter GET "kunci menu" — TETAP untuk semua navigasi index.php.
+  // Terverifikasi dari tangkapan nyata 2026-09-21.
+  menuKeyParam: 'N3lSektGNnZMV3R3ZjRlN0h0a24xZz09',
+
+  // Nilai menuKeyParam untuk memuat daftar invoice (dipakai mencari invoice satu pelanggan).
+  // BELUM diisi — lihat catatan PENTING di searchInvoice() sebelum mengisi ini.
+  invoiceListMenuValue: 'REPLACE_ME',
+
+  // Nilai menuKeyParam untuk EKSEKUSI pembayaran. Terverifikasi dari tangkapan nyata 2026-09-21:
+  // GET ke `view/index.php` dengan param ini + data1 (kode invoice, mis. "INVRT202609002184")
+  // + data2 (label metode, "Pembayaran Tunai") + data3 (tanggal YYYY-MM-DD) LANGSUNG membayar
+  // invoice itu — tidak ada konfirmasi/tombol terpisah di sisi server. Satu request = satu
+  // pembayaran nyata; jangan pernah memanggil payInvoiceCash() di luar alur webhook yang sudah
+  // dijaga saklar + mode uji coba.
+  paymentMenuValue: 'Ti9XSG9WdnFyakhKS0owRzh5ZVMrZ2FpTm8wbDVWM1RLUllnTzZHN3l3dz0=',
 };
 
-function unconfiguredFields() {
-  return Object.entries(CONFIG)
-    .filter(([, value]) => isConfigPlaceholder(value))
-    .map(([key]) => key);
+function unconfiguredFields(keys) {
+  return keys.filter((key) => isConfigPlaceholder(CONFIG[key]));
 }
 
 export function isRunsnetConfigured() {
-  return unconfiguredFields().length === 0;
+  return unconfiguredFields(Object.keys(CONFIG)).length === 0;
 }
 
 class RunsnetNotConfiguredError extends Error {
@@ -59,7 +55,9 @@ async function loginToRunsnet() {
     throw new Error('RUNSNET_USERNAME / RUNSNET_PASSWORD belum di-set di Environment Variables Vercel.');
   }
 
-  const body = new URLSearchParams({ username, password, panelOption: 'admin' });
+  // Field asli hasil tangkapan DevTools (2026-09-21): username, password, simpan (kosong).
+  // Radio "Admin/HR" di halaman login TIDAK benar-benar terkirim sebagai field terpisah.
+  const body = new URLSearchParams({ username, password, simpan: '' });
   const response = await fetch(`${getBaseUrl()}/view/control/bagan_login.php`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -99,38 +97,37 @@ export async function ensureSession(supabaseAdmin) {
   return cookie;
 }
 
-// Mencari invoice di Runsnet. Mengembalikan { id: <id invoice> } atau null jika tidak ketemu.
-export async function searchInvoice(cookie, query) {
-  const fields = unconfiguredFields().filter((key) => key.startsWith('search'));
-  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
-
-  const body = new URLSearchParams({ [CONFIG.searchQueryField]: query });
-  const response = await fetch(`${getBaseUrl()}/${CONFIG.searchPath}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
-    body,
-  });
-  if (!response.ok) throw new Error(`Pencarian invoice Runsnet gagal: HTTP ${response.status}`);
-
-  const data = await response.json();
-  const first = Array.isArray(data) ? data[0] : Array.isArray(data?.data) ? data.data[0] : null;
-  return first ? { id: first[CONFIG.searchResultIdField] } : null;
+// Mencari invoice di Runsnet berdasarkan query (PPPoE ID / custid / nama). Mengembalikan
+// { id: <kode invoice> } atau null jika tidak ketemu.
+//
+// BELUM DIISI. Mekanismenya belum dikonfirmasi — tabel invoice/payment Runsnet mungkin dimuat
+// sekali (lewat invoiceListMenuValue) lalu difilter di browser (DataTables client-side, tanpa
+// request jaringan terpisah saat mengetik di kolom pencarian), atau lewat endpoint AJAX
+// terpisah. Perlu satu tangkapan DevTools lagi: request yang memuat tabel invoice/payment
+// (bukan hasil ketik di kolom cari) — lihat RUNSNET_SETUP.md.
+export async function searchInvoice() {
+  throw new RunsnetNotConfiguredError(unconfiguredFields(['invoiceListMenuValue']));
 }
 
-// Menjalankan mass action "Buat Pembayaran > Tunai" untuk satu invoice.
-export async function payInvoiceCash(cookie, invoiceId) {
-  const fields = unconfiguredFields().filter((key) => key.startsWith('payment'));
+// Menjalankan pembayaran tunai untuk satu invoice. PERINGATAN: ini GET dengan efek samping nyata
+// (langsung membayar, lihat catatan di CONFIG.paymentMenuValue) — hanya dipanggil dari webhook
+// yang sudah lolos cek saklar + anti-dobel + BUKAN mode uji coba.
+export async function payInvoiceCash(cookie, invoiceCode) {
+  const fields = unconfiguredFields(['menuKeyParam', 'paymentMenuValue']);
   if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
 
-  const body = new URLSearchParams({
-    [CONFIG.paymentInvoiceIdField]: invoiceId,
-    [CONFIG.paymentMethodField]: CONFIG.paymentMethodValue,
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const url = new URL(`${getBaseUrl()}/view/index.php`);
+  url.searchParams.set(CONFIG.menuKeyParam, CONFIG.paymentMenuValue);
+  url.searchParams.set('data1', invoiceCode);
+  url.searchParams.set('data2', 'Pembayaran Tunai');
+  url.searchParams.set('data3', today);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { Cookie: cookie },
+    redirect: 'manual',
   });
-  const response = await fetch(`${getBaseUrl()}/${CONFIG.paymentPath}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
-    body,
-  });
-  if (!response.ok) throw new Error(`Pembayaran Runsnet gagal: HTTP ${response.status}`);
-  return response.json();
+  if (response.status >= 400) throw new Error(`Pembayaran Runsnet gagal: HTTP ${response.status}`);
+  return { invoiceCode, paidAt: today };
 }
