@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse } from '../runsnetSync';
+import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone } from '../runsnetSync';
 
 const trx = (over) => ({
   id: 't1', status: 'LUNAS', type: 'retail', payment_method: 'CASH',
@@ -119,5 +119,19 @@ describe('parseInvoiceListResponse with ambiguous matches', () => {
   it('still returns the single match when there is exactly one', () => {
     const response = { draw: 1, recordsTotal: 2, recordsFiltered: 1, data: [rowFor('INVRT1', 'A')] };
     expect(parseInvoiceListResponse(response)).toEqual({ id: 'INVRT1' });
+  });
+});
+
+describe('syncToastTone', () => {
+  it('is ok for success', () => {
+    expect(syncToastTone('success')).toBe('ok');
+  });
+  it('is bad for failed', () => {
+    expect(syncToastTone('failed')).toBe('bad');
+  });
+  it('is info for everything else (dry_run, skipped_*)', () => {
+    expect(syncToastTone('dry_run')).toBe('info');
+    expect(syncToastTone('skipped_disabled')).toBe('info');
+    expect(syncToastTone('skipped_not_configured')).toBe('info');
   });
 });

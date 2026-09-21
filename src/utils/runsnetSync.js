@@ -54,3 +54,11 @@ export function parseInvoiceListResponse(json) {
   const invoiceCode = stripHtml(rows[0][1]);
   return invoiceCode ? { id: invoiceCode } : null;
 }
+
+// Nada warna untuk notifikasi status sinkron: hijau (berhasil), merah (gagal), abu-abu (lainnya —
+// mode uji coba, dimatikan, atau belum dikonfigurasi; bukan kegagalan, jadi tidak perlu merah).
+export function syncToastTone(status) {
+  if (status === 'success') return 'ok';
+  if (status === 'failed') return 'bad';
+  return 'info';
+}

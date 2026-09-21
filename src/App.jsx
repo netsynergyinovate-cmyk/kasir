@@ -24,6 +24,7 @@ import GlobalSearch from './components/GlobalSearch';
 import Login from './pages/Login';
 import DashboardSuperadmin from './pages/DashboardSuperadmin';
 import Rute from './pages/Rute';
+import RunsnetSyncToast from './components/RunsnetSyncToast';
 import { customerVisitStatus } from './utils/visits';
 import { describeRouteError } from './utils/dbErrors';
 import { useShareLocation } from './hooks/useShareLocation';
@@ -80,6 +81,7 @@ export default function App() {
   
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [receiptToView, setReceiptToView] = useState(null);
+  const [runsnetWatchId, setRunsnetWatchId] = useState(null);
   const [instansiReceiptToView, setInstansiReceiptToView] = useState(null);
 
   const [btDevice, setBtDevice] = useState(null);
@@ -427,6 +429,7 @@ export default function App() {
 
       setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
       setReceiptToView(newTrx);
+      setRunsnetWatchId(newTrx.id);
       showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
 
       // Automasi pengiriman data ke Billing Monitoring System
@@ -465,6 +468,7 @@ export default function App() {
 
       setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
       setInstansiReceiptToView(newTrx);
+      setRunsnetWatchId(newTrx.id);
       showNotification('Invoice Instansi Berhasil', `${newTrx.instansiName} - ${formatRupiah(newTrx.price)}`);
 
       // Automasi pengiriman data ke Billing Monitoring System
@@ -914,6 +918,8 @@ export default function App() {
 
         <Navigation role={session?.profile?.role} />
       </div>
+
+      <RunsnetSyncToast watchId={runsnetWatchId} />
 
       <AddCustomerModal
         show={showAddCustomer}
