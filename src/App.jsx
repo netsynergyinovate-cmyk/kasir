@@ -25,6 +25,7 @@ import Login from './pages/Login';
 import DashboardSuperadmin from './pages/DashboardSuperadmin';
 import Rute from './pages/Rute';
 import { customerVisitStatus } from './utils/visits';
+import { describeRouteError } from './utils/dbErrors';
 import PinPad from './components/PinPad';
 
 const INIT_COMPANY = {
@@ -507,7 +508,7 @@ export default function App() {
       .single();
 
     if (error) {
-      alert('Gagal menyimpan kunjungan: ' + error.message);
+      alert('Gagal menyimpan kunjungan: ' + describeRouteError(error));
       return false;
     }
     setVisits(prev => [data, ...prev]);
@@ -518,7 +519,7 @@ export default function App() {
   const handleUpdateCustomerRoute = async (id, patch) => {
     const { error } = await supabase.from('customers').update(patch).eq('id', id);
     if (error) {
-      alert('Gagal menyimpan rute: ' + error.message);
+      alert('Gagal menyimpan rute: ' + describeRouteError(error));
       return false;
     }
     setCustomers(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
