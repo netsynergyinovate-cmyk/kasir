@@ -66,6 +66,7 @@ export function syncToastTone(status) {
 const STAGE_TEXT = {
   invoice_lookup: { text: 'Cek nomor invoice', className: 'bg-indigo-100 text-indigo-700' },
   payment: { text: 'Kirim pembayaran', className: 'bg-blue-100 text-blue-700' },
+  reversal: { text: 'Reversal pembayaran', className: 'bg-rose-100 text-rose-700' },
 };
 
 // Label + warna lencana untuk tahap sebuah baris log: 'invoice_lookup' (dijalankan saat transaksi
@@ -113,4 +114,19 @@ export function describePayResponse({ status, location }) {
     return { ok: false, reason: `Runsnet menolak perintah bayar (HTTP ${status}${where}).` };
   }
   return { ok: true, reason: `HTTP ${status}${where}` };
+}
+
+// Mengurai respons DataTables daftar PEMBAYARAN Runsnet (model/previewc/query/payment.php) dan mengambil
+// pembayaran milik SATU invoice: [{ paymentCode, amount, payDate }]. Kolom: 0 checkbox (value = kode
+// pembayaran), 2 InvoiceCode, 6 PayDate, 7 PayAmount. Kode pembayaran divalidasi (PAY + angka) karena akan
+// dimasukkan ke URL reversal.
+export function parsePaymentRows(json, invoiceCode) {
+  return (json?.data || [])
+    .filter((row) => stripHtml(row[2]) === invoiceCode)
+    .map((row) => ({
+      paymentCode: (String(row[0]).match(/value=['"]([^'"]+)['"]/) || [])[1] || null,
+      amount: stripHtml(row[7]),
+      payDate: stripHtml(row[6]),
+    }))
+    .filter((payment) => /^PAY\d+$/.test(payment.paymentCode || ''));
 }

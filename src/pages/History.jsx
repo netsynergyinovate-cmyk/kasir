@@ -43,6 +43,7 @@ const History = ({ transactions, role, session, setReceiptToView, setInstansiRec
   const [proofIds, setProofIds] = useState(new Set());
   const [proofTrx, setProofTrx] = useState(null);
   const [checkingId, setCheckingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [checkedTimes, setCheckedTimes] = useState({});
 
   const codes = [...new Set(filteredTransactions.filter((t) => t.type !== 'instansi').map(runsnetCodeOf).filter(Boolean))].slice(0, 60);
@@ -91,6 +92,53 @@ const History = ({ transactions, role, session, setReceiptToView, setInstansiRec
 
   const mismatchCount = filteredTransactions.filter((t) => isRunsnetMismatch(t, runsnetStatuses[runsnetCodeOf(t)])).length;
   const recheck = async () => setRefreshTick((n) => n + 1);
+
+  // Hapus transaksi. Kalau transaksi retail punya invoice Runsnet, pembayarannya di Runsnet ikut dibatalkan
+  // (reversal) DULU; transaksi baru dihapus dari KAsir kalau reversal berhasil / memang tidak diperlukan, supaya
+  // KAsir dan Runsnet tidak berbeda. Kalau reversal tidak bisa dijalankan, superadmin memilih sendiri apakah tetap
+  // menghapus dari KAsir saja (pembayaran di Runsnet TETAP ada).
+  const handleDelete = async (trx) => {
+    const code = trx.type !== 'instansi' ? runsnetCodeOf(trx) : null;
+    if (!code) {
+      if (window.confirm('Hapus permanen riwayat transaksi ini?')) onDeleteTransaction(trx.id);
+      return;
+    }
+
+    const known = runsnetStatuses[code];
+    const warning = known === 'PAID'
+      ? 'Transaksi ini SUDAH PAID di Runsnet.\n\nMenghapusnya akan juga MEMBATALKAN (reversal) pembayaran itu di Runsnet, lalu menghapus riwayat di KAsir. Lanjutkan?'
+      : 'Hapus permanen riwayat transaksi ini?\n\nJika pembayarannya sudah PAID di Runsnet, pembayaran itu juga akan DIBATALKAN (reversal) di Runsnet.';
+    if (!window.confirm(warning)) return;
+
+    setDeletingId(trx.id);
+    let result = null;
+    let problem = null;
+    try {
+      const response = await fetch('/api/runsnet/reverse-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ transactionId: trx.id }),
+      });
+      result = await response.json();
+      if (!response.ok) problem = result.error || `HTTP ${response.status}`;
+    } catch (err) {
+      problem = 'Tidak bisa menghubungi server: ' + err.message;
+    }
+
+    const reversed = !problem && (result.skipped === 'no_runsnet_invoice' || result.status === 'success');
+    if (!reversed) {
+      const reason = problem || result.message || 'Reversal tidak dijalankan.';
+      const keepGoing = window.confirm(`Reversal di Runsnet TIDAK berhasil dijalankan:\n${reason}\n\nTetap hapus dari KAsir saja? Pembayaran di Runsnet akan TETAP ADA.`);
+      if (!keepGoing) {
+        setDeletingId(null);
+        return;
+      }
+    }
+
+    await onDeleteTransaction(trx.id);
+    setDeletingId(null);
+    if (reversed && result?.message) alert('Reversal Runsnet: ' + result.message);
+  };
 
   // Cek status PAID satu transaksi saja (tombol di tiap kartu): membaca ulang invoice itu langsung dari Runsnet.
   const checkOne = async (trx) => {
@@ -240,13 +288,13 @@ const History = ({ transactions, role, session, setReceiptToView, setInstansiRec
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm('Hapus permanen riwayat transaksi ini?')) {
-                        onDeleteTransaction(trx.id);
-                      }
+                      handleDelete(trx);
                     }}
-                    className="p-2 -mr-2 text-gray-400 hover:text-red-500 transition-colors"
+                    disabled={deletingId === trx.id}
+                    className="p-2 -mr-2 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                    aria-label="Hapus transaksi"
                   >
-                    <Trash2 size={16} />
+                    {deletingId === trx.id ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
                   </button>
                 )}
               </div>

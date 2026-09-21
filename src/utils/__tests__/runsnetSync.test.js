@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber, pickPaymentTarget, describePayResponse } from '../runsnetSync';
+import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber, pickPaymentTarget, describePayResponse, parsePaymentRows } from '../runsnetSync';
 
 const trx = (over) => ({
   id: 't1', status: 'LUNAS', type: 'retail', payment_method: 'CASH',
@@ -209,5 +209,29 @@ describe('describePayResponse', () => {
   it('accepts a normal response (the real result is proven afterwards by the PAID check)', () => {
     expect(describePayResponse({ status: 200, location: null }).ok).toBe(true);
     expect(describePayResponse({ status: 302, location: 'index.php?x=y' }).ok).toBe(true);
+  });
+});
+
+describe('parsePaymentRows', () => {
+  const row = (payCode, invCode) => [
+    `<input type='checkbox' name='select' value='${payCode}'>`,
+    `<a id='${payCode}'>${payCode}</a>`,
+    `<a id='${invCode}'>${invCode}</a>`,
+    '<a>17060001554</a>', 'ANITA', '2026-09-01', '2026-09-21', '200,000', 'Pembayaran Tunai', null, 'Operator', '<a>x</a>',
+  ];
+
+  it('returns the payment(s) of exactly the requested invoice, with the payment code from the checkbox', () => {
+    const json = { data: [row('PAY202609000941', 'INVRT202609001239'), row('PAY202609000942', 'INVRT202609002184')] };
+    expect(parsePaymentRows(json, 'INVRT202609001239')).toEqual([{ paymentCode: 'PAY202609000941', amount: '200,000', payDate: '2026-09-21' }]);
+  });
+
+  it('returns nothing when the invoice has no payment (so a fuzzy search hit is never reversed by mistake)', () => {
+    expect(parsePaymentRows({ data: [row('PAY1', 'INVRT-OTHER')] }, 'INVRT202609001239')).toEqual([]);
+    expect(parsePaymentRows({ data: [] }, 'INVRT202609001239')).toEqual([]);
+  });
+
+  it('drops rows whose payment code is not PAY + digits, since it goes into the reversal URL', () => {
+    const bad = row('x&data1=evil', 'INVRT202609001239');
+    expect(parsePaymentRows({ data: [bad] }, 'INVRT202609001239')).toEqual([]);
   });
 });

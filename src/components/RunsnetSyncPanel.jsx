@@ -119,6 +119,7 @@ const RunsnetSyncPanel = ({ session }) => {
     { key: 'all', label: 'Semua', match: () => true },
     { key: 'payment', label: 'Pembayaran', match: (r) => (r.stage || 'payment') === 'payment' },
     { key: 'lookup', label: 'Cek invoice', match: (r) => r.stage === 'invoice_lookup' },
+    { key: 'reversal', label: 'Reversal', match: (r) => r.stage === 'reversal' },
     { key: 'failed', label: 'Gagal', match: (r) => r.status === 'failed' },
   ];
   const visibleLogs = logs.filter((FILTERS.find((f) => f.key === filter) || FILTERS[0]).match);

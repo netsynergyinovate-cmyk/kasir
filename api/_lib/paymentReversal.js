@@ -1,0 +1,79 @@
+import { pickPaymentTarget } from '../../src/utils/runsnetSync.js';
+import {
+  ensureValidSession, isSessionValid, ensureSession, fetchInvoiceStatuses,
+  findPaymentsForInvoice, reversePaymentByCode, isRunsnetConfigured,
+} from './runsnetClient.js';
+
+// Membatalkan (reversal) pembayaran sebuah transaksi di Runsnet SEBELUM transaksinya dihapus dari KAsir.
+// Aturan pengaman: hanya jalan kalau sinkron LIVE (bukan mati/uji coba), invoice benar-benar PAID di Runsnet,
+// dan ada TEPAT SATU pembayaran untuk invoice itu; hasil dibuktikan dengan membaca ulang statusnya (harus kembali
+// PENDING). Mengembalikan { status, message, runsnet_ref } (status = nilai runsnet_sync_log.status) atau { skipped }.
+// status 'success' berarti aman menghapus transaksi di KAsir: pembayarannya sudah tidak ada di Runsnet.
+export async function reversePayment(supabase, transaction) {
+  const target = pickPaymentTarget(transaction);
+  let code = target.code;
+
+  if (!code) {
+    const { data: paymentLog } = await supabase
+      .from('runsnet_sync_log')
+      .select('runsnet_ref, status')
+      .eq('transaction_id', transaction.id)
+      .eq('stage', 'payment')
+      .maybeSingle();
+    if (paymentLog?.status === 'success') code = paymentLog.runsnet_ref;
+  }
+  if (!code) return { skipped: 'no_runsnet_invoice' };
+
+  const who = transaction.customer_name || transaction.instansi_name || code;
+  const log = async (status, message, extra = {}) => {
+    await supabase.from('runsnet_sync_log').upsert(
+      { transaction_id: transaction.id, stage: 'reversal', status, search_query: code, runsnet_ref: code, message: `${who}: ${message}`, created_at: new Date().toISOString(), ...extra },
+      { onConflict: 'transaction_id,stage' },
+    );
+    return { status, runsnet_ref: code, message };
+  };
+
+  const { data: settings } = await supabase
+    .from('company_settings')
+    .select('runsnet_sync_enabled, runsnet_dry_run')
+    .eq('id', 1)
+    .maybeSingle();
+  if (!settings?.runsnet_sync_enabled) return log('skipped_disabled', 'Sinkron Runsnet dimatikan, reversal TIDAK dijalankan di Runsnet.');
+  if (!isRunsnetConfigured()) return log('skipped_not_configured', 'Konfigurasi Runsnet belum lengkap, reversal tidak dijalankan.');
+  if (settings.runsnet_dry_run) return log('dry_run', 'MODE UJI COBA: reversal TIDAK dijalankan di Runsnet.');
+
+  try {
+    let cookie = await ensureValidSession(supabase);
+
+    // 1. Status nyata di Runsnet.
+    const before = (await fetchInvoiceStatuses(cookie, [code]))[code];
+    if (before !== 'PAID') {
+      return log('success', `Invoice ${code} berstatus ${before} di Runsnet (bukan PAID), tidak ada pembayaran yang perlu di-reversal.`);
+    }
+
+    // 2. Temukan kode pembayarannya — harus tepat satu.
+    const payments = await findPaymentsForInvoice(cookie, code);
+    if (payments.length !== 1) {
+      return log('failed', `Langkah 1 dari 3 gagal: ditemukan ${payments.length} pembayaran untuk ${code}. Reversal otomatis hanya untuk tepat satu pembayaran — lakukan manual di menu Payment Runsnet.`);
+    }
+    const [payment] = payments;
+
+    // 3. Reversal (efek nyata), sesi dicek lagi tepat sebelumnya.
+    if (!(await isSessionValid(cookie))) cookie = await ensureSession(supabase, { force: true });
+    let result;
+    try {
+      result = await reversePaymentByCode(cookie, payment.paymentCode);
+    } catch (reverseError) {
+      return log('failed', `Langkah 2 dari 3 (kirim perintah reversal ${payment.paymentCode}) gagal: ${reverseError.message}`);
+    }
+
+    // 4. Bukti: invoice harus tidak PAID lagi.
+    const after = (await fetchInvoiceStatuses(cookie, [code]))[code];
+    if (after === 'PAID') {
+      return log('failed', `Langkah 3 dari 3 gagal: perintah reversal ${payment.paymentCode} dijawab Runsnet ${result.response}, tetapi invoice ${code} masih PAID. Periksa manual di menu Payment Runsnet.`);
+    }
+    return log('success', `Pembayaran ${payment.paymentCode} (${payment.amount}) untuk invoice ${code} berhasil di-reversal di Runsnet; status invoice kini ${after}.`);
+  } catch (error) {
+    return log('failed', `Gagal menghubungi Runsnet: ${error.message}`);
+  }
+}

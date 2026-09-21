@@ -1,5 +1,5 @@
 import process from 'node:process';
-import { isConfigPlaceholder, parseInvoiceListResponse, stripHtml, describePayResponse } from '../../src/utils/runsnetSync.js';
+import { isConfigPlaceholder, parseInvoiceListResponse, stripHtml, describePayResponse, parsePaymentRows } from '../../src/utils/runsnetSync.js';
 import { parsePelangganRow } from '../../src/utils/runsnetCustomers.js';
 
 // Dibaca lewat fungsi (bukan konstanta top-level) supaya skrip lokal yang memuat .env.local
@@ -46,6 +46,14 @@ const CONFIG = {
   // pencariannya berbeda dari invoice. Terverifikasi dari tangkapan nyata 2026-09-21.
   customersMenuValue: 'Z3hlVzJ5R2w5empzMXhhclAyMkRaMzJJVWFwTVFQZ1JxNlRaNDJsYTgwUT0=',
   customersPath: 'model/previewc/query/pelanggan.php',
+
+  // Halaman menu "Payment" (daftar pembayaran + tombol Reversal). URL halamannya diberikan pengguna (2026-09-21);
+  // path daftar pembayaran dan nilai menu reversal dibaca dari kode sumber halaman itu sendiri (fungsi
+  // createreversal). PERINGATAN: GET dengan reversalMenuValue + data1 (kode pembayaran, mis. PAY202609000942)
+  // LANGSUNG membatalkan pembayaran itu tanpa konfirmasi di server — hanya dipanggil dari alur reversal yang dijaga.
+  paymentPageMenuValue: 'MnZQbDhwVXRCcXFPNEVCWHdpR3dpUy9QeEpxMHUweGFOdlRNMmdEeGFoaz0=',
+  paymentListPath: 'model/previewc/query/payment.php',
+  reversalMenuValue: 'MnZQbDhwVXRCcXFPNEVCWHdpR3dpWmc2VUR2aWI5dFJvemUxcSt4eGNJcz0=',
 };
 
 function unconfiguredFields(keys) {
@@ -235,6 +243,74 @@ export async function fetchInvoiceStatuses(cookie, codes) {
 export async function verifyInvoicePaid(cookie, invoiceCode) {
   const found = await searchInvoice(cookie, invoiceCode, 'A');
   return found?.id === invoiceCode;
+}
+
+// Daftar pembayaran milik satu invoice, dibaca dari halaman Payment Runsnet (hanya membaca):
+// [{ paymentCode, amount, payDate }]. Dipakai reversal untuk menemukan kode pembayaran (PAY...) dari kode invoice.
+export async function findPaymentsForInvoice(cookie, invoiceCode) {
+  const fields = unconfiguredFields(['menuKeyParam', 'paymentPageMenuValue', 'paymentListPath', 'mitraTarget']);
+  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
+
+  const now = new Date();
+  const pageUrl = new URL(`${getBaseUrl()}/view/index.php`);
+  pageUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.paymentPageMenuValue);
+
+  const url = new URL(`${getBaseUrl()}/view/${CONFIG.paymentListPath}`);
+  url.searchParams.set('data1', formatMmDdYyyy(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())));
+  url.searchParams.set('data2', formatMmDdYyyy(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2)));
+  url.searchParams.set('data4', '');
+  url.searchParams.set('target', CONFIG.mitraTarget);
+
+  const columnNames = ['', 'PaymentCode', 'InvoiceCode', 'CustID', 'CustNama', 'Periode', 'PayDate', 'PayAmount', 'Methode', 'Agent', 'Operator', 'Action'];
+  const body = new URLSearchParams({ draw: '1', start: '0', length: '20', 'search[value]': invoiceCode, 'search[regex]': 'false' });
+  columnNames.forEach((name, i) => {
+    body.set(`columns[${i}][data]`, String(i));
+    body.set(`columns[${i}][name]`, name);
+    body.set(`columns[${i}][searchable]`, i === 0 || i === 11 ? 'false' : 'true');
+    body.set(`columns[${i}][orderable]`, i === 0 || i === 6 || i >= 10 ? 'false' : 'true');
+    body.set(`columns[${i}][search][value]`, '');
+    body.set(`columns[${i}][search][regex]`, 'false');
+  });
+  body.set('order[0][column]', '1');
+  body.set('order[0][dir]', 'desc');
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest',
+      Referer: pageUrl.toString(),
+      Cookie: cookie,
+    },
+    body,
+  });
+  if (!response.ok) throw new Error(`Membaca daftar pembayaran Runsnet gagal: HTTP ${response.status}`);
+  return parsePaymentRows(await response.json(), invoiceCode);
+}
+
+// Membatalkan (reversal) SATU pembayaran Runsnet berdasarkan kode pembayarannya. PERINGATAN: GET dengan efek
+// samping nyata dan langsung (lihat catatan CONFIG.reversalMenuValue) — hanya dipanggil dari
+// api/_lib/paymentReversal.js setelah semua pengaman (superadmin, sinkron LIVE, tepat satu pembayaran).
+export async function reversePaymentByCode(cookie, paymentCode) {
+  const fields = unconfiguredFields(['menuKeyParam', 'reversalMenuValue', 'paymentPageMenuValue']);
+  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
+  if (!/^PAY\d+$/.test(paymentCode)) throw new Error(`Kode pembayaran tidak valid: ${paymentCode}`);
+
+  const pageUrl = new URL(`${getBaseUrl()}/view/index.php`);
+  pageUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.paymentPageMenuValue);
+
+  const url = new URL(`${getBaseUrl()}/view/index.php`);
+  url.searchParams.set(CONFIG.menuKeyParam, CONFIG.reversalMenuValue);
+  url.searchParams.set('data1', paymentCode);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { Cookie: cookie, Referer: pageUrl.toString() },
+    redirect: 'manual',
+  });
+  const verdict = describePayResponse({ status: response.status, location: response.headers.get('location') });
+  if (!verdict.ok) throw new Error(verdict.reason);
+  return { paymentCode, response: verdict.reason };
 }
 
 // Menjalankan pembayaran tunai untuk satu invoice. PERINGATAN: ini GET dengan efek samping nyata
