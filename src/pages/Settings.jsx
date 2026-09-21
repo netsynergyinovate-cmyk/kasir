@@ -9,6 +9,7 @@ import { formatRupiah } from '../utils/format';
 import { supabase } from '../lib/supabase';
 import { testBillingSystemConnection, getEbillingLogs, clearEbillingLogs } from '../utils/billingApi';
 import AdminAccountsPanel from '../components/AdminAccountsPanel';
+import RunsnetSyncPanel from '../components/RunsnetSyncPanel';
 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
@@ -568,6 +569,8 @@ const Settings = ({
         )}
 
         {isSuper && <AdminAccountsPanel />}
+
+        {isSuper && <RunsnetSyncPanel />}
 
         {/* Danger Zone */}
         <div className="pt-4">
