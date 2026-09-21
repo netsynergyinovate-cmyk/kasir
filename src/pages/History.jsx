@@ -42,6 +42,8 @@ const History = ({ transactions, role, session, setReceiptToView, setInstansiRec
   const [refreshTick, setRefreshTick] = useState(0);
   const [proofIds, setProofIds] = useState(new Set());
   const [proofTrx, setProofTrx] = useState(null);
+  const [checkingId, setCheckingId] = useState(null);
+  const [checkedTimes, setCheckedTimes] = useState({});
 
   const codes = [...new Set(filteredTransactions.filter((t) => t.type !== 'instansi').map(runsnetCodeOf).filter(Boolean))].slice(0, 60);
   const requestKey = `${codes.join(',')}#${refreshTick}`;
@@ -89,6 +91,30 @@ const History = ({ transactions, role, session, setReceiptToView, setInstansiRec
 
   const mismatchCount = filteredTransactions.filter((t) => isRunsnetMismatch(t, runsnetStatuses[runsnetCodeOf(t)])).length;
   const recheck = async () => setRefreshTick((n) => n + 1);
+
+  // Cek status PAID satu transaksi saja (tombol di tiap kartu): membaca ulang invoice itu langsung dari Runsnet.
+  const checkOne = async (trx) => {
+    const code = runsnetCodeOf(trx);
+    if (!code || !accessToken) return;
+    setCheckingId(trx.id);
+    try {
+      const response = await fetch('/api/runsnet/invoice-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ codes: [code] }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.error) {
+        alert('Gagal membaca Runsnet: ' + (result.error || `HTTP ${response.status}`));
+      } else {
+        setRunsnetStatuses((prev) => ({ ...prev, ...result.statuses }));
+        setCheckedTimes((prev) => ({ ...prev, [trx.id]: result.checkedAt || new Date().toISOString() }));
+      }
+    } catch (err) {
+      alert('Gagal menghubungi server: ' + err.message);
+    }
+    setCheckingId(null);
+  };
   const onProofChanged = (id, has) => setProofIds((prev) => {
     const next = new Set(prev);
     if (has) next.add(id); else next.delete(id);
@@ -248,19 +274,39 @@ const History = ({ transactions, role, session, setReceiptToView, setInstansiRec
                 const dot = badge.tone === 'ok' ? 'bg-emerald-500' : badge.tone === 'bad' ? 'bg-red-500' : badge.tone === 'warn' ? 'bg-amber-500' : 'bg-gray-300';
                 const text = badge.tone === 'ok' ? 'text-emerald-700' : badge.tone === 'bad' ? 'text-red-600' : badge.tone === 'warn' ? 'text-amber-700' : 'text-gray-400';
                 const hasProof = proofIds.has(trx.id);
+                const hasCode = Boolean(runsnetCodeOf(trx));
+                const isChecking = checkingId === trx.id;
+                const checkedAtCard = checkedTimes[trx.id];
                 return (
-                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-3">
-                    <p className={`min-w-0 flex items-center gap-1.5 text-[11px] font-bold ${text}`}>
+                  <div className="mt-3 pt-3 border-t border-gray-100 space-y-2.5">
+                    <p className={`flex items-center gap-1.5 text-[11px] font-bold ${text}`}>
                       <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
                       <span className="truncate">{badge.text}</span>
+                      {checkedAtCard && (
+                        <span className="ml-auto shrink-0 font-medium text-gray-400">
+                          dicek {new Date(checkedAtCard).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </p>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setProofTrx(trx); }}
-                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold active:scale-95 transition-all ${hasProof ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
-                    >
-                      <Camera size={13} /> {hasProof ? 'Lihat bukti' : 'Unggah bukti'}
-                    </button>
+                    <div className={`grid gap-2 ${hasCode ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      {hasCode && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); checkOne(trx); }}
+                          disabled={isChecking}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-[11px] font-bold hover:bg-blue-100 active:scale-95 transition-all disabled:opacity-60"
+                        >
+                          <RefreshCw size={13} className={isChecking ? 'animate-spin' : ''} /> {isChecking ? 'Mengecek...' : 'Cek status PAID'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setProofTrx(trx); }}
+                        className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-[11px] font-bold active:scale-95 transition-all ${hasProof ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        <Camera size={13} /> {hasProof ? 'Lihat bukti' : 'Unggah bukti'}
+                      </button>
+                    </div>
                   </div>
                 );
               })()}
