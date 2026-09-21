@@ -23,6 +23,10 @@ describe('isPathAllowedForRole', () => {
     expect(isPathAllowedForRole('admin', '/aktivitas')).toBe(true);
   });
 
+  it('allows admin on the visit route page', () => {
+    expect(isPathAllowedForRole('admin', '/rute')).toBe(true);
+  });
+
   it('blocks admin on paths outside the allow-list', () => {
     expect(isPathAllowedForRole('admin', '/instansi')).toBe(false);
   });

@@ -8,7 +8,7 @@ import {
 import EditCustomerModal from '../components/EditCustomerModal';
 import { formatRupiah } from '../utils/format';
 
-const Pelanggan = ({ customers = [], packages = [], role, setShowAddCustomer, onDeleteCustomer, onUpdateCustomer, onSyncEbilling }) => {
+const Pelanggan = ({ customers = [], packages = [], role, visitStatusById = {}, setShowAddCustomer, onDeleteCustomer, onUpdateCustomer, onSyncEbilling }) => {
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -177,6 +177,9 @@ const Pelanggan = ({ customers = [], packages = [], role, setShowAddCustomer, on
                   </div>
                   <h3 className="font-bold text-gray-900 text-sm leading-tight">{cust.name}</h3>
                   {cust.nickname && <p className="text-gray-400 font-medium text-[10px] mt-0.5">({cust.nickname})</p>}
+                  {visitStatusById[cust.id] && (
+                    <span className={`inline-block mt-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${visitStatusById[cust.id].key === 'menunggu' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{visitStatusById[cust.id].label}</span>
+                  )}
                   
                   {pppoe && (
                     <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
@@ -246,6 +249,9 @@ const Pelanggan = ({ customers = [], packages = [], role, setShowAddCustomer, on
                       <div>
                           <div className="flex items-center gap-1.5">
                             <p className="text-sm font-bold text-gray-900 leading-none">{cust.name} {cust.nickname && <span className="text-gray-400 font-medium text-[10px]">({cust.nickname})</span>}</p>
+                            {visitStatusById[cust.id] && (
+                              <span className={`inline-block mt-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${visitStatusById[cust.id].key === 'menunggu' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{visitStatusById[cust.id].label}</span>
+                            )}
                             {isEbilling && (
                               <span className="bg-indigo-100 text-indigo-700 text-[9px] font-bold px-1.5 py-0.2 rounded border border-indigo-200">E-Billing</span>
                             )}

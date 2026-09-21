@@ -5,6 +5,14 @@ export const OUTCOME_LABELS = {
   uang_belum_ada: 'Uang belum ada',
 };
 
+// Warna penanda peta dan lencana menurut status kunjungan.
+export const STATUS_COLORS = {
+  sudah_bayar: '#16a34a',
+  perlu_didatangi: '#dc2626',
+  belum_dikunjungi: '#dc2626',
+  menunggu: '#f59e0b',
+};
+
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 // '2026-09-25' -> '25 Sep'

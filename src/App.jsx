@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, Building2, Search, LogOut } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
@@ -23,6 +23,8 @@ import GlobalSearch from './components/GlobalSearch';
 
 import Login from './pages/Login';
 import DashboardSuperadmin from './pages/DashboardSuperadmin';
+import Rute from './pages/Rute';
+import { customerVisitStatus } from './utils/visits';
 import PinPad from './components/PinPad';
 
 const INIT_COMPANY = {
@@ -52,8 +54,21 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   
   const [customers, setCustomers] = useState([]);
+  const [visits, setVisits] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [packages, setPackages] = useState([]);
+
+  // Label kunjungan untuk daftar Pelanggan: hanya yang sudah didatangi dan masih menunggu / perlu didatangi lagi.
+  const visitStatusById = useMemo(() => {
+    const map = {};
+    if (visits.length === 0) return map;
+    const paidCheck = transactions.map(t => ({ ...t, customerName: t.customer_name }));
+    customers.forEach(c => {
+      const status = customerVisitStatus(c, visits, paidCheck);
+      if (status.key === 'menunggu' || status.key === 'perlu_didatangi') map[c.id] = status;
+    });
+    return map;
+  }, [customers, visits, transactions]);
   const [companyInfo, setCompanyInfo] = useState(INIT_COMPANY);
   
   const [showAddCustomer, setShowAddCustomer] = useState(false);
@@ -211,18 +226,24 @@ export default function App() {
           { data: custData, error: custErr }, 
           { data: transData, error: transErr }, 
           { data: pkgData, error: pkgErr },
-          { data: settingsData, error: setErr }
+          { data: settingsData, error: setErr },
+          { data: visitData, error: visitErr }
         ] = await Promise.all([
           supabase.from('customers').select('*').order('created_at', { ascending: false }),
           supabase.from('transactions').select('*').order('date', { ascending: false }),
           supabase.from('packages').select('*').order('name'),
-          supabase.from('company_settings').select('*').eq('id', 1).maybeSingle()
+          supabase.from('company_settings').select('*').eq('id', 1).maybeSingle(),
+          supabase.from('customer_visits').select('*')
+            .gte('visited_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
+            .order('visited_at', { ascending: false })
         ]);
 
         if (custErr) console.error('Error Customers:', custErr.message);
         if (transErr) console.error('Error Transactions:', transErr.message);
         if (pkgErr) console.error('Error Packages:', pkgErr.message);
         if (setErr) console.error('Error Settings:', setErr.message);
+        if (visitErr) console.warn('Catatan kunjungan belum tersedia:', visitErr.message);
+        if (visitData) setVisits(visitData);
 
         if (custData) setCustomers(custData);
         if (transData) {
@@ -476,6 +497,32 @@ export default function App() {
     } catch (e) {
       alert('Gagal menambah pelanggan: ' + e.message);
     }
+  };
+
+  const handleAddVisit = async ({ customer_id, outcome, available_on }) => {
+    const { data, error } = await supabase
+      .from('customer_visits')
+      .insert({ customer_id, outcome, available_on, visited_by_name: session?.profile?.full_name || null })
+      .select()
+      .single();
+
+    if (error) {
+      alert('Gagal menyimpan kunjungan: ' + error.message);
+      return false;
+    }
+    setVisits(prev => [data, ...prev]);
+    return true;
+  };
+
+  // Koordinat dan urutan rute hanya boleh diubah superadmin (dijaga RLS di database).
+  const handleUpdateCustomerRoute = async (id, patch) => {
+    const { error } = await supabase.from('customers').update(patch).eq('id', id);
+    if (error) {
+      alert('Gagal menyimpan rute: ' + error.message);
+      return false;
+    }
+    setCustomers(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
+    return true;
   };
 
   const handleUpdateCustomerDB = async (updatedCustomer) => {
@@ -791,10 +838,21 @@ export default function App() {
                 customers={customers} 
                 packages={packages}
                 role={session?.profile?.role}
+                visitStatusById={visitStatusById}
                 setShowAddCustomer={setShowAddCustomer} 
                 onDeleteCustomer={handleDeleteCustomerDB}
                 onUpdateCustomer={handleUpdateCustomerDB}
                 onSyncEbilling={handleSyncCustomersFromEbilling}
+              />
+            } />
+            <Route path="/rute" element={
+              <Rute
+                customers={customers}
+                transactions={transactions.map(t => ({...t, customerName: t.customer_name}))}
+                visits={visits}
+                role={session?.profile?.role}
+                onAddVisit={handleAddVisit}
+                onUpdateCustomerRoute={handleUpdateCustomerRoute}
               />
             } />
             <Route path="/settings" element={
