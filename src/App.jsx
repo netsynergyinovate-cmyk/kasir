@@ -83,7 +83,7 @@ export default function App() {
   
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [receiptToView, setReceiptToView] = useState(null);
-  const [runsnetWatchId, setRunsnetWatchId] = useState(null);
+  const [runsnetResult, setRunsnetResult] = useState(null);
   const [draftReceiptId, setDraftReceiptId] = useState(null);
   const [instansiReceiptToView, setInstansiReceiptToView] = useState(null);
 
@@ -454,7 +454,17 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ transactionId }),
-    }).catch((e) => console.warn('Sinkron Runsnet tidak terkirim:', e.message));
+    })
+      .then((response) => response.json().then((result) => ({ ok: response.ok, result })))
+      .then(({ ok, result }) => {
+        // Hasil ditampilkan langsung dari jawaban server (sama untuk admin dan superadmin).
+        if (!ok) setRunsnetResult({ status: 'failed', message: result.error || 'Server menolak permintaan sinkron.' });
+        else if (result.status) setRunsnetResult({ status: result.status, message: result.message });
+      })
+      .catch((e) => {
+        console.warn('Sinkron Runsnet tidak terkirim:', e.message);
+        setRunsnetResult({ status: 'failed', message: 'Tidak bisa menghubungi server sinkron Runsnet: ' + e.message });
+      });
   };
 
   const commitTransaction = async (newTrx) => {
@@ -505,7 +515,6 @@ export default function App() {
       }
 
       setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
-      setRunsnetWatchId(newTrx.id);
       if (!error) triggerRunsnetSync(newTrx.id);
       showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
 
@@ -545,7 +554,6 @@ export default function App() {
 
       setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
       setInstansiReceiptToView(newTrx);
-      setRunsnetWatchId(newTrx.id);
       if (!error) triggerRunsnetSync(newTrx.id);
       showNotification('Invoice Instansi Berhasil', `${newTrx.instansiName} - ${formatRupiah(newTrx.price)}`);
 
@@ -1018,7 +1026,7 @@ export default function App() {
         <Navigation role={session?.profile?.role} />
       </div>
 
-      <RunsnetSyncToast watchId={runsnetWatchId} />
+      <RunsnetSyncToast result={runsnetResult} onDone={() => setRunsnetResult(null)} />
 
       <AddCustomerModal
         show={showAddCustomer}
