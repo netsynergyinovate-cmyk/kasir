@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Search, Calendar, Filter, FileText, Building2, ChevronRight, Trash2 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 
-const History = ({ transactions, setReceiptToView, setInstansiReceiptToView, onDeleteTransaction }) => {
+const History = ({ transactions, role, setReceiptToView, setInstansiReceiptToView, onDeleteTransaction }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -123,18 +123,20 @@ const History = ({ transactions, setReceiptToView, setInstansiReceiptToView, onD
                   )}
                 </div>
                 
-                {/* Tombol Hapus */}
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (window.confirm('Hapus permanen riwayat transaksi ini?')) {
-                      onDeleteTransaction(trx.id);
-                    }
-                  }}
-                  className="p-2 -mr-2 text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 size={16} />
-                </button>
+                {/* Tombol Hapus (khusus superadmin; admin hanya bisa melihat) */}
+                {role === 'superadmin' && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Hapus permanen riwayat transaksi ini?')) {
+                        onDeleteTransaction(trx.id);
+                      }
+                    }}
+                    className="p-2 -mr-2 text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-3">

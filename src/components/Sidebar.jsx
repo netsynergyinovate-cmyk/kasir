@@ -58,11 +58,9 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session }) => {
             <NavLink to="/pos" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
               <Printer size={18} /> Kasir (58mm)
             </NavLink>
-            {isSuper && (
-              <NavLink to="/aktivitas" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-                <Activity size={18} /> Aktivitas Kasir
-              </NavLink>
-            )}
+            <NavLink to="/aktivitas" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+              <Activity size={18} /> Aktivitas Kasir
+            </NavLink>
             <NavLink to="/settings" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
               <SettingsIcon size={18} /> Pengaturan
             </NavLink>

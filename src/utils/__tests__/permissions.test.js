@@ -18,10 +18,13 @@ describe('isPathAllowedForRole', () => {
     expect(isPathAllowedForRole('admin', '/')).toBe(true);
   });
 
+  it('allows admin to view history and activity', () => {
+    expect(isPathAllowedForRole('admin', '/history')).toBe(true);
+    expect(isPathAllowedForRole('admin', '/aktivitas')).toBe(true);
+  });
+
   it('blocks admin on paths outside the allow-list', () => {
     expect(isPathAllowedForRole('admin', '/instansi')).toBe(false);
-    expect(isPathAllowedForRole('admin', '/aktivitas')).toBe(false);
-    expect(isPathAllowedForRole('admin', '/history')).toBe(false);
   });
 
   it('exposes /pos as the admin default landing path', () => {

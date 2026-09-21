@@ -217,6 +217,7 @@ const Settings = ({
                 <label className="block text-[10px] font-bold text-gray-400 uppercase">Nama Kasir di Struk</label>
                 <input 
                   name="adminName" 
+                  readOnly={!isSuper}
                   value={localCompany.adminName || ''} 
                   onChange={handleLocalChange} 
                   onBlur={handleBlur} 
@@ -233,6 +234,7 @@ const Settings = ({
                   <span className="font-black text-emerald-600">Rp</span>
                   <input 
                     name="adminFee" 
+                    readOnly={!isSuper}
                     value={localCompany.adminFee || ''} 
                     onChange={handleLocalChange} 
                     onBlur={handleBlur} 
