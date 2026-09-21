@@ -125,14 +125,6 @@ export function toInputValue(date) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-// Pembukuan harian: satu entri per hari (terbaru dulu), termasuk hari tanpa transaksi.
-export function lastDaysStats(transactions, now = new Date(), days = 7) {
-  return Array.from({ length: days }, (_, offset) => {
-    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset);
-    return { date, ...dailyStats(transactions, date) };
-  });
-}
-
 // Transaksi sukses pada satu hari, urut dari yang paling awal (untuk buku kas harian).
 export function dailyTransactions(transactions, date) {
   return transactions

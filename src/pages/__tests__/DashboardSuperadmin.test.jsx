@@ -57,10 +57,9 @@ describe('DashboardSuperadmin', () => {
     expect(html).toContain('Pilih Tanggal');
   });
 
-  it('shows a 7-day bookkeeping slider and a daily cash ledger toggle', () => {
-    expect(html).toContain('Pembukuan 7 Hari Terakhir');
+  it('offers the daily cash ledger and no separate 7-day slider', () => {
     expect(html).toContain('Buku kas harian');
-    expect((html.match(/snap-start/g) || []).length).toBe(7);
+    expect(html).not.toContain('Pembukuan 7 Hari');
   });
 
   it('ranks cashiers by revenue', () => {

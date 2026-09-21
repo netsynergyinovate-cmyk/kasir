@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus, Wallet, CalendarDays, BookOpen, ChevronDown, Receipt, CheckCircle, AlertCircle, Trophy, Clock, Smartphone, MapPin, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatRupiah } from '../utils/format';
-import { getGreeting, compareMonths, cashierPerformance, paymentSummary, formatRelativeTime, compareDays, resolveDay, lastDaysStats, methodBreakdown, dailyTransactions, toInputValue } from '../utils/dashboardStats';
+import { getGreeting, compareMonths, cashierPerformance, paymentSummary, formatRelativeTime, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue } from '../utils/dashboardStats';
 import Dashboard from './Dashboard';
 
 const MONTHS = [
@@ -60,28 +60,8 @@ const DashboardSuperadmin = (props) => {
   const dayComparison = compareDays(transactions, selectedDay);
   const formatDay = (date) => date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const todayInputValue = toInputValue(now);
-  const yesterdayInputValue = toInputValue(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
-  const selectedInputValue = toInputValue(selectedDay);
   const methods = methodBreakdown(transactions, selectedDay);
   const ledger = dailyTransactions(transactions, selectedDay);
-  const weekDays = lastDaysStats(transactions, now, 7);
-
-  const selectDay = (date) => {
-    const value = toInputValue(date);
-    if (value === todayInputValue) setDayMode('today');
-    else if (value === yesterdayInputValue) setDayMode('yesterday');
-    else {
-      setCustomDate(value);
-      setDayMode('custom');
-    }
-  };
-
-  const dayCardLabel = (date) => {
-    const value = toInputValue(date);
-    if (value === todayInputValue) return 'Hari Ini';
-    if (value === yesterdayInputValue) return 'Kemarin';
-    return date.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-  };
   const displayName = session?.profile?.full_name || 'Super Administrator';
 
   const comparison = compareMonths(transactions, now);
@@ -189,32 +169,6 @@ const DashboardSuperadmin = (props) => {
               )}
             </div>
           )}
-        </div>
-
-        {/* Slider pembukuan 7 hari terakhir: ketuk kartu untuk memilih hari */}
-        <div>
-          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 flex items-center gap-1.5">
-            <BookOpen size={12} /> Pembukuan 7 Hari Terakhir
-          </h2>
-          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4">
-            {weekDays.map((day) => {
-              const active = toInputValue(day.date) === selectedInputValue;
-              return (
-                <button
-                  key={toInputValue(day.date)}
-                  type="button"
-                  onClick={() => selectDay(day.date)}
-                  className={`snap-start shrink-0 w-40 text-left p-3.5 rounded-2xl border transition-all ${active ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white border-gray-100 text-gray-900 shadow-sm'}`}
-                >
-                  <p className={`text-[10px] font-black uppercase tracking-wider ${active ? 'text-indigo-100' : 'text-gray-400'}`}>{dayCardLabel(day.date)}</p>
-                  <p className="text-base font-black mt-1">{formatRupiah(day.revenue)}</p>
-                  <p className={`text-[11px] mt-0.5 ${active ? 'text-indigo-100' : 'text-gray-500'}`}>
-                    {day.count > 0 ? `${day.count} transaksi` : 'Belum ada transaksi'}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* KPI: bulan ini vs bulan lalu */}

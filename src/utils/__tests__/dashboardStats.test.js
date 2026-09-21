@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, lastDaysStats, methodBreakdown, dailyTransactions, toInputValue } from '../dashboardStats';
+import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue } from '../dashboardStats';
 
 describe('getGreeting', () => {
   it('returns the Indonesian greeting for each part of the day', () => {
@@ -175,27 +175,6 @@ describe('toInputValue', () => {
   it('formats a date as yyyy-mm-dd in local time', () => {
     expect(toInputValue(new Date(2026, 8, 5))).toBe('2026-09-05');
     expect(toInputValue(new Date(2026, 11, 31))).toBe('2026-12-31');
-  });
-});
-
-describe('lastDaysStats', () => {
-  const now = new Date(2026, 8, 21, 15, 0);
-  const list = [
-    trx('2026-09-21T09:00:00', 100000),
-    trx('2026-09-21T11:00:00', 50000),
-    trx('2026-09-20T09:00:00', 70000),
-    trx('2026-09-15T09:00:00', 30000),
-  ];
-
-  it('returns one entry per day, newest first, including days without transactions', () => {
-    const days = lastDaysStats(list, now, 7);
-    expect(days).toHaveLength(7);
-    expect(toInputValue(days[0].date)).toBe('2026-09-21');
-    expect(toInputValue(days[6].date)).toBe('2026-09-15');
-    expect(days[0]).toMatchObject({ revenue: 150000, count: 2 });
-    expect(days[1]).toMatchObject({ revenue: 70000, count: 1 });
-    expect(days[2]).toMatchObject({ revenue: 0, count: 0 });
-    expect(days[6]).toMatchObject({ revenue: 30000, count: 1 });
   });
 });
 
