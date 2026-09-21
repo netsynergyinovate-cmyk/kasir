@@ -536,6 +536,13 @@ export default function App() {
     return true;
   };
 
+  // Memuat ulang daftar pelanggan dari Supabase — dipanggil setelah impor pelanggan terpilih dari
+  // Runsnet, supaya yang baru masuk langsung terlihat tanpa perlu refresh halaman.
+  const refetchCustomers = async () => {
+    const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
+    if (!error && data) setCustomers(data);
+  };
+
   const handleUpdateCustomerDB = async (updatedCustomer) => {
     try {
       const { error } = await supabase
@@ -859,6 +866,7 @@ export default function App() {
                 packages={packages}
                 role={session?.profile?.role}
                 session={session}
+                onRunsnetImported={refetchCustomers}
                 visitStatusById={visitStatusById}
                 setShowAddCustomer={setShowAddCustomer} 
                 onDeleteCustomer={handleDeleteCustomerDB}

@@ -28,7 +28,12 @@ export async function verifySuperadmin(req) {
     .maybeSingle();
 
   if (profileError || callerProfile?.role !== 'superadmin') {
-    return { error: { status: 403, message: 'Hanya superadmin yang boleh melakukan aksi ini.' } };
+    // Detail diagnostik sementara (aman ditampilkan ke pemilik akun sendiri — cuma user id &
+    // role miliknya sendiri, bukan rahasia) supaya mudah melacak penyebab penolakan.
+    const detail = profileError
+      ? `query error: ${profileError.message}`
+      : `user id ${callerData.user.id}, profil ditemukan: ${callerProfile ? 'ya' : 'tidak'}, role: ${callerProfile?.role ?? '(tidak ada)'}`;
+    return { error: { status: 403, message: `Hanya superadmin yang boleh melakukan aksi ini. [${detail}]` } };
   }
 
   return { adminClient, callerId: callerData.user.id };

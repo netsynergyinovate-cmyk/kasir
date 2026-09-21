@@ -28,12 +28,24 @@ describe('POST /api/runsnet/customers', () => {
   it('requires a valid superadmin token', async () => {
     verifySuperadmin.mockResolvedValue({ error: { status: 401, message: 'Token tidak valid.' } });
     const res = makeRes();
-    await handler({ method: 'POST', headers: {} }, res);
+    await handler({ method: 'POST', headers: {}, body: { custids: ['C1'] } }, res);
     expect(res.statusCode).toBe(401);
     expect(fetchAllCustomers).not.toHaveBeenCalled();
   });
 
-  it('creates new customers and updates existing ones, matched by custid (no duplicates)', async () => {
+  it('refuses to import when no custids are selected (prevents an accidental full pull)', async () => {
+    verifySuperadmin.mockResolvedValue({ adminClient: {} });
+    const res = makeRes();
+    await handler({ method: 'POST', headers: { authorization: 'Bearer x' }, body: {} }, res);
+    expect(res.statusCode).toBe(400);
+    expect(fetchAllCustomers).not.toHaveBeenCalled();
+
+    const res2 = makeRes();
+    await handler({ method: 'POST', headers: { authorization: 'Bearer x' }, body: { custids: [] } }, res2);
+    expect(res2.statusCode).toBe(400);
+  });
+
+  it('imports ONLY the selected custids, even when Runsnet returns more customers than that', async () => {
     const existingRow = { id: 'CUST-OLD', custid: 'C2', nickname: 'Bos', address: 'Jl. Lama', phone: '0812' };
     const maybeSingle = vi.fn()
       .mockResolvedValueOnce({ data: null })        // C1: pelanggan baru
@@ -44,15 +56,19 @@ describe('POST /api/runsnet/customers', () => {
     };
     verifySuperadmin.mockResolvedValue({ adminClient });
     ensureSession.mockResolvedValue('cookie123');
-    fetchAllCustomers.mockResolvedValue([runsnetCustomer('C1', 'Baru'), runsnetCustomer('C2', 'Sudah Ada')]);
+    // Runsnet returns 3 customers, tapi superadmin cuma memilih C1 dan C2.
+    fetchAllCustomers.mockResolvedValue([
+      runsnetCustomer('C1', 'Baru'),
+      runsnetCustomer('C2', 'Sudah Ada'),
+      runsnetCustomer('C3', 'Tidak Dipilih'),
+    ]);
 
     const res = makeRes();
-    await handler({ method: 'POST', headers: { authorization: 'Bearer x' } }, res);
+    await handler({ method: 'POST', headers: { authorization: 'Bearer x' }, body: { custids: ['C1', 'C2'] } }, res);
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ success: true, total: 2, created: 1, updated: 1 });
     expect(upsert).toHaveBeenCalledTimes(2);
-    // Pelanggan lama tidak boleh dapat id baru / kehilangan data yang sudah diisi manual.
     const updateCall = upsert.mock.calls[1][0];
     expect(updateCall.id).toBe('CUST-OLD');
     expect(updateCall.address).toBe('Jl. Lama');
@@ -62,7 +78,7 @@ describe('POST /api/runsnet/customers', () => {
     verifySuperadmin.mockResolvedValue({ adminClient: {} });
     ensureSession.mockRejectedValue(new Error('Login Runsnet gagal'));
     const res = makeRes();
-    await handler({ method: 'POST', headers: { authorization: 'Bearer x' } }, res);
+    await handler({ method: 'POST', headers: { authorization: 'Bearer x' }, body: { custids: ['C1'] } }, res);
     expect(res.statusCode).toBe(500);
     expect(res.body.error).toMatch(/Login Runsnet gagal/);
   });

@@ -1,0 +1,25 @@
+import { verifySuperadmin } from '../_lib/verifySuperadmin.js';
+import { ensureSession, fetchAllCustomers } from '../_lib/runsnetClient.js';
+
+// Daftar pelanggan Runsnet untuk dipilih superadmin (panel "Pilih dari Runsnet" di menu
+// Pelanggan). HANYA membaca — tidak pernah menulis apa pun ke KAsir maupun Runsnet.
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const { error, adminClient } = await verifySuperadmin(req);
+  if (error) {
+    res.status(error.status).json({ error: error.message });
+    return;
+  }
+
+  try {
+    const cookie = await ensureSession(adminClient);
+    const customers = await fetchAllCustomers(cookie);
+    res.status(200).json({ customers });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
