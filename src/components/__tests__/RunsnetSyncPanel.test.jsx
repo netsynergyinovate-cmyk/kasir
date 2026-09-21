@@ -41,4 +41,9 @@ describe('RunsnetSyncPanel', () => {
     const html = renderToString(<RunsnetSyncPanel />);
     expect(html).toMatch(/TIDAK benar-benar dikirim/);
   });
+
+  it('offers a Uji Koneksi button, independent of the sync toggles', () => {
+    const html = renderToString(<RunsnetSyncPanel session={{ access_token: 'x' }} />);
+    expect(html).toContain('Uji Koneksi ke Runsnet');
+  });
 });

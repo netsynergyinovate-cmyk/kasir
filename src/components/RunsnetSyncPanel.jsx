@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Zap } from 'lucide-react';
+import { RefreshCw, Zap, Wifi, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { describeSyncStatus } from '../utils/runsnetSync';
 
@@ -9,12 +9,14 @@ const formatTime = (iso) =>
 // Panel superadmin: saklar sinkronisasi otomatis KAsir -> Runsnet + mode uji coba, dan log percobaan
 // terakhir. Toggle menulis langsung ke company_settings; keputusan sinkron sesungguhnya dijalankan
 // oleh Vercel Function (api/runsnet/webhook.js) yang membaca kolom ini.
-const RunsnetSyncPanel = () => {
+const RunsnetSyncPanel = ({ session }) => {
   const [enabled, setEnabled] = useState(false);
   const [dryRun, setDryRun] = useState(true);
   const [logs, setLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pinging, setPinging] = useState(false);
+  const [pingResult, setPingResult] = useState(null);
 
   const fetchAll = () => Promise.all([
     supabase.from('company_settings').select('runsnet_sync_enabled, runsnet_dry_run').eq('id', 1).maybeSingle(),
@@ -50,6 +52,26 @@ const RunsnetSyncPanel = () => {
       alert('Gagal menyimpan pengaturan: ' + error.message);
     }
     setSaving(false);
+  };
+
+  const testConnection = async () => {
+    setPinging(true);
+    setPingResult(null);
+    try {
+      const response = await fetch('/api/runsnet/ping', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setPingResult({ ok: false, message: result.error || `HTTP ${response.status}` });
+      } else {
+        setPingResult(result);
+      }
+    } catch (err) {
+      setPingResult({ ok: false, message: 'Endpoint /api/runsnet/ping tidak terjangkau: ' + err.message });
+    }
+    setPinging(false);
   };
 
   return (
@@ -94,6 +116,25 @@ const RunsnetSyncPanel = () => {
             />
             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
           </label>
+        </div>
+
+        <div className="pt-3 border-t border-gray-100 space-y-2">
+          <button
+            type="button"
+            onClick={testConnection}
+            disabled={pinging}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-60"
+          >
+            {pinging ? <Loader2 size={14} className="animate-spin" /> : <Wifi size={14} />}
+            {pinging ? 'Menguji koneksi...' : 'Uji Koneksi ke Runsnet'}
+          </button>
+
+          {pingResult && (
+            <p className={`text-[11px] font-semibold rounded-xl px-3 py-2 flex items-start gap-1.5 ${pingResult.ok ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'}`}>
+              {pingResult.ok ? <CheckCircle2 size={14} className="shrink-0 mt-0.5" /> : <XCircle size={14} className="shrink-0 mt-0.5" />}
+              {pingResult.ok ? 'Berhasil login ke Runsnet. Kredensial dan koneksi sudah benar.' : `Gagal: ${pingResult.message}`}
+            </p>
+          )}
         </div>
 
         <div className="pt-3 border-t border-gray-100 space-y-2">

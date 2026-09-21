@@ -72,6 +72,17 @@ async function loginToRunsnet() {
   return cookie;
 }
 
+// Uji koneksi: hanya mencoba login, tidak menyentuh field pencarian/pembayaran (yang mungkin
+// masih REPLACE_ME) dan tidak menyimpan sesi. Dipakai tombol "Uji Koneksi" di Pengaturan.
+export async function pingRunsnet() {
+  try {
+    await loginToRunsnet();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+}
+
 // Sesi login disimpan di tabel runsnet_session supaya tidak login ulang tiap transaksi
 // (Vercel Function stateless antar pemanggilan; login berulang bisa memicu proteksi anti-bot).
 export async function ensureSession(supabaseAdmin) {

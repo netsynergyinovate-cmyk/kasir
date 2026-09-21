@@ -570,7 +570,7 @@ const Settings = ({
 
         {isSuper && <AdminAccountsPanel />}
 
-        {isSuper && <RunsnetSyncPanel />}
+        {isSuper && <RunsnetSyncPanel session={session} />}
 
         {/* Danger Zone */}
         <div className="pt-4">
