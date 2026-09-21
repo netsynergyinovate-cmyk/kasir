@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { customerVisitStatus, pendingStops, formatShortDate, nextSevenDays, describeVisit, searchCustomers, TONE_COLORS, TONE_BADGE_CLASSES } from '../visits';
+import { customerVisitStatus, pendingStops, formatShortDate, nextSevenDays, describeVisit, searchCustomers, TONE_COLORS, TONE_BADGE_CLASSES, buildVisitPayload } from '../visits';
 
 const now = new Date(2026, 8, 21, 10, 0); // 21 Sep 2026
 const ani = { id: 'c1', name: 'Ani' };
@@ -181,5 +181,47 @@ describe('status colors', () => {
     expect(TONE_BADGE_CLASSES.blue).toContain('sky');
     expect(TONE_BADGE_CLASSES.green).toContain('emerald');
     expect(TONE_BADGE_CLASSES.red).toContain('red');
+  });
+});
+
+describe('buildVisitPayload', () => {
+  it('records "tidak ada di rumah" for that day only, without a date', () => {
+    expect(buildVisitPayload('c1', 'tidak_ada_di_rumah', '2026-09-22'))
+      .toEqual({ customer_id: 'c1', outcome: 'tidak_ada_di_rumah', available_on: null });
+  });
+
+  it('keeps the chosen payment day for "uang belum ada"', () => {
+    expect(buildVisitPayload('c1', 'uang_belum_ada', '2026-09-22'))
+      .toEqual({ customer_id: 'c1', outcome: 'uang_belum_ada', available_on: '2026-09-22' });
+  });
+});
+
+describe('a "tidak ada di rumah" visit without a date', () => {
+  const notHome = (visitedAt) => [{ customer_id: 'c1', visited_at: visitedAt, outcome: 'tidak_ada_di_rumah', available_on: null }];
+
+  it('waits for the rest of that day, without a promised date in the label', () => {
+    const status = customerVisitStatus(ani, notHome('2026-09-21T08:00:00'), [], now);
+    expect(status).toMatchObject({ key: 'menunggu', tone: 'yellow', label: 'Tidak ada di rumah' });
+  });
+
+  it('is due again the next day and stays yellow', () => {
+    const tomorrow = new Date(2026, 8, 22, 8, 0);
+    const status = customerVisitStatus(ani, notHome('2026-09-21T08:00:00'), [], tomorrow);
+    expect(status).toMatchObject({ key: 'perlu_didatangi', tone: 'yellow' });
+  });
+
+  it('turns blue when the customer is found at home but will pay tomorrow', () => {
+    const visits = [
+      ...notHome('2026-09-21T08:00:00'),
+      { customer_id: 'c1', visited_at: '2026-09-22T09:00:00', outcome: 'uang_belum_ada', available_on: '2026-09-23' },
+    ];
+    const status = customerVisitStatus(ani, visits, [], new Date(2026, 8, 22, 10, 0));
+    expect(status).toMatchObject({ key: 'menunggu', tone: 'blue', label: 'Uang belum ada · kapan ada: 23 Sep' });
+  });
+
+  it('turns green as soon as the customer pays', () => {
+    const trx = [{ type: 'retail', status: 'LUNAS', customerName: 'Ani', date: '2026-09-22T11:00:00' }];
+    const status = customerVisitStatus(ani, notHome('2026-09-21T08:00:00'), trx, new Date(2026, 8, 22, 12, 0));
+    expect(status).toMatchObject({ key: 'sudah_bayar', tone: 'green' });
   });
 });

@@ -111,3 +111,13 @@ export function searchCustomers(customers, query) {
     [customer.name, customer.nickname, customer.address].some((field) => (field || '').toLowerCase().includes(needle))
   );
 }
+
+// Data yang disimpan untuk satu kunjungan. "Tidak ada di rumah" hanya dicatat untuk hari itu (tanpa tanggal);
+// hanya "uang belum ada" yang membawa hari kapan uangnya ada.
+export function buildVisitPayload(customerId, outcome, availableOn) {
+  return {
+    customer_id: customerId,
+    outcome,
+    available_on: outcome === 'uang_belum_ada' ? availableOn : null,
+  };
+}
