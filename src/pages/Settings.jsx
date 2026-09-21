@@ -8,6 +8,7 @@ import {
 import { formatRupiah } from '../utils/format';
 import { supabase } from '../lib/supabase';
 import { testBillingSystemConnection, getEbillingLogs, clearEbillingLogs } from '../utils/billingApi';
+import AdminAccountsPanel from '../components/AdminAccountsPanel';
 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
@@ -26,7 +27,7 @@ const Settings = ({
   const [livePingStatus, setLivePingStatus] = useState(null);
 
   const currentUser = session?.user;
-  const isSuper = currentUser?.email?.includes('superadmin') || currentUser?.user_metadata?.role === 'superadmin';
+  const isSuper = session?.profile?.role === 'superadmin';
 
   // Sync local state & load API Key guarantee from localStorage
   useEffect(() => {
@@ -191,7 +192,7 @@ const Settings = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-800">{isSuper ? 'Super Administrator' : (currentUser?.user_metadata?.name || 'Admin Kasir')}</span>
+                    <span className="text-xs font-bold text-gray-800">{isSuper ? 'Super Administrator' : (session?.profile?.full_name || 'Admin Kasir')}</span>
                     <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isSuper ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                       {isSuper ? 'Super Admin' : 'Admin'}
                     </span>
@@ -244,7 +245,9 @@ const Settings = ({
           </div>
         </div>
 
-        {/* Section: Identitas Toko */}
+        {/* Section: Identitas Toko, Manajemen Paket, E-Billing (khusus superadmin) */}
+        {isSuper && (
+        <>
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Identitas Toko</h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
@@ -559,6 +562,10 @@ const Settings = ({
 
           </div>
         </div>
+        </>
+        )}
+
+        {isSuper && <AdminAccountsPanel session={session} />}
 
         {/* Danger Zone */}
         <div className="pt-4">
