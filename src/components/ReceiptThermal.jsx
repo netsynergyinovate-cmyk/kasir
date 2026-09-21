@@ -1,19 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { Printer, Download, X, CheckCircle2, Loader2 } from 'lucide-react';
+import { Printer, Download, X, CheckCircle2, Loader2, Save } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { formatRupiah, formatDate, getInvoiceNumber } from '../utils/format';
 
 const TOAST_MS = 4000;
 
-// justSaved: true kalau struk ini baru saja muncul setelah transaksi disimpan (bukan dibuka ulang dari
-// Riwayat) — memunculkan pop up "berhasil tersimpan". Pasang key={id transaksi} supaya state awal ini
-// dihitung ulang tiap struk baru.
-const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice, justSaved = false }) => {
+// isDraft: struk baru dari form Transaksi yang BELUM tersimpan. Transaksi baru tersimpan saat kasir
+// menekan Simpan/Cetak (onCommit). Struk yang dibuka dari Riwayat sudah tersimpan (isDraft false).
+// Pasang key={id transaksi} supaya state awal dihitung ulang tiap struk baru.
+const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, btDevice, isDraft = false }) => {
   const [isPrinting, setIsConnecting] = useState(false);
   const [isSavingImage, setIsSavingImage] = useState(false);
-  const [toast, setToast] = useState(justSaved && transaction
-    ? { title: 'Transaksi berhasil tersimpan', sub: `Invoice ${getInvoiceNumber(transaction)}` }
-    : null);
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [committed, setCommitted] = useState(!isDraft);
+  const [toast, setToast] = useState(null);
   const receiptRef = useRef(null);
 
   useEffect(() => {
@@ -23,6 +23,54 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice, 
   }, [toast]);
 
   if (!transaction || transaction.type === 'instansi') return null;
+
+  const printerConnected = Boolean(btDevice?.gatt?.connected);
+  const busy = isPrinting || isSavingImage || isCommitting;
+
+  // Menyimpan transaksi ke database kalau masih draf. true = sudah tersimpan (baru atau sebelumnya).
+  const ensureSaved = async () => {
+    if (committed) return true;
+    setIsCommitting(true);
+    try {
+      const ok = await onCommit();
+      if (ok) {
+        setCommitted(true);
+        setToast({ title: 'Transaksi berhasil tersimpan', sub: `Invoice ${getInvoiceNumber(transaction)}` });
+      }
+      return Boolean(ok);
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menyimpan transaksi: ' + error.message);
+      return false;
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
+  // Tombol utama: simpan, lalu langsung cetak kalau printer Bluetooth terhubung (kalau tidak, simpan saja).
+  const handlePrimary = async () => {
+    const wasDraft = !committed;
+    if (!(await ensureSaved())) return;
+    if (printerConnected) {
+      const printed = await printViaBluetooth();
+      if (printed && wasDraft) setToast({ title: 'Tersimpan & tercetak', sub: `Invoice ${getInvoiceNumber(transaction)}` });
+    } else if (!wasDraft) {
+      onClose();
+    }
+  };
+
+  const handleSystemPrint = async () => {
+    if (await ensureSaved()) onPrint();
+  };
+
+  const handleSaveImage = async () => {
+    if (await ensureSaved()) await saveAsImage();
+  };
+
+  const handleClose = () => {
+    if (!committed && !window.confirm('Struk ini belum disimpan. Batalkan transaksi?')) return;
+    onClose();
+  };
 
   const saveAsImage = async () => {
     if (!receiptRef.current) return;
@@ -45,7 +93,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice, 
   const printViaBluetooth = async () => {
     if (!btDevice) {
       onPrint();
-      return;
+      return false;
     }
 
     setIsConnecting(true);
@@ -183,11 +231,12 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice, 
       await printLine('Simpan struk ini sebagai bukti');
       await feed();
       setToast({ title: 'Struk berhasil dicetak', sub: `Invoice ${getInvoiceNumber(transaction)}` });
-
+      return true;
     } catch (error) {
       console.error(error);
       alert('Gagal mencetak via Bluetooth. Gunakan cetak browser.');
       onPrint(); // Fallback
+      return false;
     } finally {
       setIsConnecting(false);
     }
@@ -325,7 +374,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice, 
 
       <button
         type="button"
-        onClick={onClose}
+        onClick={handleClose}
         aria-label="Tutup struk"
         className="fixed top-4 right-4 z-[60] w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md text-white flex items-center justify-center border border-white/20 active:scale-95 transition-all print:hidden no-print"
       >
@@ -345,26 +394,32 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice, 
       )}
 
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2.5 z-[60] print:hidden w-full max-w-[300px] px-4 no-print">
+          {!committed && (
+            <p className="text-center text-[11px] font-bold text-amber-200 bg-amber-500/20 border border-amber-300/30 rounded-xl py-1.5">
+              Belum tersimpan — tekan {printerConnected ? 'Cetak & Simpan' : 'Simpan'} untuk menyimpan
+            </p>
+          )}
           <button
-            onClick={printViaBluetooth}
-            disabled={isPrinting}
+            onClick={handlePrimary}
+            disabled={busy}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            {isPrinting ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
-            {isPrinting ? 'Mencetak...' : 'Cetak Struk Bluetooth'}
+            {busy ? <Loader2 size={20} className="animate-spin" /> : (printerConnected ? <Printer size={20} /> : <Save size={20} />)}
+            {isCommitting ? 'Menyimpan...' : isPrinting ? 'Mencetak...' : printerConnected ? (committed ? 'Cetak Ulang' : 'Cetak & Simpan') : (committed ? 'Selesai' : 'Simpan')}
           </button>
           <div className="grid grid-cols-2 gap-2.5">
             <button
-              onClick={saveAsImage}
-              disabled={isSavingImage}
+              onClick={handleSaveImage}
+              disabled={busy}
               className="bg-white/95 hover:bg-white text-gray-800 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs disabled:opacity-60"
             >
-              {isSavingImage ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              <Download size={15} />
               Simpan Gambar
             </button>
             <button
-              onClick={onPrint}
-              className="bg-white/95 hover:bg-white text-gray-800 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs"
+              onClick={handleSystemPrint}
+              disabled={busy}
+              className="bg-white/95 hover:bg-white text-gray-800 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs disabled:opacity-60"
             >
               <Printer size={15} />
               Cetak Sistem

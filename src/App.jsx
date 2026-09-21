@@ -82,7 +82,7 @@ export default function App() {
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [receiptToView, setReceiptToView] = useState(null);
   const [runsnetWatchId, setRunsnetWatchId] = useState(null);
-  const [justSavedReceiptId, setJustSavedReceiptId] = useState(null);
+  const [draftReceiptId, setDraftReceiptId] = useState(null);
   const [instansiReceiptToView, setInstansiReceiptToView] = useState(null);
 
   const [btDevice, setBtDevice] = useState(null);
@@ -382,7 +382,14 @@ export default function App() {
     }
   };
 
-  const handleTransactionComplete = async (newTrx) => {
+  // Form Transaksi hanya menyiapkan struk (draf) — belum ada yang tersimpan. Baru saat kasir menekan
+  // Simpan/Cetak di struk, commitTransaction dijalankan.
+  const handleTransactionComplete = (newTrx) => {
+    setReceiptToView(newTrx);
+    setDraftReceiptId(newTrx.id);
+  };
+
+  const commitTransaction = async (newTrx) => {
     try {
       console.log('Menyimpan Transaksi Retail...');
       
@@ -430,8 +437,6 @@ export default function App() {
       }
 
       setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
-      setReceiptToView(newTrx);
-      setJustSavedReceiptId(newTrx.id);
       setRunsnetWatchId(newTrx.id);
       showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
 
@@ -443,9 +448,9 @@ export default function App() {
       const filteredExisting = existingLocal.filter(t => t.id !== newTrx.id);
       localStorage.setItem('kasir_local_transactions', JSON.stringify([newTrx, ...filteredExisting]));
       setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
-      setReceiptToView(newTrx);
       showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
     }
+    return true;
   };
 
   const handleInstansiComplete = async (newTrx) => {
@@ -952,9 +957,10 @@ export default function App() {
       <ReceiptThermal 
         key={receiptToView?.id}
         transaction={receiptToView} 
-        justSaved={receiptToView?.id === justSavedReceiptId}
+        isDraft={Boolean(receiptToView) && receiptToView.id === draftReceiptId}
+        onCommit={async () => { const ok = await commitTransaction(receiptToView); setDraftReceiptId(null); return ok; }}
         companyInfo={companyInfo}
-        onClose={() => { setReceiptToView(null); setJustSavedReceiptId(null); }} 
+        onClose={() => { setReceiptToView(null); setDraftReceiptId(null); }} 
         onPrint={handlePrint} 
         btDevice={btDevice}
       />
