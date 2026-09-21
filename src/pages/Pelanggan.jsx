@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Search, PlusCircle, Wifi, Trash2, Pencil, MapPin, LayoutGrid, List, 
-  Calendar, User, RefreshCw, Key, Phone, Network, ShieldCheck, CheckCircle2, 
+  Calendar, RefreshCw, Key, Phone, Network, ShieldCheck, CheckCircle2,
   ExternalLink, Info, X 
 } from 'lucide-react';
 import EditCustomerModal from '../components/EditCustomerModal';
+import RunsnetCustomerPicker from '../components/RunsnetCustomerPicker';
 import { formatRupiah } from '../utils/format';
 import { TONE_BADGE_CLASSES } from '../utils/visits';
 
-const Pelanggan = ({ customers = [], packages = [], role, session, visitStatusById = {}, setShowAddCustomer, onDeleteCustomer, onUpdateCustomer, onSyncEbilling }) => {
+const Pelanggan = ({ customers = [], packages = [], role, session, onRunsnetImported, visitStatusById = {}, setShowAddCustomer, onDeleteCustomer, onUpdateCustomer, onSyncEbilling }) => {
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isSyncingRunsnet, setIsSyncingRunsnet] = useState(false);
+  const [showRunsnetPicker, setShowRunsnetPicker] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'ebilling' | 'aktif' | 'isolir'
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [selectedDetailCust, setSelectedDetailCust] = useState(null);
@@ -64,53 +65,38 @@ const Pelanggan = ({ customers = [], packages = [], role, session, visitStatusBy
     }
   };
 
-  const handleSyncRunsnet = async () => {
-    setIsSyncingRunsnet(true);
-    try {
-      const response = await fetch('/api/runsnet/customers', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
-      alert(`Sinkron Runsnet selesai: ${result.total} pelanggan (${result.created} baru, ${result.updated} diperbarui).`);
-    } catch (err) {
-      alert('Gagal menyinkronkan dari Runsnet: ' + err.message);
-    }
-    setIsSyncingRunsnet(false);
-  };
+  const existingCustids = new Set(customers.map((c) => c.custid).filter(Boolean));
 
   return (
     <div className="p-4 space-y-4 pb-32 animate-in fade-in duration-200">
       {/* Header Bar */}
-      <div className="flex justify-between items-center mb-2">
+      <div className="space-y-2.5 mb-1">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Data Pelanggan</h2>
-          <p className="text-xs text-gray-500">Tersambung ke E-Billing POS System ({customers.length} Total)</p>
+          <p className="text-xs text-gray-500">{customers.length} pelanggan tersimpan</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
           {role === 'superadmin' && (
             <button
-              onClick={handleSyncRunsnet}
-              disabled={isSyncingRunsnet}
-              className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 border border-indigo-200 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+              onClick={() => setShowRunsnetPicker(true)}
+              className="shrink-0 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 border border-indigo-200 shadow-sm active:scale-95 transition-all"
             >
-              <RefreshCw size={14} className={isSyncingRunsnet ? 'animate-spin text-indigo-600' : 'text-indigo-600'} />
-              {isSyncingRunsnet ? 'Menarik...' : 'Sinkron Pelanggan Runsnet'}
+              <RefreshCw size={13} className="text-indigo-600" />
+              Runsnet
             </button>
           )}
           {onSyncEbilling && (
-            <button 
-              onClick={handleSync} 
+            <button
+              onClick={handleSync}
               disabled={isSyncing}
-              className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 border border-emerald-200 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+              className="shrink-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 border border-emerald-200 shadow-sm active:scale-95 transition-all disabled:opacity-50"
             >
-              <RefreshCw size={14} className={isSyncing ? "animate-spin text-emerald-600" : "text-emerald-600"} />
-              {isSyncing ? 'Menarik...' : 'Sinkron E-Billing'}
+              <RefreshCw size={13} className={isSyncing ? "animate-spin text-emerald-600" : "text-emerald-600"} />
+              {isSyncing ? 'Menarik...' : 'E-Billing'}
             </button>
           )}
-          <button onClick={() => setShowAddCustomer(true)} className="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-200 active:scale-95 transition-all">
-            <PlusCircle size={16} /> Tambah
+          <button onClick={() => setShowAddCustomer(true)} className="shrink-0 ml-auto bg-blue-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-200 active:scale-95 transition-all">
+            <PlusCircle size={15} /> Tambah
           </button>
         </div>
       </div>
@@ -184,50 +170,45 @@ const Pelanggan = ({ customers = [], packages = [], role, session, visitStatusBy
                 key={cust.id} 
                 className={`bg-white p-3 rounded-xl border shadow-sm relative group hover:shadow-md transition-all ${cust.status !== 'aktif' ? 'border-red-100 bg-red-50/20' : 'border-gray-200'}`}
               >
-                <div className="absolute top-2 right-2 flex gap-1 z-10">
-                  <button onClick={() => setSelectedDetailCust(cust)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Lihat Rincian E-Billing"><Info size={13}/></button>
-                  {role === 'superadmin' && (
-                    <>
-                      <button onClick={() => setEditingCustomer(cust)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={12}/></button>
-                      <button onClick={() => { if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
-                    </>
-                  )}
-                </div>
-                
-                <div className="flex flex-col items-center text-center mb-3 pt-2">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm mb-2 relative ${cust.status === 'aktif' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-500 border-gray-200'} border`}>
-                    <User size={20} />
-                    {isEbilling && (
-                      <span className="absolute -bottom-1 -right-1 bg-indigo-600 text-white p-0.5 rounded-full border border-white" title="Tersinkron E-Billing">
-                        <CheckCircle2 size={12} />
-                      </span>
+                <div className="flex items-start justify-between gap-1.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`} title={cust.status}></span>
+                      <h3 className="font-bold text-gray-900 text-sm leading-tight truncate">{cust.name}</h3>
+                    </div>
+                    {cust.nickname && <p className="text-gray-400 font-medium text-[10px] mt-0.5 ml-3.5 truncate">({cust.nickname})</p>}
+                  </div>
+                  <div className="flex gap-0.5 shrink-0">
+                    <button onClick={() => setSelectedDetailCust(cust)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Lihat Rincian E-Billing"><Info size={13}/></button>
+                    {role === 'superadmin' && (
+                      <>
+                        <button onClick={() => setEditingCustomer(cust)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={12}/></button>
+                        <button onClick={() => { if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
+                      </>
                     )}
                   </div>
-                  <h3 className="font-bold text-gray-900 text-sm leading-tight">{cust.name}</h3>
-                  {cust.nickname && <p className="text-gray-400 font-medium text-[10px] mt-0.5">({cust.nickname})</p>}
+                </div>
+
+                <div>
                   {visitStatusById[cust.id] && (
-                    <span className={`inline-block mt-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatusById[cust.id].tone]}`}>{visitStatusById[cust.id].label}</span>
-                  )}
-                  
-                  {pppoe && (
-                    <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                      <Key size={10} className="text-blue-500" /> {pppoe}
-                    </span>
+                    <span className={`inline-block mt-1 ml-3.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatusById[cust.id].tone]}`}>{visitStatusById[cust.id].label}</span>
                   )}
 
-                  <div className="flex gap-1 mt-2">
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold ${cust.status === 'aktif' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'} border`}>
-                      <span className={`w-1 h-1 rounded-full mr-1 ${cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}></span> {cust.status}
-                    </span>
+                  <div className="flex flex-wrap gap-1 mt-2 ml-3.5">
+                    {pppoe && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                        <Key size={9} className="text-blue-500" /> {pppoe}
+                      </span>
+                    )}
                     {isEbilling && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        E-Billing
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <CheckCircle2 size={9} /> E-Billing
                       </span>
                     )}
                   </div>
                 </div>
-                
-                <div className="border-t border-gray-100 pt-2.5 space-y-1.5">
+
+                <div className="mt-3 pt-2.5 border-t border-gray-100 space-y-1.5">
                   <div className="flex justify-between items-center text-[10px]">
                     <span className="text-gray-400 flex items-center gap-1"><Wifi size={10}/> Paket</span>
                     <span className="font-bold text-gray-700 truncate max-w-[80px]" title={cust.package}>{cust.package}</span>
@@ -270,18 +251,16 @@ const Pelanggan = ({ customers = [], packages = [], role, session, visitStatusBy
               const isEbilling = cust.source === 'E-Billing' || pppoe;
               return (
                 <div key={cust.id} className={`grid grid-cols-1 sm:grid-cols-12 gap-4 px-4 py-4 items-center hover:bg-gray-50 transition-colors group ${cust.status !== 'aktif' ? 'bg-red-50/10' : ''}`}>
-                  <div className="col-span-1 sm:col-span-4 flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border shrink-0 ${cust.status === 'aktif' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                          <User size={16} />
-                      </div>
-                      <div>
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-sm font-bold text-gray-900 leading-none">{cust.name} {cust.nickname && <span className="text-gray-400 font-medium text-[10px]">({cust.nickname})</span>}</p>
-                            {visitStatusById[cust.id] && (
-                              <span className={`inline-block mt-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatusById[cust.id].tone]}`}>{visitStatusById[cust.id].label}</span>
-                            )}
+                  <div className="col-span-1 sm:col-span-4 flex items-start gap-2.5">
+                      <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`} title={cust.status}></span>
+                      <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-900 leading-tight truncate">{cust.name} {cust.nickname && <span className="text-gray-400 font-medium text-[10px]">({cust.nickname})</span>}</p>
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
                             {isEbilling && (
-                              <span className="bg-indigo-100 text-indigo-700 text-[9px] font-bold px-1.5 py-0.2 rounded border border-indigo-200">E-Billing</span>
+                              <span className="bg-indigo-100 text-indigo-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-200">E-Billing</span>
+                            )}
+                            {visitStatusById[cust.id] && (
+                              <span className={`inline-block text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatusById[cust.id].tone]}`}>{visitStatusById[cust.id].label}</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2 mt-1">
@@ -300,7 +279,9 @@ const Pelanggan = ({ customers = [], packages = [], role, session, visitStatusBy
                       <a href={`https://wa.me/${cust.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-green-700 font-bold hover:underline">
                         <Phone size={12}/> {cust.phone}
                       </a>
-                    ) : <span className="text-gray-300 text-[10px] italic">No. WA -</span>}
+                    ) : (
+                      <span className="text-gray-300 text-[10px]">–</span>
+                    )}
                     {cust.ip_address && (
                       <p className="text-[10px] font-mono text-gray-600 flex items-center gap-1">
                         <Network size={11}/> {cust.ip_address}
@@ -348,17 +329,15 @@ const Pelanggan = ({ customers = [], packages = [], role, session, visitStatusBy
             </div>
 
             <div className="p-6 space-y-4 text-sm">
-              <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-lg border border-blue-200">
-                  <User size={24} />
-                </div>
-                <div>
+              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${selectedDetailCust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}></span>
                   <h4 className="font-extrabold text-gray-900 text-base">{selectedDetailCust.name}</h4>
-                  <p className="text-xs text-gray-500 font-medium">ID Kasir: {selectedDetailCust.id}</p>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold mt-1 ${selectedDetailCust.status === 'aktif' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    Status: {selectedDetailCust.status.toUpperCase()}
-                  </span>
                 </div>
+                <p className="text-xs text-gray-500 font-medium mt-1 ml-3.5">ID Kasir: {selectedDetailCust.id}</p>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold mt-1.5 ml-3.5 ${selectedDetailCust.status === 'aktif' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  Status: {selectedDetailCust.status.toUpperCase()}
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -447,11 +426,20 @@ const Pelanggan = ({ customers = [], packages = [], role, session, visitStatusBy
       )}
 
       {editingCustomer && (
-        <EditCustomerModal 
-          customer={editingCustomer} 
-          packages={packages} 
-          onClose={() => setEditingCustomer(null)} 
-          onSave={handleSaveEdit} 
+        <EditCustomerModal
+          customer={editingCustomer}
+          packages={packages}
+          onClose={() => setEditingCustomer(null)}
+          onSave={handleSaveEdit}
+        />
+      )}
+
+      {showRunsnetPicker && (
+        <RunsnetCustomerPicker
+          session={session}
+          existingCustids={existingCustids}
+          onClose={() => setShowRunsnetPicker(false)}
+          onImported={onRunsnetImported}
         />
       )}
     </div>
