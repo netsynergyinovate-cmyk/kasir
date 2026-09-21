@@ -183,39 +183,13 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <label className="block text-sm font-bold text-gray-800 flex items-center gap-1.5">
-                <UserCheck size={16} className="text-blue-600"/> Pilih Pelanggan (Mandatori Dropdown)
+                <UserCheck size={16} className="text-blue-600"/> Pilih Pelanggan
               </label>
               {selectedCustomerData && (
                 <span className="bg-emerald-100 text-emerald-800 font-bold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
                   <CheckCircle2 size={12}/> Tersambung
                 </span>
               )}
-            </div>
-
-            {/* Quick Select Dropdown */}
-            <div>
-              <select 
-                value={selectedCust}
-                onChange={(e) => {
-                  const found = customers.find(c => c.id === e.target.value);
-                  if (found) handleSelectCustomer(found);
-                  else {
-                    setSelectedCust('');
-                    setSearchCust('');
-                  }
-                }}
-                className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs font-bold text-gray-800 focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">-- Dropdown: Pilih Pelanggan dari Daftar --</option>
-                {customers.map(c => {
-                  const custId = c.custid || c.customer_id || c.pppoe_id || c.id;
-                  return (
-                    <option key={c.id} value={c.id}>
-                      {c.name} - [custid: {custId}] ({c.package || 'Paket RT RW'})
-                    </option>
-                  );
-                })}
-              </select>
             </div>
 
             {/* Auto-complete Search Box */}
@@ -297,7 +271,7 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
             ) : (
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-medium flex items-center gap-2">
                 <AlertCircle size={16} className="shrink-0 text-amber-600" />
-                <span>Kasir <strong>wajib memilih pelanggan</strong> dari dropdown / pencarian di atas untuk menghindari kesalahan cocok data (no_match).</span>
+                <span>Kasir <strong>wajib memilih pelanggan</strong> dari pencarian di atas untuk menghindari kesalahan cocok data (no_match).</span>
               </div>
             )}
           </div>
