@@ -245,21 +245,21 @@ const History = ({ transactions, role, session, setReceiptToView, setInstansiRec
 
               {trx.type !== 'instansi' && (() => {
                 const badge = describeRunsnetStatus(trx, runsnetStatuses[runsnetCodeOf(trx)]);
+                const dot = badge.tone === 'ok' ? 'bg-emerald-500' : badge.tone === 'bad' ? 'bg-red-500' : badge.tone === 'warn' ? 'bg-amber-500' : 'bg-gray-300';
+                const text = badge.tone === 'ok' ? 'text-emerald-700' : badge.tone === 'bad' ? 'text-red-600' : badge.tone === 'warn' ? 'text-amber-700' : 'text-gray-400';
+                const hasProof = proofIds.has(trx.id);
                 return (
-                  <div className="mt-2.5 pt-2.5 border-t border-gray-50 flex items-center gap-1.5 flex-wrap">
+                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-3">
+                    <p className={`min-w-0 flex items-center gap-1.5 text-[11px] font-bold ${text}`}>
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+                      <span className="truncate">{badge.text}</span>
+                    </p>
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); setProofTrx(trx); }}
-                      className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full ${badge.className}`}
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold active:scale-95 transition-all ${hasProof ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
                     >
-                      {badge.text}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setProofTrx(trx); }}
-                      className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${proofIds.has(trx.id) ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}
-                    >
-                      <Camera size={11} /> {proofIds.has(trx.id) ? 'Bukti ada' : 'Unggah bukti'}
+                      <Camera size={13} /> {hasProof ? 'Lihat bukti' : 'Unggah bukti'}
                     </button>
                   </div>
                 );

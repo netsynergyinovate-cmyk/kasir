@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { RefreshCw, Zap, Wifi, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { describeSyncStatus, describeLogStage } from '../utils/runsnetSync';
+import { formatRupiah } from '../utils/format';
 import ToggleSwitch from './ToggleSwitch';
 
 const formatTime = (iso) =>
@@ -19,6 +20,8 @@ const RunsnetSyncPanel = ({ session }) => {
   const [pinging, setPinging] = useState(false);
   const [pingResult, setPingResult] = useState(null);
   const [retryingId, setRetryingId] = useState(null);
+  const [txById, setTxById] = useState({});
+  const [filter, setFilter] = useState('all');
 
   const fetchAll = () => Promise.all([
     supabase.from('company_settings').select('runsnet_sync_enabled, runsnet_dry_run').eq('id', 1).maybeSingle(),
@@ -30,8 +33,19 @@ const RunsnetSyncPanel = ({ session }) => {
       setEnabled(Boolean(settingsRes.data.runsnet_sync_enabled));
       setDryRun(settingsRes.data.runsnet_dry_run ?? true);
     }
-    if (logsRes.data) setLogs(logsRes.data);
+    if (logsRes.data) {
+      setLogs(logsRes.data);
+      loadTransactionNames(logsRes.data);
+    }
     setIsLoading(false);
+  };
+
+  // Nama pelanggan + nominal tiap baris log, diambil dari tabel transaksi (log sendiri hanya menyimpan id).
+  const loadTransactionNames = async (rows) => {
+    const ids = [...new Set(rows.map((r) => r.transaction_id))];
+    if (ids.length === 0) return;
+    const { data } = await supabase.from('transactions').select('id, customer_name, instansi_name, price').in('id', ids);
+    if (data) setTxById(Object.fromEntries(data.map((t) => [t.id, t])));
   };
 
   const load = async () => applyResults(await fetchAll());
@@ -42,6 +56,8 @@ const RunsnetSyncPanel = ({ session }) => {
       if (!cancelled) applyResults(results);
     });
     return () => { cancelled = true; };
+    // Hanya dijalankan sekali saat panel dibuka; muat ulang manual lewat tombol refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveToggle = async (patch) => {
@@ -98,6 +114,14 @@ const RunsnetSyncPanel = ({ session }) => {
     }
     setPinging(false);
   };
+
+  const FILTERS = [
+    { key: 'all', label: 'Semua', match: () => true },
+    { key: 'payment', label: 'Pembayaran', match: (r) => (r.stage || 'payment') === 'payment' },
+    { key: 'lookup', label: 'Cek invoice', match: (r) => r.stage === 'invoice_lookup' },
+    { key: 'failed', label: 'Gagal', match: (r) => r.status === 'failed' },
+  ];
+  const visibleLogs = logs.filter((FILTERS.find((f) => f.key === filter) || FILTERS[0]).match);
 
   return (
     <div>
@@ -161,41 +185,75 @@ const RunsnetSyncPanel = ({ session }) => {
           )}
         </div>
 
-        <div className="pt-3 border-t border-gray-100 space-y-2">
+        <div className="pt-3 border-t border-gray-100 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Percobaan Terakhir</p>
-            <button type="button" onClick={load} className="text-gray-400 hover:text-gray-600"><RefreshCw size={13} /></button>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Riwayat Pengiriman ke Runsnet</p>
+            <button type="button" onClick={load} aria-label="Muat ulang log" className="text-gray-400 hover:text-gray-600"><RefreshCw size={13} /></button>
+          </div>
+
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            {FILTERS.map((f) => {
+              const count = logs.filter(f.match).length;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setFilter(f.key)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors ${filter === f.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+                >
+                  {f.label} <span className={filter === f.key ? 'opacity-80' : 'text-gray-400'}>{count}</span>
+                </button>
+              );
+            })}
           </div>
 
           {isLoading ? (
             <p className="text-xs text-gray-400 italic text-center py-3">Memuat log...</p>
-          ) : logs.length === 0 ? (
-            <p className="text-xs text-gray-400 italic text-center py-3">Belum ada percobaan sinkron.</p>
+          ) : visibleLogs.length === 0 ? (
+            <p className="text-xs text-gray-400 italic text-center py-3">{logs.length === 0 ? 'Belum ada percobaan sinkron.' : 'Tidak ada catatan untuk filter ini.'}</p>
           ) : (
-            <div className="space-y-1.5">
-              {logs.map((row) => {
+            <div className="space-y-2.5">
+              {visibleLogs.map((row) => {
                 const status = describeSyncStatus(row.status);
                 const stage = describeLogStage(row.stage || 'payment');
+                const tx = txById[row.transaction_id];
+                const name = tx?.customer_name || tx?.instansi_name || row.search_query || row.transaction_id;
+                const isPayment = (row.stage || 'payment') === 'payment';
+                const noteTone = row.status === 'failed' ? 'bg-red-50 text-red-800 border-red-100' : row.status === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-gray-50 text-gray-600 border-gray-100';
+                const noteLabel = row.status === 'failed' ? 'Penyebab' : row.status === 'success' ? 'Bukti' : 'Keterangan';
                 return (
-                  <div key={row.id} className="p-2.5 bg-slate-50 rounded-lg space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-gray-700 truncate">{row.search_query || row.transaction_id}</span>
-                      <span className={`shrink-0 text-[9px] font-extrabold px-2 py-0.5 rounded-full ${status.className}`}>{status.text}</span>
+                  <div key={row.id} className="p-3 rounded-xl border border-gray-100 bg-white shadow-sm space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-gray-900 leading-tight truncate">{name}</p>
+                        <p className="text-[10px] font-mono text-gray-400 truncate">{row.runsnet_ref || row.transaction_id}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        {tx?.price != null && <p className="text-xs font-black text-blue-700">{formatRupiah(tx.price)}</p>}
+                        <p className="text-[10px] text-gray-400">{formatTime(row.created_at)}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${stage.className}`}>{stage.text}</span>
-                      <span className="text-[10px] text-gray-400">{formatTime(row.created_at)}</span>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${stage.className}`}>{stage.text}</span>
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${status.className}`}>{status.text}</span>
                     </div>
-                    {row.runsnet_ref && <p className="text-[10px] text-gray-400">invoice Runsnet: <span className="font-mono font-bold text-gray-600">{row.runsnet_ref}</span></p>}
-                    {row.message && <p className="text-[10px] text-gray-500">{row.message}</p>}
-                    {(row.stage || 'payment') === 'payment' && row.status !== 'success' && (
+
+                    {row.message && (
+                      <p className={`text-[11px] leading-snug rounded-lg border px-2.5 py-2 ${noteTone}`}>
+                        <b>{noteLabel}:</b> {row.message}
+                      </p>
+                    )}
+
+                    {isPayment && row.status !== 'success' && (
                       <button
                         type="button"
                         onClick={() => retryRow(row)}
                         disabled={retryingId === row.id}
-                        className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg disabled:opacity-50"
+                        className="w-full py-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
                       >
-                        {retryingId === row.id ? 'Mengirim...' : 'Kirim ulang'}
+                        {retryingId === row.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                        {retryingId === row.id ? 'Mengirim...' : 'Kirim ulang ke Runsnet'}
                       </button>
                     )}
                   </div>

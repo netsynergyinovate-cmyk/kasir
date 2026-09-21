@@ -33,7 +33,7 @@ describe('RunsnetSyncPanel', () => {
     // bukan hasil fetch. Isi log yang benar-benar terambil diuji lewat describeSyncStatus di
     // runsnetSync.test.js (logika murninya), yang dipakai panel ini untuk memberi label tiap baris.
     const html = renderToString(<RunsnetSyncPanel />);
-    expect(html).toContain('Percobaan Terakhir');
+    expect(html).toContain('Riwayat Pengiriman ke Runsnet');
     expect(html).toContain('Memuat log...');
   });
 
