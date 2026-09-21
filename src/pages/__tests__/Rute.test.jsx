@@ -108,3 +108,25 @@ describe('Rute Kunjungan page search and focus filter', () => {
     expect(html).toMatch(/Riwayat kunjungan/);
   });
 });
+
+describe('Rute Kunjungan page admin tracking (superadmin)', () => {
+  const recent = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const old = new Date(Date.now() - 45 * 60 * 1000).toISOString();
+
+  it('lists each admin with how recent the position is', () => {
+    const html = render('superadmin', {
+      adminLocations: [
+        { id: 'a1', name: 'Budi Kasir', lat: -6.2, lng: 106.8, updatedAt: recent },
+        { id: 'a2', name: 'Siti Kasir', lat: -6.21, lng: 106.81, updatedAt: old },
+      ],
+    });
+    expect(html).toContain('Posisi Admin');
+    expect(html).toContain('Budi Kasir');
+    expect(html).toMatch(/Aktif · 2 menit lalu/);
+    expect(html).toMatch(/Tidak aktif · terakhir 45 menit lalu/);
+  });
+
+  it('explains how positions appear when no admin shares a location yet', () => {
+    expect(render('superadmin')).toContain('Belum ada admin yang membagikan lokasi');
+  });
+});

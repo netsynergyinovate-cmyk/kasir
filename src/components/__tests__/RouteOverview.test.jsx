@@ -89,4 +89,20 @@ describe('Dashboard route overview (what an admin sees on the home page)', () =>
     expect(html).toContain('Semua rumah di rute sudah beres');
     expect(html).not.toContain('Urutan kunjungan');
   });
+
+  it('tells the admin that the location is shared and the route starts from their position', () => {
+    const html = render({ customers: routeCustomers, visits: [], locationStatus: 'active', myPosition: { lat: -6.2, lng: 106.8 }, origin: { lat: -6.2, lng: 106.8 } });
+    expect(html).toContain('Lokasi Anda dibagikan ke superadmin');
+  });
+
+  it('asks the admin to allow location access when it was denied', () => {
+    const html = render({ customers: routeCustomers, visits: [], locationStatus: 'denied' });
+    expect(html).toContain('Izin lokasi ditolak');
+  });
+
+  it('shows no location note when tracking is off (superadmin)', () => {
+    const html = render({ customers: routeCustomers, visits: [], locationStatus: 'off' });
+    expect(html).not.toContain('Lokasi Anda dibagikan');
+    expect(html).not.toContain('Izin lokasi ditolak');
+  });
 });

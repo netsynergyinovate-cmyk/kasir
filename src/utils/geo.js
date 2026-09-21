@@ -58,3 +58,14 @@ export function formatDuration(seconds) {
   const rest = minutes % 60;
   return rest ? `${hours} jam ${rest} menit` : `${hours} jam`;
 }
+
+// Jarak garis lurus antar dua titik (meter), rumus haversine.
+export function distanceMeters(a, b) {
+  const toRad = (degrees) => (degrees * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthRadius * Math.asin(Math.sqrt(h));
+}

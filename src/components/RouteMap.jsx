@@ -16,11 +16,22 @@ const numberIcon = (number, color, selected) => L.divIcon({
 
 // Peta rute. stops: [{ id, lat, lng, number, tone, title }]. routeLine: [[lat, lng], ...] jalur jalan
 // dari layanan routing; jika null dipakai garis lurus putus-putus sebagai cadangan.
+const personIcon = (self, stale) => L.divIcon({
+  className: '',
+  html: self
+    ? '<div style="width:22px;height:22px;border-radius:9999px;background:#2563eb;border:4px solid #fff;box-shadow:0 0 0 6px rgba(37,99,235,.25),0 2px 6px rgba(0,0,0,.4)"></div>'
+    : `<div style="width:30px;height:30px;border-radius:9999px;background:${stale ? '#6b7280' : '#7c3aed'};color:#fff;display:flex;align-items:center;justify-content:center;font:800 13px system-ui;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)">A</div>`,
+  iconSize: self ? [22, 22] : [30, 30],
+  iconAnchor: self ? [11, 11] : [15, 15],
+});
+
+// people: [{ id, lat, lng, title, self, stale }] posisi admin (atau posisi sendiri) di atas peta.
 // compact: dipakai di dashboard; scroll mouse tidak memperbesar peta dan di HP satu jari tetap menggulir halaman.
-const RouteMap = ({ stops, routeLine, selectedId, onSelect, compact = false }) => {
+const RouteMap = ({ stops, routeLine, selectedId, onSelect, compact = false, people = [] }) => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
+  const peopleLayerRef = useRef(null);
   const fittedKeyRef = useRef('');
 
   useEffect(() => {
@@ -31,12 +42,14 @@ const RouteMap = ({ stops, routeLine, selectedId, onSelect, compact = false }) =
     }).setView(DEFAULT_CENTER, 5);
     addBaseLayers(map);
     layerRef.current = L.layerGroup().addTo(map);
+    peopleLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
     return () => {
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
+      peopleLayerRef.current = null;
       fittedKeyRef.current = '';
     };
   }, [compact]);
@@ -69,12 +82,26 @@ const RouteMap = ({ stops, routeLine, selectedId, onSelect, compact = false }) =
       marker.addTo(layer);
     });
 
-    const key = stops.map((stop) => stop.id).join(',');
-    if (stops.length > 0 && fittedKeyRef.current !== key) {
-      map.fitBounds(L.latLngBounds(stops.map((stop) => [stop.lat, stop.lng])), { padding: [30, 30], maxZoom: 16 });
+    const key = [...stops, ...people].map((item) => item.id).join(',');
+    const points = [...stops, ...people];
+    if (points.length > 0 && fittedKeyRef.current !== key) {
+      map.fitBounds(L.latLngBounds(points.map((point) => [point.lat, point.lng])), { padding: [30, 30], maxZoom: 16 });
       fittedKeyRef.current = key;
     }
-  }, [stops, routeLine, selectedId, onSelect]);
+  }, [stops, routeLine, selectedId, onSelect, people]);
+
+  useEffect(() => {
+    const layer = peopleLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    people.forEach((person) => {
+      const marker = L.marker([person.lat, person.lng], { icon: personIcon(person.self, person.stale), zIndexOffset: 2000 });
+      const tooltip = document.createElement('span');
+      tooltip.textContent = person.title;
+      marker.bindTooltip(tooltip);
+      marker.addTo(layer);
+    });
+  }, [people]);
 
   return <div ref={containerRef} className={`${compact ? 'h-56' : 'h-72'} w-full rounded-2xl overflow-hidden border border-gray-100 z-0`} />;
 };

@@ -26,6 +26,8 @@ import DashboardSuperadmin from './pages/DashboardSuperadmin';
 import Rute from './pages/Rute';
 import { customerVisitStatus } from './utils/visits';
 import { describeRouteError } from './utils/dbErrors';
+import { useShareLocation } from './hooks/useShareLocation';
+import { useAdminLocations } from './hooks/useAdminLocations';
 import PinPad from './components/PinPad';
 
 const INIT_COMPANY = {
@@ -58,6 +60,10 @@ export default function App() {
   const [visits, setVisits] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [packages, setPackages] = useState([]);
+
+  // Admin membagikan posisinya ke superadmin selama aplikasi terbuka; superadmin memantau posisi semua admin.
+  const shareLocation = useShareLocation({ enabled: session?.profile?.role === 'admin', userId: session?.user?.id });
+  const adminLocations = useAdminLocations({ enabled: session?.profile?.role === 'superadmin' });
 
   // Label kunjungan untuk daftar Pelanggan: hanya yang sudah didatangi dan masih menunggu / perlu didatangi lagi.
   const visitStatusById = useMemo(() => {
@@ -809,6 +815,7 @@ export default function App() {
                   session={session}
                   visits={visits}
                   onAddVisit={handleAddVisit}
+                  adminLocations={adminLocations}
                   transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
                   customers={customers} 
                   packages={packages}
@@ -820,6 +827,9 @@ export default function App() {
                 <Dashboard 
                   visits={visits}
                   onAddVisit={handleAddVisit}
+                  origin={shareLocation.routeOrigin}
+                  myPosition={shareLocation.position}
+                  locationStatus={shareLocation.status}
                   transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
                   customers={customers} 
                   packages={packages}
@@ -857,6 +867,7 @@ export default function App() {
                 visits={visits}
                 role={session?.profile?.role}
                 onAddVisit={handleAddVisit}
+                adminLocations={adminLocations}
                 onUpdateCustomerRoute={handleUpdateCustomerRoute}
               />
             } />

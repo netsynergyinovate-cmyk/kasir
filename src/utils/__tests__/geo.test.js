@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCoordinates, googleMapsNavUrl, googleMapsRouteUrl, formatDistance, formatDuration } from '../geo';
+import { parseCoordinates, googleMapsNavUrl, googleMapsRouteUrl, formatDistance, formatDuration, distanceMeters } from '../geo';
 
 describe('parseCoordinates', () => {
   it('parses a "lat, lng" pair', () => {
@@ -63,5 +63,23 @@ describe('formatDistance / formatDuration', () => {
     expect(formatDuration(8 * 60 + 10)).toBe('8 menit');
     expect(formatDuration(3600 + 5 * 60)).toBe('1 jam 5 menit');
     expect(formatDuration(7200)).toBe('2 jam');
+  });
+});
+
+describe('distanceMeters', () => {
+  it('is zero for the same point', () => {
+    expect(distanceMeters({ lat: -6.2, lng: 106.8 }, { lat: -6.2, lng: 106.8 })).toBe(0);
+  });
+
+  it('measures roughly 111 km per degree of latitude', () => {
+    const meters = distanceMeters({ lat: 0, lng: 100 }, { lat: 1, lng: 100 });
+    expect(meters).toBeGreaterThan(110500);
+    expect(meters).toBeLessThan(111700);
+  });
+
+  it('measures a short walk in metres', () => {
+    const meters = distanceMeters({ lat: -6.2, lng: 106.8 }, { lat: -6.2009, lng: 106.8 });
+    expect(meters).toBeGreaterThan(95);
+    expect(meters).toBeLessThan(105);
   });
 });

@@ -1,25 +1,68 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Navigation, MapPin, Route as RouteIcon, CheckCircle2, Loader2 } from 'lucide-react';
+import { Navigation, MapPin, Route as RouteIcon, CheckCircle2, Loader2, LocateFixed } from 'lucide-react';
 import RouteMap from './RouteMap';
 import VisitModal from './VisitModal';
 import StatusBadge from './StatusBadge';
+import StatusLegend from './StatusLegend';
 import { useRouteData, hasCoords } from '../hooks/useRouteData';
 import { googleMapsNavUrl, formatDistance, formatDuration } from '../utils/geo';
 import { TONE_COLORS } from '../utils/visits';
-import StatusLegend from './StatusLegend';
+import { describeLocationAge } from '../utils/location';
 
-// Ringkasan rute kunjungan untuk Dashboard: peta satelit + jalur jalan + tujuan berikutnya.
-// Peta, jalur, tujuan berikutnya, dan catatan kunjungan dalam satu kartu. Untuk admin ini menggantikan
-// halaman Rute terpisah; superadmin mengatur rute di halaman Rute.
-const RouteOverview = ({ customers = [], transactions = [], visits = [], onAddVisit, canManageRoute = false }) => {
+const LOCATION_NOTES = {
+  active: { className: 'text-emerald-700 bg-emerald-50', text: 'Lokasi Anda dibagikan ke superadmin selama aplikasi terbuka. Rute dimulai dari posisi Anda.' },
+  waiting: { className: 'text-gray-600 bg-gray-50', text: 'Mencari lokasi Anda...' },
+  denied: { className: 'text-amber-800 bg-amber-50', text: 'Izin lokasi ditolak. Aktifkan izin lokasi di browser agar rute dimulai dari posisi Anda.' },
+  unavailable: { className: 'text-amber-800 bg-amber-50', text: 'Lokasi belum tersedia. Rute sementara dimulai dari rumah pertama.' },
+  unsupported: { className: 'text-amber-800 bg-amber-50', text: 'Perangkat ini tidak mendukung lokasi. Rute dimulai dari rumah pertama.' },
+};
+
+// Kartu rute di Dashboard: peta satelit + jalur jalan + tujuan berikutnya + catatan kunjungan.
+// Untuk admin ini menggantikan halaman Rute terpisah; superadmin mengatur rute di halaman Rute.
+//  - origin / myPosition / locationStatus: posisi admin (jalur dimulai dari sana).
+//  - adminLocations: posisi semua admin, hanya untuk superadmin.
+const RouteOverview = ({
+  customers = [], transactions = [], visits = [], onAddVisit, canManageRoute = false,
+  origin = null, myPosition = null, locationStatus = 'off', adminLocations = [],
+}) => {
   const [visitFor, setVisitFor] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
+  const savedTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(savedTimerRef.current), []);
+
   // Dashboard ringkas: rumah yang infonya sudah diisi (menunggu janji / sudah bayar) disembunyikan,
   // hanya yang masih perlu didatangi yang tampil di peta dan daftar.
   const {
     routeCustomers, statusById, pending, nextStop, afterNext, paidCount, waitingCount,
-    mapStops, route, routeLoading, legBefore, routeNumberById,
-  } = useRouteData({ customers, transactions, visits, onlyPending: true });
+    mapStops, route, routeLoading, legBefore, routeNumberById, hasOrigin,
+  } = useRouteData({ customers, transactions, visits, onlyPending: true, origin });
+
+  const people = useMemo(() => {
+    const list = [];
+    if (myPosition) list.push({ id: 'me', lat: myPosition.lat, lng: myPosition.lng, title: 'Posisi Anda', self: true });
+    adminLocations.forEach((admin) => {
+      const age = describeLocationAge(admin.updatedAt);
+      list.push({ id: admin.id, lat: admin.lat, lng: admin.lng, title: `${admin.name} · ${age.label}`, stale: age.stale });
+    });
+    return list;
+  }, [myPosition, adminLocations]);
+
+  // Setelah info kunjungan tersimpan, rumah itu hilang dari daftar dan jalur/tujuan pindah ke rumah berikutnya.
+  const handleSave = async (payload) => {
+    const ok = await onAddVisit(payload);
+    if (ok) {
+      setJustSaved(true);
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setJustSaved(false), 10000);
+    }
+    return ok;
+  };
+
+  const locationNote = LOCATION_NOTES[locationStatus];
+  const legToNext = nextStop ? legBefore[nextStop.id] : null;
+  const showMap = mapStops.length > 0 || people.length > 0;
 
   return (
     <div>
@@ -31,7 +74,23 @@ const RouteOverview = ({ customers = [], transactions = [], visits = [], onAddVi
       </div>
 
       <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm space-y-3">
-        {routeCustomers.length === 0 ? (
+        {justSaved && (
+          <div className="bg-emerald-600 text-white p-3 rounded-xl flex items-center gap-2.5">
+            <CheckCircle2 size={18} className="shrink-0" />
+            <p className="text-xs font-bold">
+              Info kunjungan tersimpan.{' '}
+              {nextStop ? <>Rute diperbarui menuju <b>{nextStop.name}</b>.</> : 'Semua rumah sudah beres.'}
+            </p>
+          </div>
+        )}
+
+        {locationNote && (
+          <p className={`text-[11px] font-semibold rounded-xl px-3 py-2 flex items-start gap-1.5 ${locationNote.className}`}>
+            <LocateFixed size={13} className="shrink-0 mt-0.5" /> {locationNote.text}
+          </p>
+        )}
+
+        {routeCustomers.length === 0 && people.length === 0 ? (
           <div className="text-center py-4 space-y-1">
             <MapPin className="mx-auto text-gray-300" size={26} />
             <p className="text-xs font-bold text-gray-700">Belum ada rute kunjungan.</p>
@@ -39,32 +98,37 @@ const RouteOverview = ({ customers = [], transactions = [], visits = [], onAddVi
           </div>
         ) : (
           <>
-            {pending.length === 0 ? null : mapStops.length > 0 ? (
+            {showMap ? (
               <>
-                <RouteMap compact stops={mapStops} routeLine={route?.coordinates || null} />
+                <RouteMap compact stops={mapStops} routeLine={route?.coordinates || null} people={people} />
                 <StatusLegend />
               </>
-            ) : (
+            ) : pending.length > 0 ? (
               <div className="bg-indigo-50 rounded-xl p-4 text-center">
                 <MapPin className="mx-auto text-indigo-400" size={22} />
                 <p className="text-xs font-bold text-indigo-900 mt-1">Peta muncul setelah koordinat rumah diisi.</p>
                 <p className="text-[11px] text-indigo-700">Minta superadmin mengisi koordinat rumah pelanggan.</p>
               </div>
+            ) : null}
+
+            {routeCustomers.length > 0 && (
+              <p className="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1">
+                <span><b>{pending.length}</b> perlu didatangi · <b>{waitingCount}</b> menunggu janji · <b>{paidCount}</b> sudah terbayarkan</span>
+                {routeLoading && <span className="flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> menghitung jalur...</span>}
+                {route && <span>· jalur {formatDistance(route.distance)} (~{formatDuration(route.duration)})</span>}
+              </p>
             )}
 
-            <p className="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1">
-              <span><b>{pending.length}</b> perlu didatangi · <b>{waitingCount}</b> menunggu janji · <b>{paidCount}</b> sudah terbayarkan</span>
-              {routeLoading && <span className="flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> menghitung jalur...</span>}
-              {route && <span>· jalur {formatDistance(route.distance)} (~{formatDuration(route.duration)})</span>}
-            </p>
-
-            {nextStop ? (
+            {routeCustomers.length > 0 && (nextStop ? (
               <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-3.5 rounded-xl space-y-2.5">
                 <p className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Tujuan berikutnya</p>
                 <div>
                   <p className="text-base font-black leading-tight">{nextStop.name}</p>
                   <p className="text-[11px] text-indigo-100 mt-0.5 flex items-start gap-1"><MapPin size={12} className="shrink-0 mt-0.5" /> {nextStop.address || 'Alamat belum diisi'}</p>
                   <p className="text-[11px] text-indigo-100 mt-1">{statusById[nextStop.id]?.label}</p>
+                  {hasOrigin && legToNext && (
+                    <p className="text-[11px] font-bold text-white mt-1">Dari posisi Anda: {formatDistance(legToNext.distance)} · {formatDuration(legToNext.duration)}</p>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   {hasCoords(nextStop) ? (
@@ -90,40 +154,41 @@ const RouteOverview = ({ customers = [], transactions = [], visits = [], onAddVi
                 <CheckCircle2 className="text-emerald-600 shrink-0" size={20} />
                 <p className="text-xs font-bold text-emerald-800">Semua rumah di rute sudah beres atau menunggu tanggal janji.</p>
               </div>
-            )}
+            ))}
 
             {pending.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Urutan kunjungan</p>
-              <div className="max-h-72 overflow-y-auto space-y-1.5">
-                {pending.map((customer) => {
-                  const status = statusById[customer.id];
-                  const leg = legBefore[customer.id];
-                  return (
-                    <div key={customer.id} className="flex items-start gap-2.5 p-2.5 bg-gray-50 rounded-xl">
-                      <div className="w-7 h-7 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0" style={{ background: TONE_COLORS[status.tone] }}>{routeNumberById[customer.id]}</div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-black text-gray-900 truncate">{customer.name}</p>
-                        <p className="text-[10px] text-gray-500 truncate">{customer.address || 'Alamat belum diisi'}</p>
-                        <div className="mt-1"><StatusBadge status={status} /></div>
-                        {leg && <p className="text-[10px] text-gray-400 mt-1">Dari rumah sebelumnya: {formatDistance(leg.distance)} · {formatDuration(leg.duration)}</p>}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Urutan kunjungan</p>
+                <div className="max-h-72 overflow-y-auto space-y-1.5">
+                  {pending.map((customer) => {
+                    const status = statusById[customer.id];
+                    const leg = legBefore[customer.id];
+                    const fromMe = hasOrigin && mapStops[0]?.id === customer.id;
+                    return (
+                      <div key={customer.id} className="flex items-start gap-2.5 p-2.5 bg-gray-50 rounded-xl">
+                        <div className="w-7 h-7 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0" style={{ background: TONE_COLORS[status.tone] }}>{routeNumberById[customer.id]}</div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-black text-gray-900 truncate">{customer.name}</p>
+                          <p className="text-[10px] text-gray-500 truncate">{customer.address || 'Alamat belum diisi'}</p>
+                          <div className="mt-1"><StatusBadge status={status} /></div>
+                          {leg && <p className="text-[10px] text-gray-400 mt-1">{fromMe ? 'Dari posisi Anda' : 'Dari rumah sebelumnya'}: {formatDistance(leg.distance)} · {formatDuration(leg.duration)}</p>}
+                        </div>
+                        {status.key !== 'sudah_bayar' && onAddVisit && (
+                          <button type="button" onClick={() => setVisitFor(customer)} className="shrink-0 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1.5 rounded-lg">
+                            Catat
+                          </button>
+                        )}
                       </div>
-                      {status.key !== 'sudah_bayar' && onAddVisit && (
-                        <button type="button" onClick={() => setVisitFor(customer)} className="shrink-0 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1.5 rounded-lg">
-                          Catat
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
             )}
           </>
         )}
       </div>
 
-      {visitFor && onAddVisit && <VisitModal customer={visitFor} onClose={() => setVisitFor(null)} onSave={onAddVisit} />}
+      {visitFor && onAddVisit && <VisitModal customer={visitFor} onClose={() => setVisitFor(null)} onSave={handleSave} />}
     </div>
   );
 };

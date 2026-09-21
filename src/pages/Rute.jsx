@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Navigation, MapPin, Phone, ClipboardPen, ChevronUp, ChevronDown, X, Plus, Settings2, Route as RouteIcon, CheckCircle2, Loader2, Search } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Navigation, MapPin, Phone, ClipboardPen, ChevronUp, ChevronDown, X, Plus, Settings2, Route as RouteIcon, CheckCircle2, Loader2, Search, LocateFixed } from 'lucide-react';
 import RouteMap from '../components/RouteMap';
 import LocationPicker from '../components/LocationPicker';
 import { TONE_COLORS, searchCustomers, describeVisit } from '../utils/visits';
@@ -8,6 +8,7 @@ import VisitModal from '../components/VisitModal';
 import StatusBadge from '../components/StatusBadge';
 import { useRouteData, hasCoords } from '../hooks/useRouteData';
 import { googleMapsNavUrl, googleMapsRouteUrl, formatDistance, formatDuration } from '../utils/geo';
+import { describeLocationAge } from '../utils/location';
 
 const NavButton = ({ customer, primary }) => (
   hasCoords(customer) ? (
@@ -25,7 +26,7 @@ const NavButton = ({ customer, primary }) => (
 );
 
 // defaultFilter: 'perlu' (hanya rumah yang perlu didatangi, sama seperti Dashboard) atau 'semua'.
-const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit, onUpdateCustomerRoute, defaultFilter = 'perlu' }) => {
+const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit, onUpdateCustomerRoute, defaultFilter = 'perlu', adminLocations = [] }) => {
   const isSuper = role === 'superadmin';
   const [editMode, setEditMode] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -40,6 +41,12 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
     mapStops, route, routeLoading, legBefore, routeNumberById,
   } = useRouteData({ customers, transactions, visits });
   const notInRoute = customers.filter((customer) => customer.route_order === null || customer.route_order === undefined);
+
+  // Posisi admin (pelacakan) untuk superadmin: penanda di peta dan daftar di bawahnya.
+  const people = useMemo(() => adminLocations.map((admin) => {
+    const age = describeLocationAge(admin.updatedAt);
+    return { id: admin.id, lat: admin.lat, lng: admin.lng, title: `${admin.name} · ${age.label}`, stale: age.stale };
+  }), [adminLocations]);
 
   // Mode Atur Rute selalu menampilkan semua rumah supaya urutan bisa disusun.
   const focusPending = filter === 'perlu' && !editMode;
@@ -167,15 +174,47 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
           )}
         </div>
       )}
-      {mapStops.length > 0 && (
+      {(mapStops.length > 0 || people.length > 0) && (
         <div className="space-y-2">
-          <RouteMap stops={mapStops} routeLine={route?.coordinates || null} selectedId={selectedId} onSelect={setSelectedId} />
+          <RouteMap stops={mapStops} routeLine={route?.coordinates || null} selectedId={selectedId} onSelect={setSelectedId} people={people} />
           <StatusLegend />
           <p className="text-[11px] text-gray-500 px-1 flex items-center gap-1.5">
             {routeLoading && <><Loader2 size={12} className="animate-spin" /> Menghitung jalur jalan...</>}
             {route && <>Jalur jalan seluruh rute: <b>{formatDistance(route.distance)}</b> · sekitar <b>{formatDuration(route.duration)}</b> berkendara</>}
             {!routeLoading && !route && mapStops.length >= 2 && <>Jalur jalan tidak tersedia saat ini, ditampilkan garis lurus.</>}
           </p>
+        </div>
+      )}
+
+      {/* Posisi admin (pelacakan) */}
+      {isSuper && (
+        <div className="space-y-2">
+          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1.5"><LocateFixed size={12} /> Posisi Admin</h2>
+          {adminLocations.length === 0 ? (
+            <p className="text-xs text-gray-400 italic bg-white border border-gray-100 rounded-xl p-3">Belum ada admin yang membagikan lokasi. Posisi muncul saat admin membuka aplikasi dan mengizinkan lokasi.</p>
+          ) : (
+            adminLocations.map((admin) => {
+              const age = describeLocationAge(admin.updatedAt);
+              return (
+                <div key={admin.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-gray-900 truncate">{admin.name}</p>
+                    <p className={`text-[11px] font-bold ${age.stale ? 'text-gray-400' : 'text-emerald-600'}`}>
+                      {age.stale ? `Tidak aktif · terakhir ${age.label}` : `Aktif · ${age.label}`}
+                    </p>
+                  </div>
+                  <a
+                    href={googleMapsNavUrl({ lat: admin.lat, lng: admin.lng })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg"
+                  >
+                    Buka di Google Maps
+                  </a>
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 
