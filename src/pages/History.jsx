@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { Search, Calendar, Filter, FileText, Building2, ChevronRight, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Calendar, Filter, FileText, Building2, ChevronRight, Trash2, RefreshCw, Camera, AlertTriangle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { formatRupiah, getInvoiceNumber } from '../utils/format';
+import { runsnetCodeOf, describeRunsnetStatus, isRunsnetMismatch } from '../utils/runsnetStatus';
+import RunsnetProofModal from '../components/RunsnetProofModal';
 
-const History = ({ transactions, role, setReceiptToView, setInstansiReceiptToView, onDeleteTransaction }) => {
+const History = ({ transactions, role, session, setReceiptToView, setInstansiReceiptToView, onDeleteTransaction }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -30,6 +33,67 @@ const History = ({ transactions, role, setReceiptToView, setInstansiReceiptToVie
   });
 
   const totalIncome = filteredTransactions.reduce((acc, curr) => acc + curr.price, 0);
+
+  // Status NYATA di Runsnet untuk transaksi yang tampil (dibaca langsung dari Runsnet, bukan dari catatan KAsir).
+  const [runsnetStatuses, setRunsnetStatuses] = useState({});
+  const [checkedKey, setCheckedKey] = useState(null);
+  const [checkedAt, setCheckedAt] = useState(null);
+  const [checkError, setCheckError] = useState(null);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [proofIds, setProofIds] = useState(new Set());
+  const [proofTrx, setProofTrx] = useState(null);
+
+  const codes = [...new Set(filteredTransactions.filter((t) => t.type !== 'instansi').map(runsnetCodeOf).filter(Boolean))].slice(0, 60);
+  const requestKey = `${codes.join(',')}#${refreshTick}`;
+  const checking = codes.length > 0 && checkedKey !== requestKey;
+  const accessToken = session?.access_token;
+
+  useEffect(() => {
+    if (codes.length === 0 || !accessToken) return undefined;
+    let cancelled = false;
+    (async () => {
+      let statuses = {};
+      let error = null;
+      let at = null;
+      try {
+        const response = await fetch('/api/runsnet/invoice-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ codes }),
+        });
+        const result = await response.json();
+        if (!response.ok || result.error) error = result.error || `HTTP ${response.status}`;
+        statuses = result.statuses || {};
+        at = result.checkedAt || new Date().toISOString();
+      } catch (err) {
+        error = err.message;
+      }
+      if (cancelled) return;
+      setRunsnetStatuses((prev) => ({ ...prev, ...statuses }));
+      setCheckError(error);
+      if (!error) setCheckedAt(at);
+      setCheckedKey(requestKey);
+    })();
+    return () => { cancelled = true; };
+    // requestKey sudah mewakili isi codes + tombol "Cek ulang".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestKey, accessToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from('runsnet_proofs').select('transaction_id').then(({ data }) => {
+      if (!cancelled && data) setProofIds(new Set(data.map((r) => r.transaction_id)));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const mismatchCount = filteredTransactions.filter((t) => isRunsnetMismatch(t, runsnetStatuses[runsnetCodeOf(t)])).length;
+  const recheck = async () => setRefreshTick((n) => n + 1);
+  const onProofChanged = (id, has) => setProofIds((prev) => {
+    const next = new Set(prev);
+    if (has) next.add(id); else next.delete(id);
+    return next;
+  });
 
   return (
     <div className="p-4 space-y-4 pb-32 animate-in fade-in duration-200">
@@ -104,6 +168,28 @@ const History = ({ transactions, role, setReceiptToView, setInstansiReceiptToVie
         </div>
       </div>
 
+      {/* Status Runsnet dibaca langsung dari Runsnet */}
+      {codes.length > 0 && (
+        <div className={`rounded-2xl px-3.5 py-2.5 flex items-center gap-2.5 text-[11px] ${checkError ? 'bg-red-50 border border-red-200 text-red-700' : mismatchCount > 0 ? 'bg-amber-50 border border-amber-200 text-amber-900' : 'bg-white border border-gray-100 text-gray-500'}`}>
+          {(checkError || mismatchCount > 0) && <AlertTriangle size={16} className="shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <p className="font-bold leading-tight">
+              {checkError
+                ? `Gagal membaca Runsnet: ${checkError}`
+                : checking
+                  ? 'Membaca status langsung dari Runsnet...'
+                  : mismatchCount > 0
+                    ? `${mismatchCount} transaksi sudah lunas di KAsir tapi BELUM PAID di Runsnet`
+                    : 'Semua transaksi Runsnet di daftar ini sudah cocok'}
+            </p>
+            {checkedAt && !checkError && <p className="opacity-70">Status dibaca dari Runsnet pukul {new Date(checkedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>}
+          </div>
+          <button type="button" onClick={recheck} disabled={checking} className="shrink-0 px-2.5 py-1.5 rounded-lg bg-black/5 hover:bg-black/10 font-bold flex items-center gap-1 disabled:opacity-50">
+            <RefreshCw size={12} className={checking ? 'animate-spin' : ''} /> Cek ulang
+          </button>
+        </div>
+      )}
+
       {/* Transaction List */}
       <div className="space-y-3 mt-2">
         {filteredTransactions.length > 0 ? (
@@ -156,6 +242,28 @@ const History = ({ transactions, role, setReceiptToView, setInstansiReceiptToVie
                   <ChevronRight size={14} className="text-gray-300 ml-auto mt-1" />
                 </div>
               </div>
+
+              {trx.type !== 'instansi' && (() => {
+                const badge = describeRunsnetStatus(trx, runsnetStatuses[runsnetCodeOf(trx)]);
+                return (
+                  <div className="mt-2.5 pt-2.5 border-t border-gray-50 flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setProofTrx(trx); }}
+                      className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full ${badge.className}`}
+                    >
+                      {badge.text}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setProofTrx(trx); }}
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${proofIds.has(trx.id) ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}
+                    >
+                      <Camera size={11} /> {proofIds.has(trx.id) ? 'Bukti ada' : 'Unggah bukti'}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           ))
         ) : (
@@ -167,6 +275,17 @@ const History = ({ transactions, role, setReceiptToView, setInstansiReceiptToVie
           </div>
         )}
       </div>
+
+      {proofTrx && (
+        <RunsnetProofModal
+          transaction={proofTrx}
+          runsnetStatus={runsnetStatuses[runsnetCodeOf(proofTrx)]}
+          session={session}
+          onClose={() => setProofTrx(null)}
+          onRecheck={recheck}
+          onProofChanged={onProofChanged}
+        />
+      )}
     </div>
   );
 };

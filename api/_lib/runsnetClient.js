@@ -1,5 +1,5 @@
 import process from 'node:process';
-import { isConfigPlaceholder, parseInvoiceListResponse } from '../../src/utils/runsnetSync.js';
+import { isConfigPlaceholder, parseInvoiceListResponse, stripHtml } from '../../src/utils/runsnetSync.js';
 import { parsePelangganRow } from '../../src/utils/runsnetCustomers.js';
 
 // Dibaca lewat fungsi (bukan konstanta top-level) supaya skrip lokal yang memuat .env.local
@@ -121,16 +121,15 @@ function formatMmDdYyyy(date) {
   return `${mm}/${dd}/${date.getFullYear()}`;
 }
 
-// Mencari invoice di Runsnet berdasarkan query (PPPoE ID / custid / nama / kode invoice). Mengembalikan
-// { id: <kode invoice> } atau null jika tidak ketemu (atau hasilnya lebih dari satu). Default hanya invoice
-// PENDING ('P'); status 'A' = PAID dipakai untuk membuktikan pembayaran sudah tercatat.
-export async function searchInvoice(cookie, query, status = 'P') {
+// Satu permintaan pencarian ke endpoint daftar invoice Runsnet (DataTables server-side). status: kode dari filter
+// halaman Runsnet sendiri — P = PENDING, A = PAID, C = CANCEL. Hanya membaca. Mengembalikan JSON mentahnya.
+async function postInvoiceSearch(cookie, { status, search = '', length = 10, from, to }) {
   const fields = unconfiguredFields(['menuKeyParam', 'invoiceListMenuValue', 'searchPath', 'mitraTarget']);
   if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
 
   const now = new Date();
-  const dateFrom = formatMmDdYyyy(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
-  const dateTo = formatMmDdYyyy(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90));
+  const dateFrom = formatMmDdYyyy(from || new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
+  const dateTo = formatMmDdYyyy(to || new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90));
 
   const listUrl = new URL(`${getBaseUrl()}/view/index.php`);
   listUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.invoiceListMenuValue);
@@ -138,7 +137,6 @@ export async function searchInvoice(cookie, query, status = 'P') {
   const searchUrl = new URL(`${getBaseUrl()}/view/${CONFIG.searchPath}`);
   searchUrl.searchParams.set('data1', dateFrom);
   searchUrl.searchParams.set('data2', dateTo);
-  // Kode status dari filter halaman Runsnet sendiri: P = PENDING, A = PAID, C = CANCEL.
   searchUrl.searchParams.set('data3', status);
   searchUrl.searchParams.set('data4', '');
   searchUrl.searchParams.set('data5', '');
@@ -147,7 +145,7 @@ export async function searchInvoice(cookie, query, status = 'P') {
   // Kolom tabel sesuai urutan <thead> Runsnet: checkbox, InvoiceCode, CustID, CustNama,
   // Periode, Tempo, Tagihan, SisaTagihan, Agent, Broadcast, File, Action.
   const columnNames = ['', 'InvoiceCode', 'CustID', 'CustNama', 'Periode', 'Tempo', 'Tagihan', 'SisaTagihan', 'Agent', 'Broadcast', 'File', 'Action'];
-  const body = new URLSearchParams({ draw: '1', start: '0', length: '10', 'search[value]': query, 'search[regex]': 'false' });
+  const body = new URLSearchParams({ draw: '1', start: '0', length: String(length), 'search[value]': search, 'search[regex]': 'false' });
   columnNames.forEach((name, i) => {
     body.set(`columns[${i}][data]`, String(i));
     body.set(`columns[${i}][name]`, name);
@@ -170,9 +168,49 @@ export async function searchInvoice(cookie, query, status = 'P') {
     body,
   });
   if (!response.ok) throw new Error(`Pencarian invoice Runsnet gagal: HTTP ${response.status}`);
+  return response.json();
+}
 
-  const json = await response.json();
+// Mencari invoice di Runsnet berdasarkan query (PPPoE ID / custid / nama / kode invoice). Mengembalikan
+// { id: <kode invoice> } atau null jika tidak ketemu (atau hasilnya lebih dari satu). Default hanya invoice
+// PENDING ('P'); status 'A' = PAID dipakai untuk membuktikan pembayaran sudah tercatat.
+export async function searchInvoice(cookie, query, status = 'P') {
+  const json = await postInvoiceSearch(cookie, { status, search: query, length: 10 });
   return parseInvoiceListResponse(json);
+}
+
+const STATUS_LABELS = { A: 'PAID', P: 'PENDING', C: 'CANCEL' };
+
+// Status NYATA di Runsnet untuk sekumpulan kode invoice: { KODE: 'PAID' | 'PENDING' | 'CANCEL' | 'NOT_FOUND' }.
+// Mengambil daftar invoice per status untuk rentang tanggal sekitar sekarang (3 bulan ke belakang, 3 bulan ke
+// depan), lalu kode yang tidak ada di daftar dicari satu-satu di rentang lebar (maks. 10 kode).
+export async function fetchInvoiceStatuses(cookie, codes) {
+  const wanted = [...new Set(codes.filter(Boolean))];
+  const result = {};
+  if (wanted.length === 0) return result;
+
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  const to = new Date(now.getFullYear(), now.getMonth() + 4, 0);
+  const wantedSet = new Set(wanted);
+
+  for (const [statusCode, label] of Object.entries(STATUS_LABELS)) {
+    const json = await postInvoiceSearch(cookie, { status: statusCode, length: 1000, from, to });
+    (json?.data || []).forEach((row) => {
+      const code = stripHtml(row[1]);
+      if (wantedSet.has(code)) result[code] = label;
+    });
+  }
+
+  const missing = wanted.filter((code) => !result[code]);
+  for (const code of missing.slice(0, 10)) {
+    for (const [statusCode, label] of Object.entries(STATUS_LABELS)) {
+      const found = parseInvoiceListResponse(await postInvoiceSearch(cookie, { status: statusCode, search: code, length: 10 }));
+      if (found?.id === code) { result[code] = label; break; }
+    }
+  }
+  wanted.forEach((code) => { if (!result[code]) result[code] = 'NOT_FOUND'; });
+  return result;
 }
 
 // Bukti pembayaran: true kalau Runsnet sendiri menunjukkan invoice ini berstatus PAID (pencarian status 'A'

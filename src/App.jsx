@@ -943,6 +943,7 @@ export default function App() {
             <Route path="/history" element={
               <History 
                 role={session?.profile?.role}
+                session={session}
                 transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name, packageName: t.package_name, serviceName: t.service_name, amountPaid: t.amount_paid, cashierName: t.cashier_name}))} 
                 setReceiptToView={setReceiptToView} 
                 setInstansiReceiptToView={setInstansiReceiptToView} 
