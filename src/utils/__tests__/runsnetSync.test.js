@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber } from '../runsnetSync';
+import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber, pickPaymentTarget } from '../runsnetSync';
 
 const trx = (over) => ({
   id: 't1', status: 'LUNAS', type: 'retail', payment_method: 'CASH',
@@ -58,9 +58,10 @@ describe('isConfigPlaceholder', () => {
 
 describe('describeSyncStatus', () => {
   it('labels each known status in plain Indonesian', () => {
-    expect(describeSyncStatus('success').text).toBe('Berhasil dikirim');
+    expect(describeSyncStatus('success').text).toMatch(/PAID/);
     expect(describeSyncStatus('failed').text).toBe('Gagal');
     expect(describeSyncStatus('dry_run').text).toMatch(/uji coba/i);
+    expect(describeSyncStatus('dry_run').text).toMatch(/TIDAK/);
     expect(describeSyncStatus('skipped_disabled').text).toMatch(/mati/i);
     expect(describeSyncStatus('skipped_not_configured').text).toMatch(/dikonfigurasi/i);
   });
@@ -177,5 +178,18 @@ describe('pickInvoiceNumber', () => {
 
   it('falls back to the local id when nothing matched (not found, Runsnet down, or not configured)', () => {
     expect(pickInvoiceNumber({ localId: 'INV-123', invoice: null })).toBe('INV-123');
+  });
+});
+
+describe('pickPaymentTarget', () => {
+  it('pays the exact Runsnet invoice when the transaction already carries its real code', () => {
+    const t = trx({ id: 'INV-1789', invoice_number: 'INVRT202609001239', customer_name: 'ANITA' });
+    expect(pickPaymentTarget(t)).toEqual({ code: 'INVRT202609001239', query: 'ANITA' });
+  });
+
+  it('falls back to searching when the invoice number is just the local INV- id (or missing)', () => {
+    expect(pickPaymentTarget(trx({ id: 'INV-1789', invoice_number: 'INV-1789' })).code).toBeNull();
+    expect(pickPaymentTarget(trx({ id: 'INV-1789', invoice_number: null })).code).toBeNull();
+    expect(pickPaymentTarget(trx({ id: 'INV-1789', invoice_number: null, customer_name: 'ANITA' })).query).toBe('ANITA');
   });
 });

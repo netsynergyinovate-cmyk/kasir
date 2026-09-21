@@ -121,10 +121,10 @@ function formatMmDdYyyy(date) {
   return `${mm}/${dd}/${date.getFullYear()}`;
 }
 
-// Mencari invoice di Runsnet berdasarkan query (PPPoE ID / custid / nama). Mengembalikan
-// { id: <kode invoice> } atau null jika tidak ketemu. Hanya mencari invoice berstatus PENDING
-// (data3='P') — invoice yang sudah lunas/batal tidak relevan untuk ditandai bayar.
-export async function searchInvoice(cookie, query) {
+// Mencari invoice di Runsnet berdasarkan query (PPPoE ID / custid / nama / kode invoice). Mengembalikan
+// { id: <kode invoice> } atau null jika tidak ketemu (atau hasilnya lebih dari satu). Default hanya invoice
+// PENDING ('P'); status 'A' = PAID dipakai untuk membuktikan pembayaran sudah tercatat.
+export async function searchInvoice(cookie, query, status = 'P') {
   const fields = unconfiguredFields(['menuKeyParam', 'invoiceListMenuValue', 'searchPath', 'mitraTarget']);
   if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
 
@@ -138,7 +138,8 @@ export async function searchInvoice(cookie, query) {
   const searchUrl = new URL(`${getBaseUrl()}/view/${CONFIG.searchPath}`);
   searchUrl.searchParams.set('data1', dateFrom);
   searchUrl.searchParams.set('data2', dateTo);
-  searchUrl.searchParams.set('data3', 'P');
+  // Kode status dari filter halaman Runsnet sendiri: P = PENDING, A = PAID, C = CANCEL.
+  searchUrl.searchParams.set('data3', status);
   searchUrl.searchParams.set('data4', '');
   searchUrl.searchParams.set('data5', '');
   searchUrl.searchParams.set('target', CONFIG.mitraTarget);
@@ -172,6 +173,13 @@ export async function searchInvoice(cookie, query) {
 
   const json = await response.json();
   return parseInvoiceListResponse(json);
+}
+
+// Bukti pembayaran: true kalau Runsnet sendiri menunjukkan invoice ini berstatus PAID (pencarian status 'A'
+// dengan kode invoice sebagai kata kunci; kode invoice unik, jadi harus tepat satu hasil).
+export async function verifyInvoicePaid(cookie, invoiceCode) {
+  const found = await searchInvoice(cookie, invoiceCode, 'A');
+  return found?.id === invoiceCode;
 }
 
 // Menjalankan pembayaran tunai untuk satu invoice. PERINGATAN: ini GET dengan efek samping nyata

@@ -69,7 +69,10 @@ const RunsnetSyncToast = ({ watchId }) => {
     <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] max-w-[92vw] print:hidden">
       <div className={`${TONE_CLASSES[tone]} text-white text-xs font-bold pl-3 pr-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300`}>
         <Icon size={15} className="shrink-0" />
-        <span>Runsnet: {status.text}</span>
+        <div className="min-w-0">
+          <p>Runsnet: {status.text}</p>
+          {entry.message && <p className="text-[10px] font-medium opacity-90 line-clamp-2">{entry.message}</p>}
+        </div>
       </div>
     </div>
   );

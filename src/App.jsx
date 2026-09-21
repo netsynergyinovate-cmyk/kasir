@@ -446,6 +446,17 @@ export default function App() {
     setDraftReceiptId(newTrx.id);
   };
 
+  // Meminta server mengirim pembayaran transaksi ini ke Runsnet dan membuktikan statusnya PAID. Berjalan di latar
+  // belakang (hasilnya muncul di notifikasi kecil dan di log Runsnet); kegagalan jaringan tidak mengganggu kasir.
+  const triggerRunsnetSync = (transactionId) => {
+    if (!session?.access_token) return;
+    fetch('/api/runsnet/sync-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ transactionId }),
+    }).catch((e) => console.warn('Sinkron Runsnet tidak terkirim:', e.message));
+  };
+
   const commitTransaction = async (newTrx) => {
     try {
       console.log('Menyimpan Transaksi Retail...');
@@ -495,6 +506,7 @@ export default function App() {
 
       setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
       setRunsnetWatchId(newTrx.id);
+      if (!error) triggerRunsnetSync(newTrx.id);
       showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
 
       // Automasi pengiriman data ke Billing Monitoring System
@@ -534,6 +546,7 @@ export default function App() {
       setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
       setInstansiReceiptToView(newTrx);
       setRunsnetWatchId(newTrx.id);
+      if (!error) triggerRunsnetSync(newTrx.id);
       showNotification('Invoice Instansi Berhasil', `${newTrx.instansiName} - ${formatRupiah(newTrx.price)}`);
 
       // Automasi pengiriman data ke Billing Monitoring System

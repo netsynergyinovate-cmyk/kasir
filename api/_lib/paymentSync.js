@@ -1,0 +1,85 @@
+import { shouldSyncTransaction, pickPaymentTarget } from '../../src/utils/runsnetSync.js';
+import { ensureSession, searchInvoice, payInvoiceCash, verifyInvoicePaid, isRunsnetConfigured } from './runsnetClient.js';
+
+// Mengirim pembayaran satu transaksi KAsir ke Runsnet dan MEMBUKTIKAN hasilnya: status 'success' di log
+// hanya dicatat kalau Runsnet sendiri menunjukkan invoice itu berstatus PAID setelah dibayar. Dipanggil
+// dari api/runsnet/sync-payment.js (dipicu aplikasi tepat setelah transaksi disimpan) dan webhook.js.
+// Mengembalikan { status, message, runsnet_ref } (status = nilai kolom runsnet_sync_log.status), atau
+// { skipped } kalau memang tidak perlu diproses.
+export async function syncPayment(supabase, transaction) {
+  const log = async (status, extra = {}) => {
+    await supabase.from('runsnet_sync_log').upsert(
+      { transaction_id: transaction.id, stage: 'payment', status, created_at: new Date().toISOString(), ...extra },
+      { onConflict: 'transaction_id,stage' },
+    );
+    return { status, runsnet_ref: extra.runsnet_ref ?? null, message: extra.message ?? null };
+  };
+
+  if (!shouldSyncTransaction(transaction)) return { skipped: 'not_payable' };
+
+  // Sudah terbukti PAID sebelumnya: jangan diulang. Percobaan yang gagal/dilewati/uji coba boleh diulang.
+  const { data: existing } = await supabase
+    .from('runsnet_sync_log')
+    .select('status')
+    .eq('transaction_id', transaction.id)
+    .eq('stage', 'payment')
+    .maybeSingle();
+  if (existing?.status === 'success') return { skipped: 'already_synced', status: 'success' };
+
+  const target = pickPaymentTarget(transaction);
+  const label = target.code || target.query;
+
+  const { data: settings } = await supabase
+    .from('company_settings')
+    .select('runsnet_sync_enabled, runsnet_dry_run')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (!settings?.runsnet_sync_enabled) {
+    return log('skipped_disabled', { search_query: label, message: 'Sinkron Runsnet dimatikan di Pengaturan, tidak ada yang dikirim.' });
+  }
+  if (!isRunsnetConfigured()) {
+    return log('skipped_not_configured', { search_query: label, message: 'Konfigurasi Runsnet belum lengkap (lihat api/_lib/runsnetClient.js).' });
+  }
+  if (!label) {
+    return log('failed', { message: 'Transaksi tidak punya nomor invoice Runsnet / PPPoE ID / ID pelanggan / nama untuk dicari.' });
+  }
+  if (settings.runsnet_dry_run) {
+    return log('dry_run', { search_query: label, message: 'MODE UJI COBA: pembayaran TIDAK dikirim ke Runsnet. Matikan mode uji coba untuk kirim sungguhan.' });
+  }
+
+  try {
+    const cookie = await ensureSession(supabase);
+
+    // 1. Tentukan invoice PENDING yang akan dibayar.
+    let invoice;
+    if (target.code) {
+      if (await verifyInvoicePaid(cookie, target.code)) {
+        return log('success', { search_query: label, runsnet_ref: target.code, message: `Invoice ${target.code} sudah berstatus PAID di Runsnet (terverifikasi), tidak dibayar ulang.` });
+      }
+      invoice = await searchInvoice(cookie, target.code, 'P');
+      if (!invoice || invoice.id !== target.code) {
+        return log('failed', { search_query: label, message: `Invoice ${target.code} tidak berstatus PENDING maupun PAID di Runsnet (mungkin CANCEL). Periksa manual.` });
+      }
+    } else {
+      invoice = await searchInvoice(cookie, target.query, 'P');
+      if (!invoice) {
+        return log('failed', { search_query: label, message: `Tidak ada satu pun invoice PENDING yang cocok dengan "${target.query}" di Runsnet (nol atau lebih dari satu hasil).` });
+      }
+    }
+
+    // 2. Bayar (efek nyata di Runsnet), lalu 3. buktikan lewat status PAID.
+    await payInvoiceCash(cookie, invoice.id);
+    const paid = await verifyInvoicePaid(cookie, invoice.id);
+    if (!paid) {
+      return log('failed', {
+        search_query: label,
+        runsnet_ref: String(invoice.id),
+        message: `Perintah bayar untuk ${invoice.id} sudah dikirim, tetapi Runsnet belum menunjukkan status PAID. Periksa manual di Runsnet sebelum mengirim ulang.`,
+      });
+    }
+    return log('success', { search_query: label, runsnet_ref: String(invoice.id), message: `Invoice ${invoice.id} terbukti berstatus PAID di Runsnet.` });
+  } catch (error) {
+    return log('failed', { search_query: label, message: `Gagal menghubungi Runsnet: ${error.message}` });
+  }
+}

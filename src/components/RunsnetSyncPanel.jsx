@@ -18,6 +18,7 @@ const RunsnetSyncPanel = ({ session }) => {
   const [saving, setSaving] = useState(false);
   const [pinging, setPinging] = useState(false);
   const [pingResult, setPingResult] = useState(null);
+  const [retryingId, setRetryingId] = useState(null);
 
   const fetchAll = () => Promise.all([
     supabase.from('company_settings').select('runsnet_sync_enabled, runsnet_dry_run').eq('id', 1).maybeSingle(),
@@ -55,6 +56,29 @@ const RunsnetSyncPanel = ({ session }) => {
     setSaving(false);
   };
 
+  // Mengirim ulang pembayaran satu transaksi (untuk yang gagal / dilewati / hanya uji coba). Aman: server hanya
+  // membayar invoice yang benar-benar masih PENDING, lalu membuktikan statusnya PAID.
+  const retryRow = async (row) => {
+    const modeNote = !enabled
+      ? 'Catatan: sinkron sedang MATI, jadi belum benar-benar terkirim.'
+      : dryRun ? 'Catatan: sinkron sedang MODE UJI COBA, jadi belum benar-benar terkirim.' : '';
+    if (!window.confirm(`Kirim ulang pembayaran ${row.search_query || row.transaction_id} ke Runsnet?\n\n${modeNote}`.trim())) return;
+    setRetryingId(row.id);
+    try {
+      const response = await fetch('/api/runsnet/sync-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ transactionId: row.transaction_id }),
+      });
+      const result = await response.json();
+      if (!response.ok) alert('Gagal: ' + (result.error || `HTTP ${response.status}`));
+    } catch (err) {
+      alert('Gagal menghubungi server: ' + err.message);
+    }
+    setRetryingId(null);
+    await load();
+  };
+
   const testConnection = async () => {
     setPinging(true);
     setPingResult(null);
@@ -84,6 +108,12 @@ const RunsnetSyncPanel = ({ session }) => {
         <p className="text-[11px] text-gray-500">
           Saat pembayaran tercatat lunas di Kasir, tandai otomatis lunas juga di billing Runsnet.
         </p>
+
+        <div className={`rounded-xl px-3 py-2.5 text-[11px] font-bold leading-snug ${!enabled ? 'bg-gray-100 text-gray-600' : dryRun ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
+          {!enabled && 'SINKRON MATI — tidak ada pembayaran yang dikirim ke Runsnet.'}
+          {enabled && dryRun && 'MODE UJI COBA — pembayaran hanya dicatat di log dan TIDAK masuk ke Runsnet. Matikan mode uji coba untuk kirim sungguhan.'}
+          {enabled && !dryRun && 'LIVE — pembayaran dikirim sungguhan ke Runsnet. Berhasil hanya dicatat setelah Runsnet menunjukkan status PAID.'}
+        </div>
 
         <div className="flex items-center justify-between">
           <div>
@@ -158,6 +188,16 @@ const RunsnetSyncPanel = ({ session }) => {
                     </div>
                     {row.runsnet_ref && <p className="text-[10px] text-gray-400">invoice Runsnet: <span className="font-mono font-bold text-gray-600">{row.runsnet_ref}</span></p>}
                     {row.message && <p className="text-[10px] text-gray-500">{row.message}</p>}
+                    {(row.stage || 'payment') === 'payment' && row.status !== 'success' && (
+                      <button
+                        type="button"
+                        onClick={() => retryRow(row)}
+                        disabled={retryingId === row.id}
+                        className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg disabled:opacity-50"
+                      >
+                        {retryingId === row.id ? 'Mengirim...' : 'Kirim ulang'}
+                      </button>
+                    )}
                   </div>
                 );
               })}

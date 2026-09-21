@@ -26,9 +26,9 @@ export function isConfigPlaceholder(value) {
 }
 
 const STATUS_TEXT = {
-  success: { text: 'Berhasil dikirim', className: 'bg-emerald-100 text-emerald-700' },
+  success: { text: 'PAID di Runsnet (terbukti)', className: 'bg-emerald-100 text-emerald-700' },
   failed: { text: 'Gagal', className: 'bg-red-100 text-red-700' },
-  dry_run: { text: 'Mode uji coba (tidak dikirim)', className: 'bg-amber-100 text-amber-700' },
+  dry_run: { text: 'Uji coba — TIDAK dikirim', className: 'bg-amber-100 text-amber-700' },
   skipped_disabled: { text: 'Dilewati (sinkron mati)', className: 'bg-gray-100 text-gray-500' },
   skipped_not_configured: { text: 'Dilewati (belum dikonfigurasi)', className: 'bg-gray-100 text-gray-500' },
 };
@@ -91,4 +91,13 @@ export function buildInvoiceLookupLog({ configured, invoice, query }) {
 // ketemu / Runsnet mati / belum dikonfigurasi) pakai id lokal supaya kasir tidak pernah terhambat.
 export function pickInvoiceNumber({ localId, invoice }) {
   return invoice?.id || localId;
+}
+
+// Invoice yang akan dibayar di Runsnet: kalau transaksi sudah membawa nomor invoice ASLI Runsnet (dicari saat
+// transaksi dibuat, disimpan di invoice_number) pakai itu — tepat sasaran. Kalau belum (nomor lokal INV-...),
+// cari lewat PPPoE ID / ID pelanggan / nama.
+export function pickPaymentTarget(transaction) {
+  const number = String(transaction.invoice_number || transaction.invoiceNumber || '').trim();
+  const isRunsnetCode = number && number !== transaction.id && !/^INV-\d+$/.test(number);
+  return { code: isRunsnetCode ? number : null, query: buildSearchQuery(transaction) };
 }
