@@ -407,17 +407,28 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
         <div className="mx-auto w-full max-w-[300px] flex flex-col gap-2.5">
           {!committed && (
             <p className="text-center text-[11px] font-bold text-amber-200 bg-amber-500/20 border border-amber-300/30 rounded-xl py-1.5 px-2">
-              Belum tersimpan — tekan {printerConnected ? 'Cetak & Simpan' : 'Simpan'}
+              Belum tersimpan — cek struk, lalu {printerConnected ? 'Cetak & Simpan' : 'Simpan'} atau Batal
             </p>
           )}
-          <button
-            onClick={handlePrimary}
-            disabled={busy}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60"
-          >
-            {busy ? <Loader2 size={20} className="animate-spin" /> : (printerConnected ? <Printer size={20} /> : <Save size={20} />)}
-            {isCommitting ? 'Menyimpan...' : isPrinting ? 'Mencetak...' : printerConnected ? (committed ? 'Cetak Ulang' : 'Cetak & Simpan') : (committed ? 'Selesai' : 'Simpan')}
-          </button>
+          <div className="flex gap-2.5">
+            {!committed && (
+              <button
+                onClick={onClose}
+                disabled={busy}
+                className="flex-1 bg-red-500/15 hover:bg-red-500/25 text-red-200 border border-red-300/30 font-bold py-3.5 rounded-2xl transition-all active:scale-95 disabled:opacity-60"
+              >
+                Batal
+              </button>
+            )}
+            <button
+              onClick={handlePrimary}
+              disabled={busy}
+              className={`${committed ? 'w-full' : 'flex-[2]'} bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60`}
+            >
+              {busy ? <Loader2 size={20} className="animate-spin" /> : (printerConnected ? <Printer size={20} /> : <Save size={20} />)}
+              {isCommitting ? 'Menyimpan...' : isPrinting ? 'Mencetak...' : printerConnected ? (committed ? 'Cetak Ulang' : 'Cetak & Simpan') : (committed ? 'Selesai' : 'Simpan')}
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-2.5">
             <button
               onClick={handleSaveImage}
