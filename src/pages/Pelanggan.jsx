@@ -8,7 +8,7 @@ import {
 import EditCustomerModal from '../components/EditCustomerModal';
 import { formatRupiah } from '../utils/format';
 
-const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDeleteCustomer, onUpdateCustomer, onSyncEbilling }) => {
+const Pelanggan = ({ customers = [], packages = [], role, setShowAddCustomer, onDeleteCustomer, onUpdateCustomer, onSyncEbilling }) => {
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -158,8 +158,12 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
               >
                 <div className="absolute top-2 right-2 flex gap-1 z-10">
                   <button onClick={() => setSelectedDetailCust(cust)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="Lihat Rincian E-Billing"><Info size={13}/></button>
-                  <button onClick={() => setEditingCustomer(cust)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={12}/></button>
-                  <button onClick={() => { if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
+                  {role === 'superadmin' && (
+                    <>
+                      <button onClick={() => setEditingCustomer(cust)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Pencil size={12}/></button>
+                      <button onClick={() => { if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
+                    </>
+                  )}
                 </div>
                 
                 <div className="flex flex-col items-center text-center mb-3 pt-2">
@@ -283,8 +287,12 @@ const Pelanggan = ({ customers = [], packages = [], setShowAddCustomer, onDelete
                   </div>
                   <div className="col-span-1 sm:col-span-2 flex justify-end gap-1">
                       <button onClick={() => setSelectedDetailCust(cust)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Detail E-Billing"><Info size={14}/></button>
-                      <button onClick={() => setEditingCustomer(cust)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Pencil size={14}/></button>
-                      <button onClick={() => { if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 size={14}/></button>
+                      {role === 'superadmin' && (
+                        <>
+                          <button onClick={() => setEditingCustomer(cust)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Pencil size={14}/></button>
+                          <button onClick={() => { if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 size={14}/></button>
+                        </>
+                      )}
                   </div>
                 </div>
               );

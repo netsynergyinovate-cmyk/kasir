@@ -46,7 +46,7 @@ const resolvePackageAndPrice = (cust, packagesList = []) => {
 };
 
 const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComplete }) => {
-  const defaultCashierName = session?.user?.user_metadata?.name || session?.user?.name || (session?.user?.email?.includes('superadmin') ? 'Super Admin' : (session?.user?.email?.includes('admin') ? 'Admin Kasir' : (companyInfo?.adminName || 'Admin Kasir')));
+  const defaultCashierName = session?.profile?.full_name || (session?.profile?.role === 'superadmin' ? 'Super Admin' : (companyInfo?.adminName || 'Admin Kasir'));
   const [selectedCust, setSelectedCust] = useState('');
   const [activePackage, setActivePackage] = useState(null);
   const [status, setStatus] = useState('LUNAS');
