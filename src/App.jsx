@@ -5,6 +5,7 @@ import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
 import { isPathAllowedForRole, ADMIN_DEFAULT_PATH } from './utils/permissions';
+import { loadVerifiedProfile } from './utils/authProfile';
 
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
@@ -40,6 +41,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [session, setSession] = useState(null);
+  const [authError, setAuthError] = useState(null);
   const [isLocked, setIsLocked] = useState(false);
   const [hasPin, setHasPin] = useState(false);
 
@@ -115,13 +117,18 @@ export default function App() {
         if (isMounted) setSession(null);
         return;
       }
-      const { data: profile } = await supabase
-        .from('admin_profiles')
-        .select('id, full_name, role, device_id, device_label')
-        .eq('id', authSession.user.id)
-        .maybeSingle();
+      const result = await loadVerifiedProfile(supabase, authSession);
+      if (!isMounted) return;
 
-      if (isMounted) setSession({ ...authSession, profile: profile || null });
+      if (result.error) {
+        setAuthError(result.error);
+        setSession(null);
+        await supabase.auth.signOut();
+        return;
+      }
+
+      setAuthError(null);
+      setSession({ ...authSession, profile: result.profile });
     };
 
     supabase.auth.getSession().then(({ data }) => {
@@ -667,7 +674,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <Login onLoginSuccess={(userSession) => setSession(userSession)} />;
+    return <Login externalError={authError} />;
   }
 
   // If session exists, data is loaded, but no DB Pin exists and not bypassed -> Setup mode

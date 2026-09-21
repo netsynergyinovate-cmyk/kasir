@@ -1,72 +1,47 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Building2, Lock, Mail, Loader2, Eye, EyeOff } from 'lucide-react';
-import { getOrCreateDeviceId, getDeviceLabel } from '../utils/deviceId';
 
-const Login = ({ onLoginSuccess }) => {
+const Login = ({ externalError }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Setelah signIn berhasil, App.jsx (onAuthStateChange) yang memverifikasi profil + device-lock
+  // dan menampilkan penolakannya lewat prop externalError.
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-      if (authError || !data?.session) {
-        throw new Error('Email atau password salah.');
-      }
+    if (authError) setError('Email atau password salah.');
+    setLoading(false);
+  };
 
-      const userId = data.session.user.id;
-      const { data: profile, error: profileError } = await supabase
-        .from('admin_profiles')
-        .select('id, full_name, role, device_id, device_label')
-        .eq('id', userId)
-        .maybeSingle();
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setGoogleLoading(true);
 
-      if (profileError || !profile) {
-        await supabase.auth.signOut();
-        throw new Error('Akun ini belum terdaftar sebagai admin/superadmin di sistem.');
-      }
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
 
-      if (profile.role === 'admin') {
-        const currentDeviceId = getOrCreateDeviceId();
-        const currentDeviceLabel = getDeviceLabel();
-
-        if (!profile.device_id) {
-          const { error: bindError } = await supabase
-            .from('admin_profiles')
-            .update({ device_id: currentDeviceId, device_label: currentDeviceLabel })
-            .eq('id', userId);
-
-          if (bindError) {
-            await supabase.auth.signOut();
-            throw new Error('Gagal mengunci akun ke device ini: ' + bindError.message);
-          }
-
-          profile.device_id = currentDeviceId;
-          profile.device_label = currentDeviceLabel;
-        } else if (profile.device_id !== currentDeviceId) {
-          await supabase.auth.signOut();
-          throw new Error('Akun ini terkunci ke device lain. Hubungi superadmin untuk reset device.');
-        }
-      }
-
-      if (onLoginSuccess) onLoginSuccess({ ...data.session, profile });
-    } catch (err) {
-      setError(err.message || 'Gagal login. Periksa kembali email dan password Anda.');
-    } finally {
-      setLoading(false);
+    if (oauthError) {
+      setError('Gagal memulai login Google: ' + oauthError.message);
+      setGoogleLoading(false);
     }
   };
+
+  const shownError = error || externalError;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 animate-in fade-in duration-300">
@@ -80,11 +55,36 @@ const Login = ({ onLoginSuccess }) => {
           <p className="text-gray-500 text-xs sm:text-sm font-medium mt-0.5 text-center">Sistem Kasir & Billing ISP POS</p>
         </div>
 
-        {error && (
+        {shownError && (
           <div className="bg-red-50 text-red-600 p-3.5 rounded-2xl text-xs font-bold mb-4 text-center border border-red-100 animate-in shake duration-300">
-            {error}
+            {shownError}
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={googleLoading || loading}
+          className="w-full bg-white hover:bg-gray-50 text-gray-800 font-bold py-3.5 rounded-xl border border-gray-200 shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:active:scale-100"
+        >
+          {googleLoading ? (
+            <Loader2 className="animate-spin" size={18} />
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+          )}
+          Masuk dengan Google
+        </button>
+
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">atau</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
 
         <form onSubmit={handleFormSubmit} className="space-y-3.5">
           <div>
@@ -126,7 +126,7 @@ const Login = ({ onLoginSuccess }) => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || googleLoading}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl shadow-lg shadow-blue-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-70 disabled:active:scale-100"
           >
             {loading ? <Loader2 className="animate-spin" size={18} /> : 'MASUK SEKARANG'}
