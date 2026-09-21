@@ -50,6 +50,19 @@ describe('DashboardSuperadmin', () => {
     expect(html).toContain('Detail Lengkap');
   });
 
+  it('offers a daily revenue card with today, yesterday and date toggles', () => {
+    expect(html).toContain('Pendapatan Harian');
+    expect(html).toContain('Hari Ini');
+    expect(html).toContain('Kemarin');
+    expect(html).toContain('Pilih Tanggal');
+  });
+
+  it('shows a 7-day bookkeeping slider and a daily cash ledger toggle', () => {
+    expect(html).toContain('Pembukuan 7 Hari Terakhir');
+    expect(html).toContain('Buku kas harian');
+    expect((html.match(/snap-start/g) || []).length).toBe(7);
+  });
+
   it('ranks cashiers by revenue', () => {
     expect(html.indexOf('Siti')).toBeLessThan(html.indexOf('Budi'));
   });

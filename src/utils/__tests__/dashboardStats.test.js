@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary } from '../dashboardStats';
+import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, lastDaysStats, methodBreakdown, dailyTransactions, toInputValue } from '../dashboardStats';
 
 describe('getGreeting', () => {
   it('returns the Indonesian greeting for each part of the day', () => {
@@ -54,9 +54,14 @@ describe('compareMonths', () => {
     expect(result.revenueChange).toBe(100);
   });
 
-  it('does not count unpaid retail transactions in the count', () => {
+  it('leaves unpaid retail transactions out of both revenue and count', () => {
     const result = compareMonths([trx('2026-09-05T10:00:00', 10000, { status: 'PENDING' })], now);
-    expect(result.current.count).toBe(0);
+    expect(result.current).toEqual({ revenue: 0, count: 0 });
+  });
+
+  it('counts instansi invoices as revenue', () => {
+    const result = compareMonths([trx('2026-09-05T10:00:00', 500000, { type: 'instansi', status: 'BELUM' })], now);
+    expect(result.current).toEqual({ revenue: 500000, count: 1 });
   });
 });
 
@@ -110,5 +115,118 @@ describe('paymentSummary', () => {
       { type: 'retail', status: 'LUNAS', customerName: 'Budi', date: '2026-08-03T10:00:00' },
     ];
     expect(paymentSummary(customers, transactions, now)).toEqual({ active: 2, paid: 1, unpaid: 1 });
+  });
+});
+
+describe('dailyStats', () => {
+  const list = [
+    trx('2026-09-20T08:00:00', 100000),
+    trx('2026-09-20T23:59:00', 50000),
+    trx('2026-09-21T00:01:00', 70000),
+    trx('2026-09-20T10:00:00', 30000, { status: 'PENDING' }),
+  ];
+
+  it('sums revenue for the given calendar day and counts successful transactions', () => {
+    expect(dailyStats(list, new Date(2026, 8, 20))).toEqual({ revenue: 150000, count: 2 });
+    expect(dailyStats(list, new Date(2026, 8, 21))).toEqual({ revenue: 70000, count: 1 });
+  });
+
+  it('returns zeros for a day without transactions', () => {
+    expect(dailyStats(list, new Date(2026, 8, 19))).toEqual({ revenue: 0, count: 0 });
+  });
+});
+
+describe('compareDays', () => {
+  it('compares a day with the day before it', () => {
+    const list = [trx('2026-09-20T08:00:00', 100000), trx('2026-09-21T08:00:00', 150000)];
+    const result = compareDays(list, new Date(2026, 8, 21));
+    expect(result.current.revenue).toBe(150000);
+    expect(result.previous.revenue).toBe(100000);
+    expect(result.revenueChange).toBe(50);
+  });
+
+  it('crosses month boundaries', () => {
+    const list = [trx('2026-08-31T08:00:00', 40000), trx('2026-09-01T08:00:00', 20000)];
+    const result = compareDays(list, new Date(2026, 8, 1));
+    expect(result.previous.revenue).toBe(40000);
+    expect(result.revenueChange).toBe(-50);
+  });
+});
+
+describe('resolveDay', () => {
+  const now = new Date(2026, 8, 21, 15, 30);
+
+  it('resolves today and yesterday', () => {
+    expect(resolveDay('today', now).getDate()).toBe(21);
+    expect(resolveDay('yesterday', now).getDate()).toBe(20);
+  });
+
+  it('resolves a custom yyyy-mm-dd value as a local calendar day', () => {
+    const day = resolveDay('custom', now, '2026-09-05');
+    expect([day.getFullYear(), day.getMonth(), day.getDate()]).toEqual([2026, 8, 5]);
+  });
+
+  it('falls back to today for an empty custom value', () => {
+    expect(resolveDay('custom', now, '').getDate()).toBe(21);
+  });
+});
+
+describe('toInputValue', () => {
+  it('formats a date as yyyy-mm-dd in local time', () => {
+    expect(toInputValue(new Date(2026, 8, 5))).toBe('2026-09-05');
+    expect(toInputValue(new Date(2026, 11, 31))).toBe('2026-12-31');
+  });
+});
+
+describe('lastDaysStats', () => {
+  const now = new Date(2026, 8, 21, 15, 0);
+  const list = [
+    trx('2026-09-21T09:00:00', 100000),
+    trx('2026-09-21T11:00:00', 50000),
+    trx('2026-09-20T09:00:00', 70000),
+    trx('2026-09-15T09:00:00', 30000),
+  ];
+
+  it('returns one entry per day, newest first, including days without transactions', () => {
+    const days = lastDaysStats(list, now, 7);
+    expect(days).toHaveLength(7);
+    expect(toInputValue(days[0].date)).toBe('2026-09-21');
+    expect(toInputValue(days[6].date)).toBe('2026-09-15');
+    expect(days[0]).toMatchObject({ revenue: 150000, count: 2 });
+    expect(days[1]).toMatchObject({ revenue: 70000, count: 1 });
+    expect(days[2]).toMatchObject({ revenue: 0, count: 0 });
+    expect(days[6]).toMatchObject({ revenue: 30000, count: 1 });
+  });
+});
+
+describe('methodBreakdown', () => {
+  const day = new Date(2026, 8, 21);
+  const list = [
+    trx('2026-09-21T09:00:00', 100000, { payment_method: 'CASH' }),
+    trx('2026-09-21T10:00:00', 50000, { payment_method: 'TRANSFER' }),
+    trx('2026-09-21T11:00:00', 25000, { payment_method: 'CASH' }),
+    trx('2026-09-21T12:00:00', 10000, { payment_method: null }),
+    trx('2026-09-21T13:00:00', 99000, { payment_method: 'CASH', status: 'PENDING' }),
+    trx('2026-09-20T13:00:00', 88000, { payment_method: 'CASH' }),
+  ];
+
+  it('groups a day by payment method, highest revenue first, ignoring unpaid and other days', () => {
+    expect(methodBreakdown(list, day)).toEqual([
+      { method: 'CASH', count: 2, revenue: 125000 },
+      { method: 'TRANSFER', count: 1, revenue: 50000 },
+      { method: 'Tidak dicatat', count: 1, revenue: 10000 },
+    ]);
+  });
+});
+
+describe('dailyTransactions', () => {
+  it('lists the successful transactions of a day, earliest first', () => {
+    const list = [
+      trx('2026-09-21T11:00:00', 2, { id: 'b' }),
+      trx('2026-09-21T09:00:00', 1, { id: 'a' }),
+      trx('2026-09-21T10:00:00', 9, { id: 'x', status: 'PENDING' }),
+      trx('2026-09-20T09:00:00', 3, { id: 'y' }),
+    ];
+    expect(dailyTransactions(list, new Date(2026, 8, 21)).map((t) => t.id)).toEqual(['a', 'b']);
   });
 });

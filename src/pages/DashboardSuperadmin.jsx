@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, Minus, Wallet, Receipt, CheckCircle, AlertCircle, Trophy, Clock, Smartphone, MapPin, ShieldCheck } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Wallet, CalendarDays, BookOpen, ChevronDown, Receipt, CheckCircle, AlertCircle, Trophy, Clock, Smartphone, MapPin, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatRupiah } from '../utils/format';
-import { getGreeting, compareMonths, cashierPerformance, paymentSummary, formatRelativeTime } from '../utils/dashboardStats';
+import { getGreeting, compareMonths, cashierPerformance, paymentSummary, formatRelativeTime, compareDays, resolveDay, lastDaysStats, methodBreakdown, dailyTransactions, toInputValue } from '../utils/dashboardStats';
 import Dashboard from './Dashboard';
 
 const MONTHS = [
@@ -33,6 +33,9 @@ const DashboardSuperadmin = (props) => {
   const { transactions = [], customers = [], session } = props;
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
+  const [dayMode, setDayMode] = useState('today');
+  const [customDate, setCustomDate] = useState('');
+  const [showLedger, setShowLedger] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +55,33 @@ const DashboardSuperadmin = (props) => {
   const now = new Date();
   const monthLabel = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
   const previousMonthLabel = MONTHS[(now.getMonth() + 11) % 12];
+  const selectedDay = resolveDay(dayMode, now, customDate);
+  const previousDay = new Date(selectedDay.getFullYear(), selectedDay.getMonth(), selectedDay.getDate() - 1);
+  const dayComparison = compareDays(transactions, selectedDay);
+  const formatDay = (date) => date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const todayInputValue = toInputValue(now);
+  const yesterdayInputValue = toInputValue(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  const selectedInputValue = toInputValue(selectedDay);
+  const methods = methodBreakdown(transactions, selectedDay);
+  const ledger = dailyTransactions(transactions, selectedDay);
+  const weekDays = lastDaysStats(transactions, now, 7);
+
+  const selectDay = (date) => {
+    const value = toInputValue(date);
+    if (value === todayInputValue) setDayMode('today');
+    else if (value === yesterdayInputValue) setDayMode('yesterday');
+    else {
+      setCustomDate(value);
+      setDayMode('custom');
+    }
+  };
+
+  const dayCardLabel = (date) => {
+    const value = toInputValue(date);
+    if (value === todayInputValue) return 'Hari Ini';
+    if (value === yesterdayInputValue) return 'Kemarin';
+    return date.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+  };
   const displayName = session?.profile?.full_name || 'Super Administrator';
 
   const comparison = compareMonths(transactions, now);
@@ -79,12 +109,120 @@ const DashboardSuperadmin = (props) => {
           </div>
         </div>
 
+        {/* Pendapatan harian: toggle Hari Ini / Kemarin / pilih tanggal */}
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+              <CalendarDays size={12} /> Pendapatan Harian
+            </p>
+            <TrendBadge change={dayComparison.revenueChange} />
+          </div>
+
+          <div className="flex gap-1.5 p-1 bg-gray-100 rounded-xl">
+            {[['today', 'Hari Ini'], ['yesterday', 'Kemarin'], ['custom', 'Pilih Tanggal']].map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setDayMode(mode)}
+                className={`flex-1 py-2 text-[11px] font-bold rounded-lg transition-all ${dayMode === mode ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {dayMode === 'custom' && (
+            <input
+              type="date"
+              value={customDate}
+              max={todayInputValue}
+              onChange={(e) => setCustomDate(e.target.value)}
+              className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-semibold text-gray-800 focus:border-indigo-500"
+            />
+          )}
+
+          <div>
+            <p className="text-[11px] font-bold text-gray-500">{formatDay(selectedDay)}</p>
+            <p className="text-2xl font-black text-gray-900 mt-0.5">{formatRupiah(dayComparison.current.revenue)}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {dayComparison.current.count} transaksi lunas · hari sebelumnya ({previousDay.getDate()} {MONTHS[previousDay.getMonth()].slice(0, 3)}): {formatRupiah(dayComparison.previous.revenue)}
+            </p>
+          </div>
+
+          {methods.length > 0 && (
+            <div className="pt-3 border-t border-gray-100 space-y-1.5">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Uang masuk per metode</p>
+              {methods.map((entry) => (
+                <div key={entry.method} className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-gray-700">{entry.method} <span className="text-gray-400 font-medium">· {entry.count} trx</span></span>
+                  <span className="font-black text-gray-900">{formatRupiah(entry.revenue)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowLedger(!showLedger)}
+            className="w-full flex items-center justify-between text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-xl transition-colors"
+          >
+            <span className="flex items-center gap-1.5"><BookOpen size={13} /> Buku kas harian ({ledger.length} transaksi)</span>
+            <ChevronDown size={14} className={`transition-transform ${showLedger ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showLedger && (
+            <div className="max-h-72 overflow-y-auto -mx-1 px-1 space-y-1.5">
+              {ledger.length === 0 ? (
+                <p className="text-xs text-gray-400 italic text-center py-3">Belum ada uang masuk pada hari ini.</p>
+              ) : (
+                ledger.map((trx) => (
+                  <div key={trx.id} className="flex items-start justify-between gap-2 p-2.5 bg-gray-50 rounded-xl">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-800 truncate">{trx.customerName || trx.instansiName || 'Tanpa nama'}</p>
+                      <p className="text-[10px] text-gray-500">
+                        {new Date(trx.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} · {trx.cashier_name || 'Kasir tidak diketahui'} · {trx.payment_method || 'Tidak dicatat'}
+                      </p>
+                    </div>
+                    <span className="text-xs font-black text-emerald-600 shrink-0">{formatRupiah(trx.price)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Slider pembukuan 7 hari terakhir: ketuk kartu untuk memilih hari */}
+        <div>
+          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 flex items-center gap-1.5">
+            <BookOpen size={12} /> Pembukuan 7 Hari Terakhir
+          </h2>
+          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4">
+            {weekDays.map((day) => {
+              const active = toInputValue(day.date) === selectedInputValue;
+              return (
+                <button
+                  key={toInputValue(day.date)}
+                  type="button"
+                  onClick={() => selectDay(day.date)}
+                  className={`snap-start shrink-0 w-40 text-left p-3.5 rounded-2xl border transition-all ${active ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white border-gray-100 text-gray-900 shadow-sm'}`}
+                >
+                  <p className={`text-[10px] font-black uppercase tracking-wider ${active ? 'text-indigo-100' : 'text-gray-400'}`}>{dayCardLabel(day.date)}</p>
+                  <p className="text-base font-black mt-1">{formatRupiah(day.revenue)}</p>
+                  <p className={`text-[11px] mt-0.5 ${active ? 'text-indigo-100' : 'text-gray-500'}`}>
+                    {day.count > 0 ? `${day.count} transaksi` : 'Belum ada transaksi'}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* KPI: bulan ini vs bulan lalu */}
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                <Wallet size={12} /> Pendapatan {MONTHS[now.getMonth()]}
+                <Wallet size={12} /> Pendapatan {MONTHS[now.getMonth()]} (lunas)
               </p>
               <TrendBadge change={comparison.revenueChange} />
             </div>
