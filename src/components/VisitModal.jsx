@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { OUTCOME_LABELS } from '../utils/visits';
-import { toInputValue } from '../utils/dashboardStats';
+import { OUTCOME_LABELS, nextSevenDays } from '../utils/visits';
 
 // Form "Catat Kunjungan": hasil kunjungan + tanggal kapan ada. Dipakai halaman Rute (superadmin)
 // dan kartu rute di Dashboard (admin). onSave menerima { customer_id, outcome, available_on }
 // dan mengembalikan true jika berhasil disimpan.
 const VisitModal = ({ customer, onClose, onSave }) => {
   const [outcome, setOutcome] = useState('tidak_ada_di_rumah');
-  const [date, setDate] = useState('');
+  const days = nextSevenDays(new Date());
+  const [date, setDate] = useState(days[0].value);
   const [saving, setSaving] = useState(false);
-  const today = toInputValue(new Date());
 
   const submit = async (event) => {
     event.preventDefault();
@@ -42,15 +41,20 @@ const VisitModal = ({ customer, onClose, onSave }) => {
           <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
             {outcome === 'uang_belum_ada' ? 'Kapan uangnya ada?' : 'Kapan ada di rumah?'}
           </label>
-          <input
-            type="date"
-            required
-            min={today}
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-semibold focus:border-indigo-500"
-          />
-          <p className="text-[11px] text-gray-500 mt-1">Rumah ini tidak muncul lagi sebagai tujuan sampai tanggal itu tiba.</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {days.map((day) => (
+              <button
+                key={day.value}
+                type="button"
+                data-day-chip
+                onClick={() => setDate(day.value)}
+                className={`py-2 rounded-xl text-[11px] font-bold border transition-all ${date === day.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-gray-50 text-gray-700 border-gray-200'}`}
+              >
+                {day.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-500 mt-1">Rumah ini tidak muncul lagi sebagai tujuan sampai hari itu tiba. Saat rumah didatangi lagi, catat hasil terbarunya. Jika sudah dibayar, statusnya otomatis menjadi Sudah terbayarkan.</p>
         </div>
 
         <button type="submit" disabled={saving} className="w-full bg-indigo-600 text-white font-black py-3 rounded-xl disabled:opacity-70">

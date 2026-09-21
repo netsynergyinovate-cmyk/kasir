@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import EditCustomerModal from '../components/EditCustomerModal';
 import { formatRupiah } from '../utils/format';
+import { TONE_BADGE_CLASSES } from '../utils/visits';
 
 const Pelanggan = ({ customers = [], packages = [], role, visitStatusById = {}, setShowAddCustomer, onDeleteCustomer, onUpdateCustomer, onSyncEbilling }) => {
   const [searchParams] = useSearchParams();
@@ -178,7 +179,7 @@ const Pelanggan = ({ customers = [], packages = [], role, visitStatusById = {}, 
                   <h3 className="font-bold text-gray-900 text-sm leading-tight">{cust.name}</h3>
                   {cust.nickname && <p className="text-gray-400 font-medium text-[10px] mt-0.5">({cust.nickname})</p>}
                   {visitStatusById[cust.id] && (
-                    <span className={`inline-block mt-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${visitStatusById[cust.id].key === 'menunggu' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{visitStatusById[cust.id].label}</span>
+                    <span className={`inline-block mt-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatusById[cust.id].tone]}`}>{visitStatusById[cust.id].label}</span>
                   )}
                   
                   {pppoe && (
@@ -250,7 +251,7 @@ const Pelanggan = ({ customers = [], packages = [], role, visitStatusById = {}, 
                           <div className="flex items-center gap-1.5">
                             <p className="text-sm font-bold text-gray-900 leading-none">{cust.name} {cust.nickname && <span className="text-gray-400 font-medium text-[10px]">({cust.nickname})</span>}</p>
                             {visitStatusById[cust.id] && (
-                              <span className={`inline-block mt-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${visitStatusById[cust.id].key === 'menunggu' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{visitStatusById[cust.id].label}</span>
+                              <span className={`inline-block mt-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatusById[cust.id].tone]}`}>{visitStatusById[cust.id].label}</span>
                             )}
                             {isEbilling && (
                               <span className="bg-indigo-100 text-indigo-700 text-[9px] font-bold px-1.5 py-0.2 rounded border border-indigo-200">E-Billing</span>

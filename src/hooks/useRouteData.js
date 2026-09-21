@@ -6,7 +6,8 @@ export const hasCoords = (customer) => typeof customer.lat === 'number' && typeo
 
 // Data rute kunjungan yang dipakai bersama halaman Rute dan kartu peta di Dashboard:
 // urutan rute, status tiap rumah, tujuan berikutnya, titik peta, dan jalur jalan (OSRM).
-export function useRouteData({ customers, transactions, visits }) {
+// onlyPending: peta/jalur hanya melewati rumah yang masih perlu didatangi (untuk Dashboard yang ringkas).
+export function useRouteData({ customers, transactions, visits, onlyPending = false }) {
   const [roadRoute, setRoadRoute] = useState({ key: '', data: null });
 
   const routeCustomers = useMemo(
@@ -24,14 +25,22 @@ export function useRouteData({ customers, transactions, visits }) {
     return map;
   }, [customers, visits, transactions]);
 
-  const pending = pendingStops(routeCustomers, statusById);
+  const pending = useMemo(() => pendingStops(routeCustomers, statusById), [routeCustomers, statusById]);
   const paidCount = routeCustomers.filter((customer) => statusById[customer.id]?.key === 'sudah_bayar').length;
+  const waitingCount = routeCustomers.filter((customer) => statusById[customer.id]?.key === 'menunggu').length;
+
+  // Nomor mengikuti urutan rute superadmin, walau yang tampil hanya sebagian rumah.
+  const routeNumberById = useMemo(() => {
+    const numberById = {};
+    routeCustomers.forEach((customer, index) => { numberById[customer.id] = index + 1; });
+    return numberById;
+  }, [routeCustomers]);
 
   const mappedStops = useMemo(
-    () => routeCustomers
-      .map((customer, index) => ({ customer, number: index + 1 }))
+    () => (onlyPending ? pending : routeCustomers)
+      .map((customer) => ({ customer, number: routeNumberById[customer.id] }))
       .filter(({ customer }) => hasCoords(customer)),
-    [routeCustomers],
+    [routeCustomers, pending, onlyPending, routeNumberById],
   );
 
   const routeKey = mappedStops.map(({ customer }) => `${customer.lat},${customer.lng}`).join('|');
@@ -65,7 +74,7 @@ export function useRouteData({ customers, transactions, visits }) {
       lat: customer.lat,
       lng: customer.lng,
       number,
-      statusKey: statusById[customer.id]?.key,
+      tone: statusById[customer.id]?.tone,
       title: customer.name,
     })),
     [mappedStops, statusById],
@@ -78,6 +87,8 @@ export function useRouteData({ customers, transactions, visits }) {
     nextStop: pending[0] || null,
     afterNext: pending[1] || null,
     paidCount,
+    waitingCount,
+    routeNumberById,
     mapStops,
     route,
     routeLoading,

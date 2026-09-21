@@ -6,17 +6,20 @@ import VisitModal from './VisitModal';
 import StatusBadge from './StatusBadge';
 import { useRouteData, hasCoords } from '../hooks/useRouteData';
 import { googleMapsNavUrl, formatDistance, formatDuration } from '../utils/geo';
-import { STATUS_COLORS } from '../utils/visits';
+import { TONE_COLORS } from '../utils/visits';
+import StatusLegend from './StatusLegend';
 
 // Ringkasan rute kunjungan untuk Dashboard: peta satelit + jalur jalan + tujuan berikutnya.
 // Peta, jalur, tujuan berikutnya, dan catatan kunjungan dalam satu kartu. Untuk admin ini menggantikan
 // halaman Rute terpisah; superadmin mengatur rute di halaman Rute.
 const RouteOverview = ({ customers = [], transactions = [], visits = [], onAddVisit, canManageRoute = false }) => {
   const [visitFor, setVisitFor] = useState(null);
+  // Dashboard ringkas: rumah yang infonya sudah diisi (menunggu janji / sudah bayar) disembunyikan,
+  // hanya yang masih perlu didatangi yang tampil di peta dan daftar.
   const {
-    routeCustomers, statusById, pending, nextStop, afterNext, paidCount,
-    mapStops, route, routeLoading, legBefore,
-  } = useRouteData({ customers, transactions, visits });
+    routeCustomers, statusById, pending, nextStop, afterNext, paidCount, waitingCount,
+    mapStops, route, routeLoading, legBefore, routeNumberById,
+  } = useRouteData({ customers, transactions, visits, onlyPending: true });
 
   return (
     <div>
@@ -36,8 +39,11 @@ const RouteOverview = ({ customers = [], transactions = [], visits = [], onAddVi
           </div>
         ) : (
           <>
-            {mapStops.length > 0 ? (
-              <RouteMap compact stops={mapStops} routeLine={route?.coordinates || null} />
+            {pending.length === 0 ? null : mapStops.length > 0 ? (
+              <>
+                <RouteMap compact stops={mapStops} routeLine={route?.coordinates || null} />
+                <StatusLegend />
+              </>
             ) : (
               <div className="bg-indigo-50 rounded-xl p-4 text-center">
                 <MapPin className="mx-auto text-indigo-400" size={22} />
@@ -47,7 +53,7 @@ const RouteOverview = ({ customers = [], transactions = [], visits = [], onAddVi
             )}
 
             <p className="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1">
-              <span><b>{routeCustomers.length}</b> rumah · <b>{pending.length}</b> perlu didatangi · <b>{paidCount}</b> sudah bayar</span>
+              <span><b>{pending.length}</b> perlu didatangi · <b>{waitingCount}</b> menunggu janji · <b>{paidCount}</b> sudah terbayarkan</span>
               {routeLoading && <span className="flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> menghitung jalur...</span>}
               {route && <span>· jalur {formatDistance(route.distance)} (~{formatDuration(route.duration)})</span>}
             </p>
@@ -86,15 +92,16 @@ const RouteOverview = ({ customers = [], transactions = [], visits = [], onAddVi
               </div>
             )}
 
+            {pending.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Urutan kunjungan</p>
               <div className="max-h-72 overflow-y-auto space-y-1.5">
-                {routeCustomers.map((customer, index) => {
+                {pending.map((customer) => {
                   const status = statusById[customer.id];
                   const leg = legBefore[customer.id];
                   return (
                     <div key={customer.id} className="flex items-start gap-2.5 p-2.5 bg-gray-50 rounded-xl">
-                      <div className="w-7 h-7 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0" style={{ background: STATUS_COLORS[status.key] }}>{index + 1}</div>
+                      <div className="w-7 h-7 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0" style={{ background: TONE_COLORS[status.tone] }}>{routeNumberById[customer.id]}</div>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-black text-gray-900 truncate">{customer.name}</p>
                         <p className="text-[10px] text-gray-500 truncate">{customer.address || 'Alamat belum diisi'}</p>
@@ -111,6 +118,7 @@ const RouteOverview = ({ customers = [], transactions = [], visits = [], onAddVi
                 })}
               </div>
             </div>
+            )}
           </>
         )}
       </div>

@@ -5,12 +5,25 @@ export const OUTCOME_LABELS = {
   uang_belum_ada: 'Uang belum ada',
 };
 
-// Warna penanda peta dan lencana menurut status kunjungan.
-export const STATUS_COLORS = {
-  sudah_bayar: '#16a34a',
-  perlu_didatangi: '#dc2626',
-  belum_dikunjungi: '#dc2626',
-  menunggu: '#f59e0b',
+// Warna status kunjungan: merah = belum dikunjungi, kuning = tidak ada di rumah,
+// biru muda = uang belum ada (menunggu tanggal bayar), hijau = sudah dibayar.
+export const TONE_COLORS = {
+  red: '#dc2626',
+  yellow: '#eab308',
+  blue: '#38bdf8',
+  green: '#16a34a',
+};
+
+export const TONE_BADGE_CLASSES = {
+  red: 'bg-red-100 text-red-700',
+  yellow: 'bg-yellow-100 text-yellow-800',
+  blue: 'bg-sky-100 text-sky-700',
+  green: 'bg-emerald-100 text-emerald-700',
+};
+
+const OUTCOME_TONES = {
+  tidak_ada_di_rumah: 'yellow',
+  uang_belum_ada: 'blue',
 };
 
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -39,7 +52,7 @@ const isPaidThisMonth = (customer, transactions, now) =>
 //  perlu_didatangi  - pernah dikunjungi tapi sudah waktunya didatangi lagi
 export function customerVisitStatus(customer, visits, transactions, now = new Date()) {
   if (isPaidThisMonth(customer, transactions, now)) {
-    return { key: 'sudah_bayar', label: 'Sudah terbayarkan', visit: null, availableOn: null };
+    return { key: 'sudah_bayar', tone: 'green', label: 'Sudah terbayarkan', visit: null, availableOn: null };
   }
 
   const latest = visits
@@ -47,7 +60,7 @@ export function customerVisitStatus(customer, visits, transactions, now = new Da
     .sort((a, b) => new Date(b.visited_at).getTime() - new Date(a.visited_at).getTime())[0];
 
   if (!latest) {
-    return { key: 'belum_dikunjungi', label: 'Belum dikunjungi', visit: null, availableOn: null };
+    return { key: 'belum_dikunjungi', tone: 'red', label: 'Belum dikunjungi', visit: null, availableOn: null };
   }
 
   const today = toInputValue(now);
@@ -58,7 +71,7 @@ export function customerVisitStatus(customer, visits, transactions, now = new Da
   const outcome = OUTCOME_LABELS[latest.outcome] || latest.outcome;
   const label = availableOn ? `${outcome} · kapan ada: ${formatShortDate(availableOn)}` : outcome;
 
-  return { key: waiting ? 'menunggu' : 'perlu_didatangi', label, visit: latest, availableOn };
+  return { key: waiting ? 'menunggu' : 'perlu_didatangi', tone: OUTCOME_TONES[latest.outcome] || 'yellow', label, visit: latest, availableOn };
 }
 
 // Rumah yang masih perlu didatangi, tetap dalam urutan rute yang disusun superadmin.
@@ -67,4 +80,34 @@ export function pendingStops(orderedStops, statusById) {
     const key = statusById[stop.id]?.key;
     return key === 'belum_dikunjungi' || key === 'perlu_didatangi';
   });
+}
+
+const SHORT_WEEKDAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+// Pilihan "kapan ada": 7 hari setelah hari ini, dimulai dari besok.
+export function nextSevenDays(now = new Date()) {
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + index + 1);
+    const value = toInputValue(date);
+    const label = index === 0 ? 'Besok' : `${SHORT_WEEKDAYS[date.getDay()]} ${formatShortDate(value)}`;
+    return { value, label };
+  });
+}
+
+// Satu baris riwayat kunjungan, contoh: "21 Sep · Tidak ada di rumah · kapan ada: 22 Sep".
+export function describeVisit(visit) {
+  const day = formatShortDate(toInputValue(new Date(visit.visited_at)));
+  const outcome = OUTCOME_LABELS[visit.outcome] || visit.outcome;
+  const parts = [day, outcome];
+  if (visit.available_on) parts.push(`kapan ada: ${formatShortDate(visit.available_on)}`);
+  return parts.join(' · ');
+}
+
+// Pencarian pelanggan berdasarkan nama, nama panggilan, atau alamat (tanpa membedakan huruf besar/kecil).
+export function searchCustomers(customers, query) {
+  const needle = String(query || '').trim().toLowerCase();
+  if (!needle) return customers;
+  return customers.filter((customer) =>
+    [customer.name, customer.nickname, customer.address].some((field) => (field || '').toLowerCase().includes(needle))
+  );
 }

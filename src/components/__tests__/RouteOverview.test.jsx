@@ -56,4 +56,37 @@ describe('Dashboard route overview (what an admin sees on the home page)', () =>
     expect(render({ customers: routeCustomers, visits: [], canManageRoute: true })).toContain('href="/rute"');
     expect(render({ customers: routeCustomers, visits: [] })).not.toContain('href="/rute"');
   });
+
+  const today = new Date();
+  const visitToday = (customerId, outcome = 'tidak_ada_di_rumah') => ({
+    id: `v-${customerId}`,
+    customer_id: customerId,
+    outcome,
+    available_on: null,
+    visited_at: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 9, 0, 0).toISOString(),
+  });
+
+  // Hanya kartu rute (sampai bagian "Periode" milik dashboard lain).
+  const routeCard = (html) => html.slice(html.indexOf('Rute Kunjungan'), html.indexOf('Periode'));
+
+  it('hides customers who already have visit info so the dashboard only lists who still needs a visit', () => {
+    const card = routeCard(render({ customers: routeCustomers, visits: [visitToday('c1')] }));
+    const list = card.slice(card.indexOf('Urutan kunjungan'));
+    expect(list).toContain('Citra Tujuan Kedua');
+    expect(card).not.toContain('Budi Tujuan Pertama');
+    // tujuan berikutnya pindah ke rumah yang masih perlu didatangi
+    expect(card.slice(card.indexOf('Tujuan berikutnya'), card.indexOf('Urutan kunjungan'))).toContain('Citra Tujuan Kedua');
+  });
+
+  it('summarises the hidden customers as waiting or paid', () => {
+    const card = routeCard(render({ customers: routeCustomers, visits: [visitToday('c1')] }));
+    expect(card).toMatch(/<b>1<\/b> menunggu janji/);
+    expect(card).toMatch(/<b>0<\/b> sudah terbayarkan/);
+  });
+
+  it('says everything is handled when nobody needs a visit', () => {
+    const html = render({ customers: routeCustomers, visits: [visitToday('c1'), visitToday('c2', 'uang_belum_ada')] });
+    expect(html).toContain('Semua rumah di rute sudah beres');
+    expect(html).not.toContain('Urutan kunjungan');
+  });
 });

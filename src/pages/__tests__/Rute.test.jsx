@@ -27,8 +27,8 @@ const transactions = [
   { id: 't1', type: 'retail', status: 'LUNAS', customerName: 'Citra Sudah Bayar', date: thisMonth(1) },
 ];
 
-const render = (role) => renderToString(
-  <Rute customers={customers} transactions={transactions} visits={visits} role={role} onAddVisit={() => {}} onUpdateCustomerRoute={() => {}} />
+const render = (role, extra = {}) => renderToString(
+  <Rute customers={customers} transactions={transactions} visits={visits} role={role} onAddVisit={() => {}} onUpdateCustomerRoute={() => {}} defaultFilter="semua" {...extra} />
 ).replace(/<!-- -->/g, '');
 
 describe('Rute Kunjungan page', () => {
@@ -83,5 +83,28 @@ describe('Rute Kunjungan page without a route yet', () => {
     const html = emptyHtml('superadmin', [{ id: 'c1', name: 'Ani', address: 'Jl. A', route_order: 1, lat: null, lng: null }]);
     expect(html).toContain('Peta muncul setelah koordinat rumah diisi');
     expect(html).not.toContain('data-testid="route-map"');
+  });
+});
+
+describe('Rute Kunjungan page search and focus filter', () => {
+  it('has a search box for customer names and a Perlu didatangi / Semua filter', () => {
+    const html = render('superadmin');
+    expect(html).toContain('Cari nama pelanggan');
+    expect(html).toContain('Perlu didatangi');
+    expect(html).toContain('Semua');
+  });
+
+  it('by default lists only the houses that still need a visit', () => {
+    const html = render('superadmin', { defaultFilter: 'perlu' });
+    const list = html.slice(html.indexOf('Urutan Kunjungan'));
+    expect(list).toContain('Budi Belum Bayar');
+    expect(list).not.toContain('Citra Sudah Bayar');
+    expect(list).not.toContain('Ani Sudah Dikunjungi');
+  });
+
+  it('shows the visit history of a house that was visited', () => {
+    const html = render('superadmin');
+    expect(html).toContain('Tidak ada di rumah');
+    expect(html).toMatch(/Riwayat kunjungan/);
   });
 });

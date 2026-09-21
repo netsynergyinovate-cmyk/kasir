@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { STATUS_COLORS } from '../utils/visits';
+import { TONE_COLORS } from '../utils/visits';
 import { addBaseLayers } from '../utils/leafletBase';
 import { MAP_MAX_ZOOM } from '../utils/mapConfig';
 
@@ -14,7 +14,7 @@ const numberIcon = (number, color, selected) => L.divIcon({
   iconAnchor: [15, 15],
 });
 
-// Peta rute. stops: [{ id, lat, lng, number, statusKey, title }]. routeLine: [[lat, lng], ...] jalur jalan
+// Peta rute. stops: [{ id, lat, lng, number, tone, title }]. routeLine: [[lat, lng], ...] jalur jalan
 // dari layanan routing; jika null dipakai garis lurus putus-putus sebagai cadangan.
 // compact: dipakai di dashboard; scroll mouse tidak memperbesar peta dan di HP satu jari tetap menggulir halaman.
 const RouteMap = ({ stops, routeLine, selectedId, onSelect, compact = false }) => {
@@ -56,7 +56,7 @@ const RouteMap = ({ stops, routeLine, selectedId, onSelect, compact = false }) =
 
     stops.forEach((stop) => {
       const marker = L.marker([stop.lat, stop.lng], {
-        icon: numberIcon(stop.number, STATUS_COLORS[stop.statusKey] || '#6b7280', stop.id === selectedId),
+        icon: numberIcon(stop.number, TONE_COLORS[stop.tone] || '#6b7280', stop.id === selectedId),
         zIndexOffset: stop.id === selectedId ? 1000 : 0,
       });
 

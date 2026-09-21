@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Navigation, MapPin, Phone, ClipboardPen, ChevronUp, ChevronDown, X, Plus, Settings2, Route as RouteIcon, CheckCircle2, Loader2 } from 'lucide-react';
+import { Navigation, MapPin, Phone, ClipboardPen, ChevronUp, ChevronDown, X, Plus, Settings2, Route as RouteIcon, CheckCircle2, Loader2, Search } from 'lucide-react';
 import RouteMap from '../components/RouteMap';
 import LocationPicker from '../components/LocationPicker';
-import { STATUS_COLORS } from '../utils/visits';
+import { TONE_COLORS, searchCustomers, describeVisit } from '../utils/visits';
+import StatusLegend from '../components/StatusLegend';
 import VisitModal from '../components/VisitModal';
 import StatusBadge from '../components/StatusBadge';
 import { useRouteData, hasCoords } from '../hooks/useRouteData';
@@ -23,19 +24,30 @@ const NavButton = ({ customer, primary }) => (
   )
 );
 
-const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit, onUpdateCustomerRoute }) => {
+// defaultFilter: 'perlu' (hanya rumah yang perlu didatangi, sama seperti Dashboard) atau 'semua'.
+const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit, onUpdateCustomerRoute, defaultFilter = 'perlu' }) => {
   const isSuper = role === 'superadmin';
   const [editMode, setEditMode] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [visitFor, setVisitFor] = useState(null);
   const [coordFor, setCoordFor] = useState(null);
   const [coordDraft, setCoordDraft] = useState(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState(defaultFilter);
 
   const {
     routeCustomers, statusById, pending, nextStop, afterNext, paidCount,
-    mapStops, route, routeLoading, legBefore,
+    mapStops, route, routeLoading, legBefore, routeNumberById,
   } = useRouteData({ customers, transactions, visits });
   const notInRoute = customers.filter((customer) => customer.route_order === null || customer.route_order === undefined);
+
+  // Mode Atur Rute selalu menampilkan semua rumah supaya urutan bisa disusun.
+  const focusPending = filter === 'perlu' && !editMode;
+  const listed = searchCustomers(focusPending ? pending : routeCustomers, query);
+  const notInRouteListed = searchCustomers(notInRoute, query);
+  const historyOf = (customerId) => visits
+    .filter((visit) => visit.customer_id === customerId)
+    .sort((a, b) => new Date(b.visited_at).getTime() - new Date(a.visited_at).getTime());
 
   const openVisit = (customer) => setVisitFor(customer);
 
@@ -158,11 +170,7 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
       {mapStops.length > 0 && (
         <div className="space-y-2">
           <RouteMap stops={mapStops} routeLine={route?.coordinates || null} selectedId={selectedId} onSelect={setSelectedId} />
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-gray-500 px-1">
-            {[['perlu_didatangi', 'Perlu didatangi'], ['menunggu', 'Menunggu janji'], ['sudah_bayar', 'Sudah terbayarkan']].map(([key, label]) => (
-              <span key={key} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full" style={{ background: STATUS_COLORS[key] }} /> {label}</span>
-            ))}
-          </div>
+          <StatusLegend />
           <p className="text-[11px] text-gray-500 px-1 flex items-center gap-1.5">
             {routeLoading && <><Loader2 size={12} className="animate-spin" /> Menghitung jalur jalan...</>}
             {route && <>Jalur jalan seluruh rute: <b>{formatDistance(route.distance)}</b> · sekitar <b>{formatDuration(route.duration)}</b> berkendara</>}
@@ -171,10 +179,47 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
         </div>
       )}
 
+      {/* Pencarian dan filter */}
+      {routeCustomers.length > 0 && (
+        <div className="space-y-2">
+          <div className="relative">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari nama pelanggan"
+              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-sm font-semibold text-gray-800 focus:border-indigo-500 placeholder:text-gray-400 placeholder:font-medium"
+            />
+          </div>
+          {!editMode && (
+            <div className="flex gap-1.5 p-1 bg-gray-100 rounded-xl">
+              {[['perlu', `Perlu didatangi (${pending.length})`], ['semua', `Semua (${routeCustomers.length})`]].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setFilter(value)}
+                  className={`flex-1 py-2 text-[11px] font-bold rounded-lg transition-all ${filter === value ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Daftar rute */}
       <div className="space-y-2">
         <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Urutan Kunjungan</h2>
-        {routeCustomers.map((customer, index) => {
+        {routeCustomers.length > 0 && listed.length === 0 && (
+          <p className="text-xs text-gray-400 italic text-center py-4">
+            {query.trim() ? 'Tidak ada pelanggan yang cocok dengan pencarian.' : 'Tidak ada rumah yang perlu didatangi.'}
+          </p>
+        )}
+        {listed.map((customer) => {
+          const routeIndex = routeCustomers.findIndex((item) => item.id === customer.id);
+          const history = historyOf(customer.id).slice(0, 3);
           const status = statusById[customer.id];
           const leg = legBefore[customer.id];
           const isNext = nextStop && nextStop.id === customer.id;
@@ -185,7 +230,7 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
               className={`bg-white p-3.5 rounded-2xl border shadow-sm space-y-2.5 ${isNext ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-gray-100'} ${selectedId === customer.id ? 'bg-indigo-50/40' : ''}`}
             >
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full text-white text-xs font-black flex items-center justify-center shrink-0" style={{ background: STATUS_COLORS[status.key] }}>{index + 1}</div>
+                <div className="w-8 h-8 rounded-full text-white text-xs font-black flex items-center justify-center shrink-0" style={{ background: TONE_COLORS[status.tone] }}>{routeNumberById[customer.id]}</div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-black text-gray-900 truncate">{customer.name}</p>
                   <p className="text-[11px] text-gray-500 flex items-start gap-1"><MapPin size={11} className="shrink-0 mt-0.5" /> {customer.address || 'Alamat belum diisi'}</p>
@@ -196,6 +241,12 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
                     )}
                   </div>
                   {leg && <p className="text-[10px] text-gray-400 mt-1">Dari rumah sebelumnya: {formatDistance(leg.distance)} · {formatDuration(leg.duration)}</p>}
+                  {history.length > 0 && (
+                    <div className="mt-1.5">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Riwayat kunjungan</p>
+                      {history.map((visit) => <p key={visit.id} className="text-[10px] text-gray-500">{describeVisit(visit)}</p>)}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -210,8 +261,8 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
 
               {isSuper && editMode && (
                 <div className="flex items-center gap-2 pt-2 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" disabled={index === 0} onClick={() => move(index, -1)} className="p-2 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-30"><ChevronUp size={16} /></button>
-                  <button type="button" disabled={index === routeCustomers.length - 1} onClick={() => move(index, 1)} className="p-2 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-30"><ChevronDown size={16} /></button>
+                  <button type="button" disabled={routeIndex === 0} onClick={() => move(routeIndex, -1)} className="p-2 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-30"><ChevronUp size={16} /></button>
+                  <button type="button" disabled={routeIndex === routeCustomers.length - 1} onClick={() => move(routeIndex, 1)} className="p-2 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-30"><ChevronDown size={16} /></button>
                   <button type="button" onClick={() => openCoords(customer)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700"><MapPin size={13} /> {hasCoords(customer) ? 'Ubah koordinat' : 'Isi koordinat'}</button>
                   <button type="button" onClick={() => onUpdateCustomerRoute(customer.id, { route_order: null })} className="p-2 rounded-lg bg-red-50 text-red-500" title="Keluarkan dari rute"><X size={16} /></button>
                 </div>
@@ -226,7 +277,7 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
         <div className="space-y-2">
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Belum Masuk Rute ({notInRoute.length})</h2>
           <div className="max-h-72 overflow-y-auto space-y-1.5">
-            {notInRoute.map((customer) => (
+            {notInRouteListed.map((customer) => (
               <div key={customer.id} className="flex items-center justify-between gap-2 p-3 bg-white rounded-xl border border-gray-100">
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-gray-800 truncate">{customer.name}</p>
@@ -235,7 +286,7 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
                 <button type="button" onClick={() => addToRoute(customer)} className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 text-white"><Plus size={13} /> Tambah</button>
               </div>
             ))}
-            {notInRoute.length === 0 && <p className="text-xs text-gray-400 italic text-center py-3">Semua pelanggan sudah masuk rute.</p>}
+            {notInRouteListed.length === 0 && <p className="text-xs text-gray-400 italic text-center py-3">{notInRoute.length === 0 ? 'Semua pelanggan sudah masuk rute.' : 'Tidak ada pelanggan yang cocok dengan pencarian.'}</p>}
           </div>
         </div>
       )}
