@@ -11,7 +11,7 @@ export default defineConfig({
     tailwindcss(),
     localApi(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'hero.png'],
       manifest: {
         name: 'KAsir ISP Billing',

@@ -95,6 +95,28 @@ const RunsnetSyncPanel = ({ session }) => {
     await load();
   };
 
+  // Membatalkan pembayaran di Runsnet untuk transaksi yang SUDAH terhapus dari KAsir (tanpa reversal). Hanya
+  // muncul di baris log pembayaran yang terbukti PAID tapi transaksinya sudah tidak ada. Server tetap menjaga:
+  // sinkron LIVE, invoice PAID, dan tepat satu pembayaran; hasilnya dibuktikan dengan membaca status Runsnet.
+  const reverseOrphan = async (row) => {
+    const code = row.runsnet_ref || row.search_query;
+    if (!window.confirm(`Batalkan (reversal) pembayaran invoice ${code} di Runsnet?\n\nTransaksinya sudah dihapus dari KAsir. Pembayaran di Runsnet akan DIBATALKAN dan invoice kembali PENDING.`)) return;
+    setRetryingId(row.id);
+    try {
+      const response = await fetch('/api/runsnet/reverse-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ transactionId: row.transaction_id }),
+      });
+      const result = await response.json();
+      alert(!response.ok ? 'Gagal: ' + (result.error || `HTTP ${response.status}`) : (result.message || 'Selesai.'));
+    } catch (err) {
+      alert('Gagal menghubungi server: ' + err.message);
+    }
+    setRetryingId(null);
+    await load();
+  };
+
   const testConnection = async () => {
     setPinging(true);
     setPingResult(null);
@@ -122,6 +144,7 @@ const RunsnetSyncPanel = ({ session }) => {
     { key: 'reversal', label: 'Reversal', match: (r) => r.stage === 'reversal' },
     { key: 'failed', label: 'Gagal', match: (r) => r.status === 'failed' },
   ];
+  const reversedIds = new Set(logs.filter((r) => r.stage === 'reversal' && r.status === 'success').map((r) => r.transaction_id));
   const visibleLogs = logs.filter((FILTERS.find((f) => f.key === filter) || FILTERS[0]).match);
 
   return (
@@ -244,6 +267,18 @@ const RunsnetSyncPanel = ({ session }) => {
                       <p className={`text-[11px] leading-snug rounded-lg border px-2.5 py-2 ${noteTone}`}>
                         <b>{noteLabel}:</b> {row.message}
                       </p>
+                    )}
+
+                    {isPayment && row.status === 'success' && !tx && !reversedIds.has(row.transaction_id) && (
+                      <button
+                        type="button"
+                        onClick={() => reverseOrphan(row)}
+                        disabled={retryingId === row.id}
+                        className="w-full py-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      >
+                        {retryingId === row.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                        {retryingId === row.id ? 'Membatalkan...' : 'Transaksi sudah dihapus — batalkan pembayaran di Runsnet'}
+                      </button>
                     )}
 
                     {isPayment && row.status !== 'success' && (

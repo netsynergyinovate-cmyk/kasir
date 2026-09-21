@@ -25,6 +25,7 @@ import Login from './pages/Login';
 import DashboardSuperadmin from './pages/DashboardSuperadmin';
 import Rute from './pages/Rute';
 import RunsnetSyncToast from './components/RunsnetSyncToast';
+import UpdateBanner from './components/UpdateBanner';
 import { customerVisitStatus } from './utils/visits';
 import { describeRouteError } from './utils/dbErrors';
 import { useShareLocation } from './hooks/useShareLocation';
@@ -1027,6 +1028,7 @@ export default function App() {
       </div>
 
       <RunsnetSyncToast result={runsnetResult} onDone={() => setRunsnetResult(null)} />
+      <UpdateBanner />
 
       <AddCustomerModal
         show={showAddCustomer}
