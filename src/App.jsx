@@ -22,6 +22,7 @@ import ReceiptA4 from './components/ReceiptA4';
 import GlobalSearch from './components/GlobalSearch';
 
 import Login from './pages/Login';
+import DashboardSuperadmin from './pages/DashboardSuperadmin';
 import PinPad from './components/PinPad';
 
 const INIT_COMPANY = {
@@ -755,14 +756,26 @@ export default function App() {
         <main className="flex-1 overflow-y-auto relative">
           <Routes>
             <Route path="/" element={
-              <Dashboard 
-                transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
-                customers={customers} 
-                packages={packages}
-                companyInfo={companyInfo}
-                setReceiptToView={setReceiptToView} 
-                setInstansiReceiptToView={setInstansiReceiptToView} 
-              />
+              session?.profile?.role === 'superadmin' ? (
+                <DashboardSuperadmin
+                  session={session}
+                  transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
+                  customers={customers} 
+                  packages={packages}
+                  companyInfo={companyInfo}
+                  setReceiptToView={setReceiptToView} 
+                  setInstansiReceiptToView={setInstansiReceiptToView} 
+                />
+              ) : (
+                <Dashboard 
+                  transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
+                  customers={customers} 
+                  packages={packages}
+                  companyInfo={companyInfo}
+                  setReceiptToView={setReceiptToView} 
+                  setInstansiReceiptToView={setInstansiReceiptToView} 
+                />
+              )
             } />
             <Route path="/history" element={
               <History 

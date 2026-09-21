@@ -4,9 +4,10 @@ import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Cal
 import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
+import { getGreeting } from '../utils/dashboardStats';
 import './Dashboard.css';
 
-const Dashboard = ({ transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
+const Dashboard = ({ hideHeader = false, transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
   const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -132,18 +133,23 @@ const Dashboard = ({ transactions = [], customers = [], packages = [], companyIn
   return (
     <div className="dashboard-container p-4 space-y-6 pb-32 animate-in fade-in duration-300">
       
-      {/* Welcome Header */}
-      <div className="flex justify-between items-center mb-2">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 leading-tight">
-            Halo, <span className="text-blue-600">{companyInfo.adminName || 'Admin'}</span> 👋
-          </h1>
-          <p className="text-gray-500 text-xs font-medium">Laporan ISP KAsir</p>
+      {/* Welcome Header (disembunyikan saat dipakai di bawah Dashboard Superadmin) */}
+      {!hideHeader && (
+        <div className="flex justify-between items-center mb-2">
+          <div>
+            <p className="text-blue-600 text-xs font-bold mb-0.5">
+              {getGreeting(new Date().getHours())} · {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+            <h1 className="text-2xl font-black text-gray-900 leading-tight">
+              Halo, <span className="text-blue-600">{companyInfo.adminName || 'Admin'}</span> 👋
+            </h1>
+            <p className="text-gray-500 text-xs font-medium">Laporan ISP KAsir</p>
+          </div>
+          <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 shadow-sm border border-blue-100">
+            <Users size={24} />
+          </div>
         </div>
-        <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 shadow-sm border border-blue-100">
-          <Users size={24} />
-        </div>
-      </div>
+      )}
 
       {/* Pengingat Tagihan (due-date reminders, always real-time) */}
       {reminderList.length > 0 && (
