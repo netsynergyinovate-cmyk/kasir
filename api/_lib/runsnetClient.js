@@ -1,5 +1,6 @@
 import process from 'node:process';
 import { isConfigPlaceholder, parseInvoiceListResponse } from '../../src/utils/runsnetSync.js';
+import { parsePelangganRow } from '../../src/utils/runsnetCustomers.js';
 
 // Dibaca lewat fungsi (bukan konstanta top-level) supaya skrip lokal yang memuat .env.local
 // setelah statement import tetap melihat nilainya.
@@ -40,6 +41,11 @@ const CONFIG = {
   // pembayaran nyata; jangan pernah memanggil payInvoiceCash() di luar alur webhook yang sudah
   // dijaga saklar + mode uji coba.
   paymentMenuValue: 'Ti9XSG9WdnFyakhKS0owRzh5ZVMrZ2FpTm8wbDVWM1RLUllnTzZHN3l3dz0=',
+
+  // Nilai menuKeyParam untuk memuat daftar pelanggan (dipakai membentuk Referer). Path endpoint
+  // pencariannya berbeda dari invoice. Terverifikasi dari tangkapan nyata 2026-09-21.
+  customersMenuValue: 'Z3hlVzJ5R2w5empzMXhhclAyMkRaMzJJVWFwTVFQZ1JxNlRaNDJsYTgwUT0=',
+  customersPath: 'model/previewc/query/pelanggan.php',
 };
 
 function unconfiguredFields(keys) {
@@ -189,4 +195,64 @@ export async function payInvoiceCash(cookie, invoiceCode) {
   });
   if (response.status >= 400) throw new Error(`Pembayaran Runsnet gagal: HTTP ${response.status}`);
   return { invoiceCode, paidAt: today };
+}
+
+// Kolom tabel Pelanggan Runsnet, sama urutan dengan <thead> aslinya.
+const CUSTOMER_COLUMNS = ['', 'CustID', 'Nama', 'Service', 'Agent', 'Type', 'SPK', 'Active', 'Expired', 'Konektivitas', 'Status', 'Action'];
+const CUSTOMER_PAGE_SIZE = 100;
+
+// Mengambil SELURUH daftar pelanggan Runsnet (dipaginasi otomatis). Dipakai fitur "Sinkron
+// Pelanggan Runsnet" — hanya membaca, tidak mengubah apa pun di Runsnet.
+export async function fetchAllCustomers(cookie) {
+  const fields = unconfiguredFields(['menuKeyParam', 'customersMenuValue', 'customersPath', 'mitraTarget']);
+  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
+
+  const listUrl = new URL(`${getBaseUrl()}/view/index.php`);
+  listUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.customersMenuValue);
+
+  const customers = [];
+  let start = 0;
+  let total = Infinity;
+
+  while (start < total) {
+    const searchUrl = new URL(`${getBaseUrl()}/view/${CONFIG.customersPath}`);
+    searchUrl.searchParams.set('data1', '');
+    searchUrl.searchParams.set('data2', '');
+    searchUrl.searchParams.set('data3', '');
+    searchUrl.searchParams.set('data4', '');
+    searchUrl.searchParams.set('target', CONFIG.mitraTarget);
+    searchUrl.searchParams.set('data6', '');
+
+    const body = new URLSearchParams({ draw: '1', start: String(start), length: String(CUSTOMER_PAGE_SIZE), 'search[value]': '', 'search[regex]': 'false' });
+    CUSTOMER_COLUMNS.forEach((name, i) => {
+      body.set(`columns[${i}][data]`, String(i));
+      body.set(`columns[${i}][name]`, name);
+      body.set(`columns[${i}][searchable]`, 'true');
+      body.set(`columns[${i}][orderable]`, i === 0 || i === 11 ? 'false' : 'true');
+      body.set(`columns[${i}][search][value]`, '');
+      body.set(`columns[${i}][search][regex]`, 'false');
+    });
+    body.set('order[0][column]', '1');
+    body.set('order[0][dir]', 'asc');
+
+    const response = await fetch(searchUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', Referer: listUrl.toString(), Cookie: cookie },
+      body,
+    });
+    if (!response.ok) throw new Error(`Mengambil daftar pelanggan Runsnet gagal: HTTP ${response.status}`);
+
+    const json = await response.json();
+    total = json.recordsFiltered ?? 0;
+    const rows = json.data || [];
+    rows.forEach((row) => {
+      const parsed = parsePelangganRow(row);
+      if (parsed) customers.push(parsed);
+    });
+
+    if (rows.length === 0) break; // pengaman: jangan sampai berputar tanpa henti
+    start += CUSTOMER_PAGE_SIZE;
+  }
+
+  return customers;
 }

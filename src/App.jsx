@@ -850,10 +850,11 @@ export default function App() {
               />
             } />
             <Route path="/customers" element={
-              <Pelanggan 
-                customers={customers} 
+              <Pelanggan
+                customers={customers}
                 packages={packages}
                 role={session?.profile?.role}
+                session={session}
                 visitStatusById={visitStatusById}
                 setShowAddCustomer={setShowAddCustomer} 
                 onDeleteCustomer={handleDeleteCustomerDB}

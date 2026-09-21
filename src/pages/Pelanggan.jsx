@@ -9,10 +9,11 @@ import EditCustomerModal from '../components/EditCustomerModal';
 import { formatRupiah } from '../utils/format';
 import { TONE_BADGE_CLASSES } from '../utils/visits';
 
-const Pelanggan = ({ customers = [], packages = [], role, visitStatusById = {}, setShowAddCustomer, onDeleteCustomer, onUpdateCustomer, onSyncEbilling }) => {
+const Pelanggan = ({ customers = [], packages = [], role, session, visitStatusById = {}, setShowAddCustomer, onDeleteCustomer, onUpdateCustomer, onSyncEbilling }) => {
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingRunsnet, setIsSyncingRunsnet] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'ebilling' | 'aktif' | 'isolir'
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [selectedDetailCust, setSelectedDetailCust] = useState(null);
@@ -63,6 +64,22 @@ const Pelanggan = ({ customers = [], packages = [], role, visitStatusById = {}, 
     }
   };
 
+  const handleSyncRunsnet = async () => {
+    setIsSyncingRunsnet(true);
+    try {
+      const response = await fetch('/api/runsnet/customers', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      alert(`Sinkron Runsnet selesai: ${result.total} pelanggan (${result.created} baru, ${result.updated} diperbarui).`);
+    } catch (err) {
+      alert('Gagal menyinkronkan dari Runsnet: ' + err.message);
+    }
+    setIsSyncingRunsnet(false);
+  };
+
   return (
     <div className="p-4 space-y-4 pb-32 animate-in fade-in duration-200">
       {/* Header Bar */}
@@ -72,6 +89,16 @@ const Pelanggan = ({ customers = [], packages = [], role, visitStatusById = {}, 
           <p className="text-xs text-gray-500">Tersambung ke E-Billing POS System ({customers.length} Total)</p>
         </div>
         <div className="flex gap-2">
+          {role === 'superadmin' && (
+            <button
+              onClick={handleSyncRunsnet}
+              disabled={isSyncingRunsnet}
+              className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 border border-indigo-200 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={isSyncingRunsnet ? 'animate-spin text-indigo-600' : 'text-indigo-600'} />
+              {isSyncingRunsnet ? 'Menarik...' : 'Sinkron Pelanggan Runsnet'}
+            </button>
+          )}
           {onSyncEbilling && (
             <button 
               onClick={handleSync} 
