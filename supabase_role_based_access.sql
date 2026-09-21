@@ -89,6 +89,11 @@ create policy "company_settings write superadmin" on company_settings for all us
 -- 8. RLS: ping_logs — SENGAJA tetap terbuka penuh.
 -- Dipakai oleh GitHub Actions (scripts/ping-supabase.js) & keep-alive client (src/lib/supabase.js)
 -- TANPA login Supabase Auth. Tabel ini tidak menyimpan data sensitif (cuma timestamp+source).
+create table if not exists ping_logs (
+  id bigint primary key generated always as identity,
+  pinged_at timestamp with time zone default timezone('utc'::text, now()),
+  source text default 'unknown'
+);
 alter table ping_logs enable row level security;
 drop policy if exists "Enable public access for ping_logs" on ping_logs;
 drop policy if exists "ping_logs public access" on ping_logs;
