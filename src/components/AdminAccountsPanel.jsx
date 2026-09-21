@@ -9,8 +9,9 @@ const formatLastLogin = (iso) => {
   return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-const AdminAccountsPanel = ({ session }) => {
+const AdminAccountsPanel = () => {
   const [accounts, setAccounts] = useState([]);
+  const [invites, setInvites] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formName, setFormName] = useState('');
@@ -19,58 +20,66 @@ const AdminAccountsPanel = ({ session }) => {
   const [formError, setFormError] = useState(null);
   const [resettingId, setResettingId] = useState(null);
 
-  const loadAdmins = async () => {
-    const { data, error } = await supabase
-      .from('admin_profiles')
-      .select(ACCOUNT_COLUMNS)
-      .order('last_login_at', { ascending: false, nullsFirst: false });
-
-    if (!error && data) setAccounts(data);
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    let cancelled = false;
+  const fetchAll = () => Promise.all([
     supabase
       .from('admin_profiles')
       .select(ACCOUNT_COLUMNS)
-      .order('last_login_at', { ascending: false, nullsFirst: false })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (!error && data) setAccounts(data);
-        setIsLoading(false);
-      });
+      .order('last_login_at', { ascending: false, nullsFirst: false }),
+    supabase
+      .from('admin_invites')
+      .select('email, full_name, created_at')
+      .order('created_at', { ascending: false }),
+  ]);
+
+  const applyResults = ([accountsRes, invitesRes]) => {
+    if (!accountsRes.error && accountsRes.data) setAccounts(accountsRes.data);
+    if (!invitesRes.error && invitesRes.data) setInvites(invitesRes.data);
+    setIsLoading(false);
+  };
+
+  const loadAdmins = async () => applyResults(await fetchAll());
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAll().then((results) => {
+      if (!cancelled) applyResults(results);
+    });
     return () => { cancelled = true; };
   }, []);
 
-  const handleCreateAdmin = async (e) => {
+  const handleInviteAdmin = async (e) => {
     e.preventDefault();
     setFormError(null);
+
+    const email = formEmail.trim().toLowerCase();
+    const fullName = formName.trim();
+    if (accounts.some((acc) => acc.email?.toLowerCase() === email)) {
+      setFormError('Email ini sudah terdaftar sebagai akun.');
+      return;
+    }
+
     setIsSubmitting(true);
+    const { error } = await supabase.from('admin_invites').insert({ email, full_name: fullName });
+    setIsSubmitting(false);
 
-    try {
-      const response = await fetch('/api/admin/create-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({ email: formEmail, fullName: formName }),
-      });
-      const result = await response.json();
+    if (error) {
+      setFormError(error.code === '23505' ? 'Email ini sudah diundang.' : 'Gagal menyimpan undangan: ' + error.message);
+      return;
+    }
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Gagal membuat akun admin.');
-      }
+    setShowCreateModal(false);
+    setFormName('');
+    setFormEmail('');
+    await loadAdmins();
+  };
 
-      setShowCreateModal(false);
-      setFormName('');
-      setFormEmail('');
+  const handleCancelInvite = async (email) => {
+    if (!window.confirm(`Batalkan undangan untuk ${email}?`)) return;
+    const { error } = await supabase.from('admin_invites').delete().eq('email', email);
+    if (error) {
+      alert('Gagal membatalkan undangan: ' + error.message);
+    } else {
       await loadAdmins();
-    } catch (err) {
-      setFormError(err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -99,11 +108,32 @@ const AdminAccountsPanel = ({ session }) => {
           onClick={() => setShowCreateModal(true)}
           className="w-full py-3 px-4 bg-blue-600 text-white hover:bg-blue-700 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-blue-100"
         >
-          <UserPlus size={16} /> Buat Admin Baru
+          <UserPlus size={16} /> Undang Admin Baru
         </button>
 
+        {invites.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Undangan menunggu login pertama</p>
+            {invites.map((inv) => (
+              <div key={inv.email} className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-gray-800 truncate">{inv.full_name}</p>
+                  <p className="text-[11px] text-gray-500 font-mono truncate">{inv.email}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCancelInvite(inv.email)}
+                  className="shrink-0 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Batalkan
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {isLoading ? (
-          <p className="text-xs text-gray-400 italic text-center py-4">Memuat daftar admin...</p>
+          <p className="text-xs text-gray-400 italic text-center py-4">Memuat daftar akun...</p>
         ) : accounts.length === 0 ? (
           <p className="text-xs text-gray-400 italic text-center py-4">Belum ada akun.</p>
         ) : (
@@ -165,14 +195,14 @@ const AdminAccountsPanel = ({ session }) => {
             >
               <X size={18} />
             </button>
-            <h3 className="text-lg font-black text-gray-900 mb-4">Buat Admin Baru</h3>
+            <h3 className="text-lg font-black text-gray-900 mb-4">Undang Admin Baru</h3>
 
             {formError && (
               <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs font-bold mb-3">{formError}</div>
             )}
 
-            <p className="text-[11px] text-gray-500 mb-3">Admin masuk lewat tombol "Masuk dengan Google" memakai email ini. Perangkat pertama yang dipakai login akan terkunci.</p>
-            <form onSubmit={handleCreateAdmin} className="space-y-3">
+            <p className="text-[11px] text-gray-500 mb-3">Admin cukup menekan "Masuk dengan Google" memakai email ini. Akunnya dibuat otomatis saat login pertama, dan perangkat pertamanya terkunci.</p>
+            <form onSubmit={handleInviteAdmin} className="space-y-3">
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Nama Kasir</label>
                 <input
@@ -198,7 +228,7 @@ const AdminAccountsPanel = ({ session }) => {
                 disabled={isSubmitting}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl transition-all disabled:opacity-70"
               >
-                {isSubmitting ? 'Membuat...' : 'Buat Akun'}
+                {isSubmitting ? 'Menyimpan...' : 'Kirim Undangan'}
               </button>
             </form>
           </div>

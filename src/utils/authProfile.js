@@ -62,11 +62,22 @@ export function clearLoginRecorded() {
 // Mengembalikan { profile } jika lolos, atau { error: string } jika harus ditolak.
 export async function loadVerifiedProfile(supabase, authSession) {
   const userId = authSession.user.id;
-  const { data: profile, error: profileError } = await supabase
+  const fetchProfile = () => supabase
     .from('admin_profiles')
     .select(PROFILE_COLUMNS)
     .eq('id', userId)
     .maybeSingle();
+
+  let { data: profile, error: profileError } = await fetchProfile();
+
+  // Belum punya profil: mungkin baru diundang superadmin. claim_invite mengubah undangan
+  // (berdasarkan email Google yang terverifikasi) menjadi profil admin.
+  if (!profileError && !profile) {
+    const { data: claimed, error: claimError } = await supabase.rpc('claim_invite');
+    if (!claimError && claimed) {
+      ({ data: profile, error: profileError } = await fetchProfile());
+    }
+  }
 
   if (profileError || !profile) {
     const who = authSession.user.email ? ` (${authSession.user.email})` : '';

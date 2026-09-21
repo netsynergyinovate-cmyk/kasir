@@ -1,11 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { loadVerifiedProfile, fetchApproxLocation } from '../authProfile';
 
-const makeClient = ({ profile, selectError = null, rpcError = null }) => {
-  const rpc = vi.fn(async () => ({ error: rpcError }));
+const makeClient = ({ profile, profileAfterClaim, selectError = null, rpcError = null, claimResult = false, claimError = null }) => {
+  let selectCalls = 0;
+  const rpc = vi.fn(async (name) => (
+    name === 'claim_invite' ? { data: claimResult, error: claimError } : { error: rpcError }
+  ));
   const client = {
     from: vi.fn(() => ({
-      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: profile, error: selectError }) }) }),
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => {
+            selectCalls += 1;
+            const data = selectCalls > 1 && profileAfterClaim !== undefined ? profileAfterClaim : profile;
+            return { data, error: selectError };
+          },
+        }),
+      }),
     })),
     rpc,
   };
@@ -35,7 +46,33 @@ describe('loadVerifiedProfile', () => {
     const { client, rpc } = makeClient({ profile: null });
     const result = await loadVerifiedProfile(client, session);
     expect(result.error).toMatch(/belum terdaftar/);
-    expect(rpc).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith('claim_invite');
+    expect(rpc).not.toHaveBeenCalledWith('record_login', expect.anything());
+  });
+
+  it('turns a pending invite into an admin profile on first login', async () => {
+    const { client, rpc } = makeClient({
+      profile: null,
+      claimResult: true,
+      profileAfterClaim: { id: 'u1', role: 'admin', device_id: null },
+    });
+    const result = await loadVerifiedProfile(client, session);
+    expect(rpc).toHaveBeenCalledWith('claim_invite');
+    expect(result.error).toBeUndefined();
+    expect(result.profile.role).toBe('admin');
+    expect(result.profile.device_id).toBe(localStorage.getItem('kasir_device_id'));
+  });
+
+  it('treats a failing claim_invite call as not registered', async () => {
+    const { client } = makeClient({ profile: null, claimError: { message: 'boom' } });
+    const result = await loadVerifiedProfile(client, session);
+    expect(result.error).toMatch(/belum terdaftar/);
+  });
+
+  it('does not call claim_invite when the profile already exists', async () => {
+    const { client, rpc } = makeClient({ profile: { id: 'u1', role: 'superadmin' } });
+    await loadVerifiedProfile(client, session);
+    expect(rpc).not.toHaveBeenCalledWith('claim_invite');
   });
 
   it('records the login for a superadmin with device, ip and location', async () => {

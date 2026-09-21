@@ -565,7 +565,7 @@ const Settings = ({
         </>
         )}
 
-        {isSuper && <AdminAccountsPanel session={session} />}
+        {isSuper && <AdminAccountsPanel />}
 
         {/* Danger Zone */}
         <div className="pt-4">
