@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "ping-db": "node scripts/ping-supabase.js"
+    "ping-db": "node scripts/ping-supabase.js",
+    "runsnet:test": "node scripts/simulate-runsnet-webhook.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
