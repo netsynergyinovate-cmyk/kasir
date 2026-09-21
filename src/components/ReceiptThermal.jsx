@@ -283,9 +283,26 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
   `;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md overflow-y-auto print:bg-white print:p-0 flex flex-col items-center no-print-overlay">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md print:bg-white print:p-0 flex flex-col no-print-overlay">
       <style>{printStyles}</style>
-      <div className="w-full flex justify-center py-10 px-4 mb-32 print:p-0 print:m-0"> 
+
+      <header className="shrink-0 flex items-center justify-between px-4 py-3 print:hidden no-print">
+        <div>
+          <p className="text-white text-sm font-black leading-tight">Struk Pembayaran</p>
+          <p className="text-[11px] text-white/60 font-mono">{getInvoiceNumber(transaction)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleClose}
+          aria-label="Tutup struk"
+          className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center border border-white/20 active:scale-95 transition-all"
+        >
+          <X size={20} />
+        </button>
+      </header>
+
+      <div className="flex-1 min-h-0 overflow-y-auto print:overflow-visible">
+      <div className="w-full flex justify-center py-3 px-4 print:p-0 print:m-0"> 
         <div ref={receiptRef} className="print-container bg-white w-full max-w-[300px] relative flex flex-col font-mono text-black print:m-0 print:w-[58mm] print:shadow-none shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden h-fit">
           
           <div className="h-3 w-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSI1Ij48cG9seWdvbiBwb2ludHM9IjAsNSA1LDAgMTAsNSIgZmlsbD0id2hpdGUiLz48L3N2Zz4=')] bg-repeat-x absolute -top-[1px] left-0 z-10 print:hidden"></div>
@@ -372,17 +389,10 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={handleClose}
-        aria-label="Tutup struk"
-        className="fixed top-4 right-4 z-[60] w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md text-white flex items-center justify-center border border-white/20 active:scale-95 transition-all print:hidden no-print"
-      >
-        <X size={20} />
-      </button>
+      </div>
 
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] w-[calc(100%-6rem)] max-w-[300px] print:hidden no-print animate-in fade-in slide-in-from-top-2 duration-300" role="status">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[70] w-[calc(100%-2rem)] max-w-[300px] print:hidden no-print animate-in fade-in slide-in-from-top-2 duration-300" role="status">
           <div className="bg-emerald-600 text-white rounded-2xl shadow-xl px-3.5 py-2.5 flex items-center gap-2.5">
             <CheckCircle2 size={22} className="shrink-0" />
             <div className="min-w-0">
@@ -393,16 +403,17 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
         </div>
       )}
 
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2.5 z-[60] print:hidden w-full max-w-[300px] px-4 no-print">
+      <footer className="shrink-0 bg-gray-900/80 backdrop-blur-md border-t border-white/10 px-4 pt-3 pb-5 print:hidden no-print">
+        <div className="mx-auto w-full max-w-[300px] flex flex-col gap-2.5">
           {!committed && (
-            <p className="text-center text-[11px] font-bold text-amber-200 bg-amber-500/20 border border-amber-300/30 rounded-xl py-1.5">
-              Belum tersimpan — tekan {printerConnected ? 'Cetak & Simpan' : 'Simpan'} untuk menyimpan
+            <p className="text-center text-[11px] font-bold text-amber-200 bg-amber-500/20 border border-amber-300/30 rounded-xl py-1.5 px-2">
+              Belum tersimpan — tekan {printerConnected ? 'Cetak & Simpan' : 'Simpan'}
             </p>
           )}
           <button
             onClick={handlePrimary}
             disabled={busy}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {busy ? <Loader2 size={20} className="animate-spin" /> : (printerConnected ? <Printer size={20} /> : <Save size={20} />)}
             {isCommitting ? 'Menyimpan...' : isPrinting ? 'Mencetak...' : printerConnected ? (committed ? 'Cetak Ulang' : 'Cetak & Simpan') : (committed ? 'Selesai' : 'Simpan')}
@@ -411,7 +422,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
             <button
               onClick={handleSaveImage}
               disabled={busy}
-              className="bg-white/95 hover:bg-white text-gray-800 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs disabled:opacity-60"
+              className="bg-white/95 hover:bg-white text-gray-800 font-bold py-3 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs disabled:opacity-60"
             >
               <Download size={15} />
               Simpan Gambar
@@ -419,13 +430,14 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
             <button
               onClick={handleSystemPrint}
               disabled={busy}
-              className="bg-white/95 hover:bg-white text-gray-800 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs disabled:opacity-60"
+              className="bg-white/95 hover:bg-white text-gray-800 font-bold py-3 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs disabled:opacity-60"
             >
               <Printer size={15} />
               Cetak Sistem
             </button>
           </div>
-      </div>
+        </div>
+      </footer>
     </div>
   );
 };
