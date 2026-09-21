@@ -96,7 +96,11 @@ export default async function handler(req, res) {
     }
 
     await payInvoiceCash(cookie, invoice.id);
-    await log('success', { search_query: query, runsnet_ref: String(invoice.id) });
+    await log('success', {
+      search_query: query,
+      runsnet_ref: String(invoice.id),
+      message: `Invoice ${invoice.id} ditemukan untuk "${query}", pembayaran tunai berhasil dikirim ke Runsnet.`,
+    });
     res.status(200).json({ success: true, runsnet_ref: invoice.id });
   } catch (error) {
     await log('failed', { search_query: query, message: error.message });
