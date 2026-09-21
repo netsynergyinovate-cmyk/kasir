@@ -2,6 +2,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
+import { loadEnv } from 'vite';
+
 // Memetakan /api/x/y ke <apiDir>/x/y.js. Mengembalikan null untuk path yang tidak boleh dilayani
 // (traversal, atau file/folder privat berawalan underscore seperti _lib).
 export function resolveApiFile(urlPath, apiDir) {
