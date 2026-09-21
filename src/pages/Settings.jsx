@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Building2, Wifi, Trash2, Bluetooth, BluetoothConnected, 
+import {
+  Building2, Wifi, Trash2, Bluetooth, BluetoothConnected,
   BluetoothOff, AlertCircle, Printer, User, LogOut, Image, ChevronRight,
   Key, Globe, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send,
-  Zap, Clock, RefreshCw, Server, ShieldCheck, Crown
+  Zap, Clock, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { supabase } from '../lib/supabase';
@@ -26,9 +26,20 @@ const Settings = ({
   const [testApiResult, setTestApiResult] = useState(null);
   const [ebillingLogs, setEbillingLogs] = useState([]);
   const [livePingStatus, setLivePingStatus] = useState(null);
+  const [activeTab, setActiveTab] = useState('umum');
 
   const currentUser = session?.user;
   const isSuper = session?.profile?.role === 'superadmin';
+
+  const TABS = [
+    { key: 'umum', label: 'Umum', icon: SlidersHorizontal },
+    ...(isSuper ? [
+      { key: 'toko', label: 'Toko & Paket', icon: Building2 },
+      { key: 'ebilling', label: 'E-Billing', icon: Activity },
+      { key: 'admin', label: 'Akun Admin', icon: Users },
+      { key: 'runsnet', label: 'Runsnet', icon: Zap },
+    ] : []),
+  ];
 
   // Sync local state & load API Key guarantee from localStorage
   useEffect(() => {
@@ -137,7 +148,27 @@ const Settings = ({
         </div>
       </div>
 
+      {/* Tab per kategori pengaturan, biar tidak satu halaman panjang bergulir */}
+      <div className="px-4 mb-5 flex items-center gap-1.5 overflow-x-auto pb-1">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const active = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${active ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-white text-gray-500 border border-gray-100'}`}
+            >
+              <Icon size={14} /> {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="px-4 space-y-6">
+        {activeTab === 'umum' && (
+        <>
         {/* Section: Koneksi Hardware */}
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Koneksi Hardware</h2>
@@ -247,9 +278,11 @@ const Settings = ({
             </div>
           </div>
         </div>
+        </>
+        )}
 
-        {/* Section: Identitas Toko, Manajemen Paket, E-Billing (khusus superadmin) */}
-        {isSuper && (
+        {/* Tab: Toko & Paket (khusus superadmin) */}
+        {isSuper && activeTab === 'toko' && (
         <>
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Identitas Toko</h2>
@@ -332,14 +365,18 @@ const Settings = ({
             </div>
           </div>
         </div>
+        </>
+        )}
 
-        {/* Section: Integrasi Billing Monitoring System */}
+        {/* Tab: E-Billing (khusus superadmin) */}
+        {isSuper && activeTab === 'ebilling' && (
+        <>
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 flex items-center gap-1.5">
             <Activity size={14} className="text-blue-600" /> Integrasi E-Billing Monitoring System
           </h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
-            
+
             {/* Live Ping Heartbeat Status */}
             <div className="bg-gradient-to-r from-slate-900 to-blue-950 p-4 rounded-xl text-white shadow-md flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -568,9 +605,11 @@ const Settings = ({
         </>
         )}
 
-        {isSuper && <AdminAccountsPanel />}
+        {/* Tab: Akun Admin (khusus superadmin) */}
+        {isSuper && activeTab === 'admin' && <AdminAccountsPanel />}
 
-        {isSuper && <RunsnetSyncPanel session={session} />}
+        {/* Tab: Runsnet (khusus superadmin) */}
+        {isSuper && activeTab === 'runsnet' && <RunsnetSyncPanel session={session} />}
 
         {/* Danger Zone */}
         <div className="pt-4">
