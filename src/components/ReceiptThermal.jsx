@@ -1,11 +1,46 @@
-import { useState } from 'react';
-import { Printer } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Printer, Download, X, CheckCircle2, Loader2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import { formatRupiah, formatDate, getInvoiceNumber } from '../utils/format';
 
-const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }) => {
+const TOAST_MS = 4000;
+
+// justSaved: true kalau struk ini baru saja muncul setelah transaksi disimpan (bukan dibuka ulang dari
+// Riwayat) — memunculkan pop up "berhasil tersimpan". Pasang key={id transaksi} supaya state awal ini
+// dihitung ulang tiap struk baru.
+const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice, justSaved = false }) => {
   const [isPrinting, setIsConnecting] = useState(false);
+  const [isSavingImage, setIsSavingImage] = useState(false);
+  const [toast, setToast] = useState(justSaved && transaction
+    ? { title: 'Transaksi berhasil tersimpan', sub: `Invoice ${getInvoiceNumber(transaction)}` }
+    : null);
+  const receiptRef = useRef(null);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = setTimeout(() => setToast(null), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   if (!transaction || transaction.type === 'instansi') return null;
+
+  const saveAsImage = async () => {
+    if (!receiptRef.current) return;
+    setIsSavingImage(true);
+    try {
+      const dataUrl = await toPng(receiptRef.current, { pixelRatio: 3, backgroundColor: '#ffffff' });
+      const link = document.createElement('a');
+      link.download = `struk-${getInvoiceNumber(transaction)}.png`;
+      link.href = dataUrl;
+      link.click();
+      setToast({ title: 'Struk berhasil disimpan', sub: 'Gambar struk tersimpan di perangkat ini' });
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menyimpan gambar struk: ' + error.message);
+    } finally {
+      setIsSavingImage(false);
+    }
+  };
 
   const printViaBluetooth = async () => {
     if (!btDevice) {
@@ -147,6 +182,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
       await printLine('Layanan internet handal & cepat');
       await printLine('Simpan struk ini sebagai bukti');
       await feed();
+      setToast({ title: 'Struk berhasil dicetak', sub: `Invoice ${getInvoiceNumber(transaction)}` });
 
     } catch (error) {
       console.error(error);
@@ -201,7 +237,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md overflow-y-auto print:bg-white print:p-0 flex flex-col items-center no-print-overlay">
       <style>{printStyles}</style>
       <div className="w-full flex justify-center py-10 px-4 mb-32 print:p-0 print:m-0"> 
-        <div className="print-container bg-white w-full max-w-[300px] relative flex flex-col font-mono text-black print:m-0 print:w-[58mm] print:shadow-none shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden h-fit">
+        <div ref={receiptRef} className="print-container bg-white w-full max-w-[300px] relative flex flex-col font-mono text-black print:m-0 print:w-[58mm] print:shadow-none shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden h-fit">
           
           <div className="h-3 w-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSI1Ij48cG9seWdvbiBwb2ludHM9IjAsNSA1LDAgMTAsNSIgZmlsbD0id2hpdGUiLz48L3N2Zz4=')] bg-repeat-x absolute -top-[1px] left-0 z-10 print:hidden"></div>
 
@@ -287,27 +323,53 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
         </div>
       </div>
 
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex flex-col gap-3 z-[60] print:hidden w-full max-w-[300px] px-4 no-print">
-          <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold py-4 rounded-2xl shadow-xl transition-all active:scale-95 border border-white/20">
-              Tutup
-            </button>
-            <button 
-              onClick={printViaBluetooth} 
-              disabled={isPrinting}
-              className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Tutup struk"
+        className="fixed top-4 right-4 z-[60] w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md text-white flex items-center justify-center border border-white/20 active:scale-95 transition-all print:hidden no-print"
+      >
+        <X size={20} />
+      </button>
+
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] w-[calc(100%-6rem)] max-w-[300px] print:hidden no-print animate-in fade-in slide-in-from-top-2 duration-300" role="status">
+          <div className="bg-emerald-600 text-white rounded-2xl shadow-xl px-3.5 py-2.5 flex items-center gap-2.5">
+            <CheckCircle2 size={22} className="shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-black leading-tight">{toast.title}</p>
+              <p className="text-[10px] text-emerald-100 font-medium truncate">{toast.sub}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2.5 z-[60] print:hidden w-full max-w-[300px] px-4 no-print">
+          <button
+            onClick={printViaBluetooth}
+            disabled={isPrinting}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            {isPrinting ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
+            {isPrinting ? 'Mencetak...' : 'Cetak Struk Bluetooth'}
+          </button>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              onClick={saveAsImage}
+              disabled={isSavingImage}
+              className="bg-white/95 hover:bg-white text-gray-800 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs disabled:opacity-60"
             >
-              <Printer size={20} /> 
-              {isPrinting ? 'Mencetak...' : 'Cetak Bluetooth'}
+              {isSavingImage ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              Simpan Gambar
+            </button>
+            <button
+              onClick={onPrint}
+              className="bg-white/95 hover:bg-white text-gray-800 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs"
+            >
+              <Printer size={15} />
+              Cetak Sistem
             </button>
           </div>
-          <button 
-            onClick={onPrint}
-            className="w-full bg-white/90 hover:bg-white text-blue-900 font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 text-xs"
-          >
-            <Printer size={16} /> 
-            Gunakan Cetak Sistem (Jika Bluetooth Lambat)
-          </button>
       </div>
     </div>
   );

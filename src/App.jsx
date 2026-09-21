@@ -82,6 +82,7 @@ export default function App() {
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [receiptToView, setReceiptToView] = useState(null);
   const [runsnetWatchId, setRunsnetWatchId] = useState(null);
+  const [justSavedReceiptId, setJustSavedReceiptId] = useState(null);
   const [instansiReceiptToView, setInstansiReceiptToView] = useState(null);
 
   const [btDevice, setBtDevice] = useState(null);
@@ -430,6 +431,7 @@ export default function App() {
 
       setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
       setReceiptToView(newTrx);
+      setJustSavedReceiptId(newTrx.id);
       setRunsnetWatchId(newTrx.id);
       showNotification('Transaksi Berhasil', `${newTrx.customerName} - ${formatRupiah(newTrx.price)}`);
 
@@ -948,9 +950,11 @@ export default function App() {
       />
       
       <ReceiptThermal 
+        key={receiptToView?.id}
         transaction={receiptToView} 
+        justSaved={receiptToView?.id === justSavedReceiptId}
         companyInfo={companyInfo}
-        onClose={() => setReceiptToView(null)} 
+        onClose={() => { setReceiptToView(null); setJustSavedReceiptId(null); }} 
         onPrint={handlePrint} 
         btDevice={btDevice}
       />
