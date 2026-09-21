@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { testBillingSystemConnection, getEbillingLogs, clearEbillingLogs } from '../utils/billingApi';
 import AdminAccountsPanel from '../components/AdminAccountsPanel';
 import RunsnetSyncPanel from '../components/RunsnetSyncPanel';
+import ToggleSwitch from '../components/ToggleSwitch';
 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
@@ -34,9 +35,9 @@ const Settings = ({
   const TABS = [
     { key: 'umum', label: 'Umum', icon: SlidersHorizontal },
     ...(isSuper ? [
-      { key: 'toko', label: 'Toko & Paket', icon: Building2 },
+      { key: 'toko', label: 'Toko', icon: Building2 },
       { key: 'ebilling', label: 'E-Billing', icon: Activity },
-      { key: 'admin', label: 'Akun Admin', icon: Users },
+      { key: 'admin', label: 'Admin', icon: Users },
       { key: 'runsnet', label: 'Runsnet', icon: Zap },
     ] : []),
   ];
@@ -136,35 +137,40 @@ const Settings = ({
   return (
     <div className="pb-32 bg-gray-50 min-h-screen animate-in fade-in duration-300">
       {/* New Gradient Header */}
-      <div className="p-6 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-b-[2rem] shadow-lg mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30">
-            <Building2 size={32} />
+      <div className="px-5 pt-6 pb-5 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-b-[1.75rem] shadow-lg mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center border border-white/30 shrink-0">
+            <SlidersHorizontal size={22} />
           </div>
-          <div>
-            <h1 className="text-xl font-extrabold">Pengaturan Sistem</h1>
-            <p className="text-blue-100 text-xs font-medium">Konfigurasi operasional KAsir</p>
+          <div className="min-w-0">
+            <h1 className="text-lg font-extrabold leading-tight">Pengaturan</h1>
+            <p className="text-blue-100 text-[11px] font-medium truncate">{isSuper ? 'Super Admin' : 'Admin'} · {currentUser?.email || 'KAsir'}</p>
           </div>
         </div>
       </div>
 
       {/* Tab per kategori pengaturan, biar tidak satu halaman panjang bergulir */}
-      <div className="px-4 mb-5 flex items-center gap-1.5 overflow-x-auto pb-1">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${active ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-white text-gray-500 border border-gray-100'}`}
-            >
-              <Icon size={14} /> {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {TABS.length > 1 && (
+        <div className="px-4 mb-5">
+          <div className="grid gap-1 p-1 bg-gray-100 rounded-2xl" style={{ gridTemplateColumns: `repeat(${TABS.length}, minmax(0, 1fr))` }}>
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all ${active ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+                >
+                  <Icon size={17} strokeWidth={active ? 2.5 : 2} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="px-4 space-y-6">
         {activeTab === 'umum' && (
@@ -407,21 +413,16 @@ const Settings = ({
                 <p className="text-sm font-bold text-gray-800">Automasi Pengiriman Data</p>
                 <p className="text-xs text-gray-400">Kirim data pembayaran lunas secara otomatis ke E-Billing</p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  name="apiMonitoringEnabled"
-                  checked={localCompany.apiMonitoringEnabled || false} 
-                  onChange={(e) => {
-                    const updated = { ...localCompany, apiMonitoringEnabled: e.target.checked };
-                    setLocalCompany(updated);
-                    setCompanyInfo(updated);
-                    localStorage.setItem('api_monitoring_enabled', e.target.checked ? 'true' : 'false');
-                  }} 
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
+              <ToggleSwitch
+                label="Automasi pengiriman data E-Billing"
+                checked={localCompany.apiMonitoringEnabled || false}
+                onChange={(checked) => {
+                  const updated = { ...localCompany, apiMonitoringEnabled: checked };
+                  setLocalCompany(updated);
+                  setCompanyInfo(updated);
+                  localStorage.setItem('api_monitoring_enabled', checked ? 'true' : 'false');
+                }}
+              />
             </div>
 
             <div>

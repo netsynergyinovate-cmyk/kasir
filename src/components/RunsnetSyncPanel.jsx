@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { RefreshCw, Zap, Wifi, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { describeSyncStatus, describeLogStage } from '../utils/runsnetSync';
+import ToggleSwitch from './ToggleSwitch';
 
 const formatTime = (iso) =>
   new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -89,16 +90,12 @@ const RunsnetSyncPanel = ({ session }) => {
             <p className="text-sm font-bold text-gray-800">Aktifkan sinkronisasi otomatis</p>
             <p className="text-[11px] text-gray-400">Kalau mati, tidak ada apa pun yang dikirim ke Runsnet.</p>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={enabled}
-              disabled={saving}
-              onChange={(e) => saveToggle({ runsnet_sync_enabled: e.target.checked })}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-          </label>
+          <ToggleSwitch
+            label="Aktifkan sinkronisasi otomatis"
+            checked={enabled}
+            disabled={saving}
+            onChange={(checked) => saveToggle({ runsnet_sync_enabled: checked })}
+          />
         </div>
 
         <div className="flex items-center justify-between">
@@ -106,16 +103,13 @@ const RunsnetSyncPanel = ({ session }) => {
             <p className="text-sm font-bold text-gray-800">Mode uji coba</p>
             <p className="text-[11px] text-gray-400">Dicatat di log tapi TIDAK benar-benar dikirim ke Runsnet. Matikan setelah yakin hasilnya benar.</p>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={dryRun}
-              disabled={saving}
-              onChange={(e) => saveToggle({ runsnet_dry_run: e.target.checked })}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-          </label>
+          <ToggleSwitch
+            label="Mode uji coba"
+            color="amber"
+            checked={dryRun}
+            disabled={saving}
+            onChange={(checked) => saveToggle({ runsnet_dry_run: checked })}
+          />
         </div>
 
         <div className="pt-3 border-t border-gray-100 space-y-2">
