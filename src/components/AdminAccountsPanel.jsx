@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock } from 'lucide-react';
+import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const ACCOUNT_COLUMNS = 'id, full_name, email, role, device_id, device_label, last_login_at, last_login_device, last_login_location, last_login_ip';
@@ -19,6 +19,7 @@ const AdminAccountsPanel = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
   const [resettingId, setResettingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const fetchAll = () => Promise.all([
     supabase
@@ -99,6 +100,28 @@ const AdminAccountsPanel = () => {
     setResettingId(null);
   };
 
+  const handleDeleteAdmin = async (acc) => {
+    if (!window.confirm(`Hapus admin "${acc.full_name}" (${acc.email || 'tanpa email'})? Akunnya tidak bisa login lagi. Riwayat kunjungan yang pernah dicatat tetap tersimpan.`)) return;
+    setDeletingId(acc.id);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await fetch('/api/admin/delete-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data?.session?.access_token}` },
+        body: JSON.stringify({ adminId: acc.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        alert('Gagal menghapus admin: ' + (result.error || `HTTP ${response.status}`));
+      } else {
+        await loadAdmins();
+      }
+    } catch (err) {
+      alert('Gagal menghapus admin: ' + err.message);
+    }
+    setDeletingId(null);
+  };
+
   return (
     <div>
       <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Manajemen Akun & Aktivitas Login</h2>
@@ -166,17 +189,28 @@ const AdminAccountsPanel = () => {
                       <Lock size={12} className="shrink-0" />
                       {acc.device_label ? `Terkunci: ${acc.device_label}` : 'Belum terkunci ke device manapun'}
                     </p>
-                    {acc.device_id && (
+                    <div className="flex items-center gap-1.5">
+                      {acc.device_id && (
+                        <button
+                          type="button"
+                          onClick={() => handleResetDevice(acc.id)}
+                          disabled={resettingId === acc.id}
+                          className="text-[11px] font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                        >
+                          {resettingId === acc.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                          Reset Device
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => handleResetDevice(acc.id)}
-                        disabled={resettingId === acc.id}
-                        className="text-[11px] font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                        onClick={() => handleDeleteAdmin(acc)}
+                        disabled={deletingId === acc.id}
+                        className="text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
                       >
-                        {resettingId === acc.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-                        Reset Device
+                        {deletingId === acc.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                        Hapus
                       </button>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
