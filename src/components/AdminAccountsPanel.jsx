@@ -15,7 +15,6 @@ const AdminAccountsPanel = ({ session }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
-  const [formPassword, setFormPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
   const [resettingId, setResettingId] = useState(null);
@@ -56,7 +55,7 @@ const AdminAccountsPanel = ({ session }) => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify({ email: formEmail, password: formPassword, fullName: formName }),
+        body: JSON.stringify({ email: formEmail, fullName: formName }),
       });
       const result = await response.json();
 
@@ -67,7 +66,6 @@ const AdminAccountsPanel = ({ session }) => {
       setShowCreateModal(false);
       setFormName('');
       setFormEmail('');
-      setFormPassword('');
       await loadAdmins();
     } catch (err) {
       setFormError(err.message);
@@ -173,6 +171,7 @@ const AdminAccountsPanel = ({ session }) => {
               <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs font-bold mb-3">{formError}</div>
             )}
 
+            <p className="text-[11px] text-gray-500 mb-3">Admin masuk lewat tombol "Masuk dengan Google" memakai email ini. Perangkat pertama yang dipakai login akan terkunci.</p>
             <form onSubmit={handleCreateAdmin} className="space-y-3">
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Nama Kasir</label>
@@ -185,23 +184,12 @@ const AdminAccountsPanel = ({ session }) => {
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Email</label>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Email Google</label>
                 <input
                   type="email"
                   required
                   value={formEmail}
                   onChange={(e) => setFormEmail(e.target.value)}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">Password</label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={formPassword}
-                  onChange={(e) => setFormPassword(e.target.value)}
                   className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium"
                 />
               </div>

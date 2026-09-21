@@ -8,6 +8,7 @@ const Login = ({ externalError }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -92,12 +93,15 @@ const Login = ({ externalError }) => {
           Masuk dengan Google
         </button>
 
-        <div className="flex items-center gap-3 my-4">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">atau</span>
-          <div className="flex-1 h-px bg-gray-200" />
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowEmailForm(!showEmailForm)}
+          className="w-full text-center text-[11px] font-bold text-gray-400 hover:text-gray-600 uppercase tracking-wider my-4 transition-colors"
+        >
+          {showEmailForm ? 'Sembunyikan login email' : 'Atau masuk dengan email & password'}
+        </button>
 
+        {showEmailForm && (
         <form onSubmit={handleFormSubmit} className="space-y-3.5">
           <div>
             <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Email</label>
@@ -144,6 +148,7 @@ const Login = ({ externalError }) => {
             {loading ? <Loader2 className="animate-spin" size={18} /> : 'MASUK SEKARANG'}
           </button>
         </form>
+        )}
 
         <div className="mt-5 pt-4 border-t border-gray-100 text-[11px] text-gray-500 space-y-1">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Perangkat ini</p>

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { verifySuperadmin } from '../_lib/verifySuperadmin.js';
 
 export default async function handler(req, res) {
@@ -13,18 +14,19 @@ export default async function handler(req, res) {
   }
 
   const { email, password, fullName } = req.body || {};
-  if (!email || !password || !fullName) {
-    res.status(400).json({ error: 'Email, password, dan nama wajib diisi.' });
+  if (!email || !fullName) {
+    res.status(400).json({ error: 'Email dan nama wajib diisi.' });
     return;
   }
-  if (password.length < 6) {
+  if (password && password.length < 6) {
     res.status(400).json({ error: 'Password minimal 6 karakter.' });
     return;
   }
 
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email,
-    password,
+    // Admin login lewat Google; tanpa password dari superadmin dibuat password acak yang tak diketahui siapa pun.
+    password: password || randomBytes(24).toString('hex'),
     email_confirm: true,
   });
 
