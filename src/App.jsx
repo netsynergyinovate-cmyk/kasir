@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, Building2, Search, LogOut } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
+import { isPathAllowedForRole, ADMIN_DEFAULT_PATH } from './utils/permissions';
 
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
@@ -36,6 +37,8 @@ const INIT_COMPANY = {
 };
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [session, setSession] = useState(null);
   const [isLocked, setIsLocked] = useState(false);
   const [hasPin, setHasPin] = useState(false);
@@ -105,36 +108,42 @@ export default function App() {
   };
 
   useEffect(() => {
-    // 1. Cek apakah ada sesi akun kasir yang aktif
-    const savedUser = localStorage.getItem('kasir_user');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && (parsed.email || parsed.role || parsed.id)) {
-          setSession({ user: parsed });
-        } else {
-          setSession(null);
-        }
-      } catch (e) {
-        console.error('Error parsing kasir_user from storage:', e);
-        setSession(null);
-      }
-    } else {
-      // Jika belum ada user yang login, tampilkan halaman Login
-      setSession(null);
-    }
+    let isMounted = true;
 
-    // 2. Hubungkan listener Supabase Auth jika ada user aktif
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, authSession) => {
-      if (authSession && localStorage.getItem('kasir_user')) {
-        setSession(authSession);
-        localStorage.setItem('kasir_user', JSON.stringify(authSession.user));
-      } else if (!localStorage.getItem('kasir_user')) {
+    const loadProfile = async (authSession) => {
+      if (!authSession) {
+        if (isMounted) setSession(null);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from('admin_profiles')
+        .select('id, full_name, role, device_id, device_label')
+        .eq('id', authSession.user.id)
+        .maybeSingle();
+
+      if (isMounted) setSession({ ...authSession, profile: profile || null });
+    };
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (data?.session) {
+        loadProfile(data.session);
+      } else if (isMounted) {
         setSession(null);
       }
     });
 
-    return () => subscription?.unsubscribe();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
+      if (event === 'SIGNED_OUT') {
+        if (isMounted) setSession(null);
+        return;
+      }
+      loadProfile(authSession);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const handlePinSetup = async (hashedPin) => {
@@ -160,6 +169,10 @@ export default function App() {
   // Determine lock state based on session, DB pin, and local unlock flag
   useEffect(() => {
     if (session && !isLoading) {
+      if (session.profile?.role === 'admin') {
+        setIsLocked(false);
+        return;
+      }
       const isDeviceUnlocked = localStorage.getItem('device_unlocked') === 'true';
       if (!isDeviceUnlocked && companyInfo.appPin) {
         setIsLocked(true);
@@ -168,6 +181,12 @@ export default function App() {
       }
     }
   }, [session, companyInfo.appPin, isLoading]);
+
+  useEffect(() => {
+    if (session?.profile?.role === 'admin' && !isPathAllowedForRole('admin', location.pathname)) {
+      navigate(ADMIN_DEFAULT_PATH, { replace: true });
+    }
+  }, [session, location.pathname, navigate]);
 
   useEffect(() => {
     if (!session) {
@@ -652,7 +671,7 @@ export default function App() {
   }
 
   // If session exists, data is loaded, but no DB Pin exists and not bypassed -> Setup mode
-  if (session && !isLoading && !companyInfo.appPin && localStorage.getItem('bypass_pin') !== 'true') {
+  if (session && !isLoading && session.profile?.role !== 'admin' && !companyInfo.appPin && localStorage.getItem('bypass_pin') !== 'true') {
     return (
       <PinPad 
         mode="setup" 
@@ -667,7 +686,7 @@ export default function App() {
   }
 
   // If session exists, DB Pin exists, but device is locked -> Unlock mode
-  if (session && !isLoading && companyInfo.appPin && isLocked) {
+  if (session && !isLoading && session.profile?.role !== 'admin' && companyInfo.appPin && isLocked) {
     return <PinPad mode="unlock" dbPin={companyInfo.appPin} onUnlock={handleUnlock} />;
   }
 
@@ -747,6 +766,7 @@ export default function App() {
               <Pelanggan 
                 customers={customers} 
                 packages={packages}
+                role={session?.profile?.role}
                 setShowAddCustomer={setShowAddCustomer} 
                 onDeleteCustomer={handleDeleteCustomerDB}
                 onUpdateCustomer={handleUpdateCustomerDB}
