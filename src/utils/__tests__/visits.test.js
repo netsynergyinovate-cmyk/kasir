@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { customerVisitStatus, pendingStops, formatShortDate, nextSevenDays, describeVisit, searchCustomers, TONE_COLORS, TONE_BADGE_CLASSES, buildVisitPayload } from '../visits';
+import { customerVisitStatus, pendingStops, formatShortDate, nextSevenDays, describeVisit, searchCustomers, TONE_COLORS, TONE_BADGE_CLASSES, buildVisitPayload, isPaidThisMonth } from '../visits';
 
 const now = new Date(2026, 8, 21, 10, 0); // 21 Sep 2026
 const ani = { id: 'c1', name: 'Ani' };
@@ -223,5 +223,25 @@ describe('a "tidak ada di rumah" visit without a date', () => {
     const trx = [{ type: 'retail', status: 'LUNAS', customerName: 'Ani', date: '2026-09-22T11:00:00' }];
     const status = customerVisitStatus(ani, notHome('2026-09-21T08:00:00'), trx, new Date(2026, 8, 22, 12, 0));
     expect(status).toMatchObject({ key: 'sudah_bayar', tone: 'green' });
+  });
+});
+
+describe('isPaidThisMonth', () => {
+  const now = new Date('2026-09-21T10:00:00');
+  const ani = { id: 'c1', name: 'Ani' };
+  const trx = (over) => ({ type: 'retail', status: 'LUNAS', date: '2026-09-05T10:00:00', customerName: 'ani', ...over });
+
+  it('is true for a LUNAS retail payment this month, matching the name case-insensitively', () => {
+    expect(isPaidThisMonth(ani, [trx()], now)).toBe(true);
+  });
+
+  it('also reads transactions loaded from the database (customer_name, snake_case)', () => {
+    expect(isPaidThisMonth(ani, [trx({ customerName: undefined, customer_name: 'Ani' })], now)).toBe(true);
+  });
+
+  it('is false for KASBON, last month, or someone else', () => {
+    expect(isPaidThisMonth(ani, [trx({ status: 'KASBON' })], now)).toBe(false);
+    expect(isPaidThisMonth(ani, [trx({ date: '2026-08-28T10:00:00' })], now)).toBe(false);
+    expect(isPaidThisMonth(ani, [trx({ customerName: 'Budi' })], now)).toBe(false);
   });
 });

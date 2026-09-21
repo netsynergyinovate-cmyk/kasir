@@ -10,7 +10,7 @@ const TOAST_MS = 4000;
 // isDraft: struk baru dari form Transaksi yang BELUM tersimpan. Transaksi baru tersimpan saat kasir
 // menekan Simpan/Cetak (onCommit). Struk yang dibuka dari Riwayat sudah tersimpan (isDraft false).
 // Pasang key={id transaksi} supaya state awal dihitung ulang tiap struk baru.
-const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, btDevice, isDraft = false }) => {
+const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, btDevice, savedDeviceName, ensurePrinter, isDraft = false }) => {
   const [isPrinting, setIsConnecting] = useState(false);
   const [isSavingImage, setIsSavingImage] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
@@ -37,7 +37,9 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
 
   const receiptLines = buildReceiptLines(transaction, companyInfo);
 
-  const printerConnected = Boolean(btDevice?.gatt?.connected);
+  // Printer dianggap siap kalau sudah pernah dipasangkan (walau sambungannya sedang putus); sambungan dibuat
+  // ulang otomatis saat mencetak.
+  const printerReady = Boolean(btDevice) || Boolean(savedDeviceName);
   const busy = isPrinting || isSavingImage || isCommitting;
 
   // Menyimpan transaksi ke database kalau masih draf. true = sudah tersimpan (baru atau sebelumnya).
@@ -63,9 +65,12 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
   // Tombol utama: simpan, lalu langsung cetak kalau printer Bluetooth terhubung (kalau tidak, simpan saja).
   const handlePrimary = async () => {
     const wasDraft = !committed;
+    // Ambil printer lebih dulu (bisa memunculkan dialog pilih perangkat, yang butuh sentuhan pengguna).
+    let device = btDevice;
+    if (!device && savedDeviceName && ensurePrinter) device = await ensurePrinter();
     if (!(await ensureSaved())) return;
-    if (printerConnected) {
-      const printed = await printViaBluetooth();
+    if (device) {
+      const printed = await printViaBluetooth(device);
       if (printed && wasDraft) setToast({ title: 'Tersimpan & tercetak', sub: `Invoice ${getInvoiceNumber(transaction)}` });
     } else if (!wasDraft) {
       onClose();
@@ -103,19 +108,19 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
     }
   };
 
-  const printViaBluetooth = async () => {
-    if (!btDevice) {
+  const printViaBluetooth = async (device = btDevice) => {
+    if (!device) {
       onPrint();
       return false;
     }
 
     setIsConnecting(true);
     try {
-      if (btDevice.gatt && !btDevice.gatt.connected) {
-        await btDevice.gatt.connect();
+      if (device.gatt && !device.gatt.connected) {
+        await device.gatt.connect();
       }
 
-      const server = await btDevice.gatt.connect();
+      const server = await device.gatt.connect();
       const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
       const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
 
@@ -334,7 +339,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
         <div className="mx-auto w-full max-w-[300px] flex flex-col gap-2.5">
           {!committed && (
             <p className="text-center text-[11px] font-bold text-amber-200 bg-amber-500/20 border border-amber-300/30 rounded-xl py-1.5 px-2">
-              Belum tersimpan — cek struk, lalu {printerConnected ? 'Cetak & Simpan' : 'Simpan'} atau Batal
+              Belum tersimpan — cek struk, lalu {printerReady ? 'Cetak & Simpan' : 'Simpan'} atau Batal
             </p>
           )}
           <div className="flex gap-2.5">
@@ -352,8 +357,8 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
               disabled={busy}
               className={`${committed ? 'w-full' : 'flex-[2]'} bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60`}
             >
-              {busy ? <Loader2 size={20} className="animate-spin" /> : (printerConnected ? <Printer size={20} /> : <Save size={20} />)}
-              {isCommitting ? 'Menyimpan...' : isPrinting ? 'Mencetak...' : printerConnected ? (committed ? 'Cetak Ulang' : 'Cetak & Simpan') : (committed ? 'Selesai' : 'Simpan')}
+              {busy ? <Loader2 size={20} className="animate-spin" /> : (printerReady ? <Printer size={20} /> : <Save size={20} />)}
+              {isCommitting ? 'Menyimpan...' : isPrinting ? 'Mencetak...' : printerReady ? (committed ? 'Cetak Ulang' : 'Cetak & Simpan') : (committed ? 'Selesai' : 'Simpan')}
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2.5">

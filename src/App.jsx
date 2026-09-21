@@ -88,6 +88,7 @@ export default function App() {
   const [btDevice, setBtDevice] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isAutoConnecting, setIsAutoConnecting] = useState(false);
+  const [, setBtTick] = useState(0);
   const [savedDeviceName, setSavedDeviceName] = useState(localStorage.getItem('last_printer_name') || '');
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
@@ -307,29 +308,60 @@ export default function App() {
     requestLocationPermission();
   }, [session]);
 
+  const PRINTER_SERVICES = [
+    '000018f0-0000-1000-8000-00805f9b34fb',
+    '0000ff00-0000-1000-8000-00805f9b34fb',
+    '00001101-0000-1000-8000-00805f9b34fb',
+  ];
+
+  // Printer thermal sering memutus GATT sendiri saat menganggur. Yang diingat adalah PERANGKAT-nya (sudah
+  // dipasangkan), bukan status sambungannya: kalau terputus, printer tetap dianggap siap dan disambung
+  // ulang otomatis saat mencetak (lihat ReceiptThermal.printViaBluetooth).
+  const attachPrinter = (device) => {
+    setBtDevice(device);
+    const name = device.name || 'Printer Terhubung';
+    setSavedDeviceName(name);
+    localStorage.setItem('last_printer_name', name);
+    if (!device.__kasirBound) {
+      device.__kasirBound = true;
+      device.addEventListener('gattserverdisconnected', () => {
+        setBtTick((t) => t + 1); // segarkan status di Pengaturan; perangkat tetap diingat
+        console.log('Printer terputus (akan disambung ulang saat mencetak).');
+      });
+    }
+  };
+
+  // Muat ulang printer yang pernah dipasangkan begitu aplikasi dibuka (tanpa menyambung dulu; sambungan
+  // baru dibuat saat mencetak). Diam-diam gagal kalau browser tidak mendukung getDevices.
+  useEffect(() => {
+    if (!session || btDevice) return;
+    const remembered = localStorage.getItem('last_printer_name');
+    if (!remembered || !navigator.bluetooth?.getDevices) return;
+    navigator.bluetooth.getDevices()
+      .then((devices) => {
+        const device = devices.find((d) => d.name === remembered);
+        if (device) attachPrinter(device);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   const connectBluetooth = async () => {
     setIsConnecting(true);
     try {
       if (!navigator.bluetooth) throw new Error('Browser tidak mendukung Bluetooth. Pastikan menggunakan Chrome/Edge di Android atau HTTPS.');
-      
+
       const device = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
-        optionalServices: [
-          '000018f0-0000-1000-8000-00805f9b34fb', 
-          '0000ff00-0000-1000-8000-00805f9b34fb', 
-          '00001101-0000-1000-8000-00805f9b34fb'
-        ]
+        optionalServices: PRINTER_SERVICES,
       });
-
-      setBtDevice(device);
-      setSavedDeviceName(device.name || 'Printer Terhubung');
-      localStorage.setItem('last_printer_name', device.name || 'Printer Terhubung');
-
-      device.addEventListener('gattserverdisconnected', () => {
-        setBtDevice(null);
-        console.log('Printer terputus secara otomatis.');
-      });
-
+      attachPrinter(device);
+      try {
+        await device.gatt.connect();
+      } catch (connectError) {
+        console.warn('Printer dipasangkan, tapi belum tersambung:', connectError);
+      }
+      setBtTick((t) => t + 1);
     } catch (e) {
       console.error(e);
       if (e.name !== 'NotFoundError') {
@@ -349,36 +381,53 @@ export default function App() {
     localStorage.removeItem('last_printer_name');
   };
 
+  // Mencari printer yang pernah dipasangkan dari daftar izin browser (butuh dukungan getDevices).
+  const findRememberedPrinter = async () => {
+    const remembered = localStorage.getItem('last_printer_name');
+    if (!remembered || !navigator.bluetooth?.getDevices) return null;
+    const devices = await navigator.bluetooth.getDevices();
+    return devices.find((d) => d.name === remembered) || null;
+  };
+
   const reconnectBluetooth = async () => {
     setIsConnecting(true);
     try {
-      if (!navigator.bluetooth || !navigator.bluetooth.getDevices) {
-        throw new Error('Browser tidak mendukung fitur simpan perangkat.');
-      }
-      
-      const devices = await navigator.bluetooth.getDevices();
-      const lastDeviceName = localStorage.getItem('last_printer_name');
-      
-      if (!lastDeviceName) throw new Error('Tidak ada riwayat printer.');
-      
-      const device = devices.find(d => d.name === lastDeviceName);
+      if (!navigator.bluetooth) throw new Error('Browser tidak mendukung Bluetooth.');
+      const device = btDevice || await findRememberedPrinter();
       if (!device) throw new Error('Printer tidak ditemukan dalam daftar sistem browser. Silakan hubungkan ulang secara manual.');
-
-      console.log('Mencoba menyambungkan kembali ke:', device.name);
+      attachPrinter(device);
       await device.gatt.connect();
-      setBtDevice(device);
-      setSavedDeviceName(device.name);
-      
-      device.addEventListener('gattserverdisconnected', () => {
-        setBtDevice(null);
-        console.log('Printer terputus.');
-      });
-
+      setBtTick((t) => t + 1);
     } catch (e) {
       console.error(e);
       alert(e.message || 'Gagal menyambung ulang otomatis.');
     } finally {
       setIsConnecting(false);
+    }
+  };
+
+  // Dipanggil dari struk saat kasir menekan tombol simpan/cetak dan printer sudah pernah dipasangkan tapi
+  // belum dimuat di sesi ini (mis. setelah aplikasi dibuka ulang). Mengembalikan perangkat atau null.
+  // Harus dipanggil langsung dari sentuhan pengguna karena bisa memunculkan dialog pilih perangkat.
+  const ensurePrinter = async () => {
+    if (btDevice) return btDevice;
+    try {
+      const remembered = await findRememberedPrinter();
+      if (remembered) {
+        attachPrinter(remembered);
+        return remembered;
+      }
+      const name = localStorage.getItem('last_printer_name');
+      if (!name || !navigator.bluetooth) return null;
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ name }],
+        optionalServices: PRINTER_SERVICES,
+      });
+      attachPrinter(device);
+      return device;
+    } catch (e) {
+      console.warn('Printer tidak dipilih/ditemukan:', e);
+      return null;
     }
   };
 
@@ -920,6 +969,7 @@ export default function App() {
                 packages={packages} 
                 companyInfo={companyInfo}
                 session={session}
+                transactions={transactions}
                 onComplete={handleTransactionComplete} 
               />
             } />
@@ -965,6 +1015,8 @@ export default function App() {
         onClose={() => { setReceiptToView(null); setDraftReceiptId(null); }} 
         onPrint={handlePrint} 
         btDevice={btDevice}
+        savedDeviceName={savedDeviceName}
+        ensurePrinter={ensurePrinter}
       />
 
       <ReceiptA4

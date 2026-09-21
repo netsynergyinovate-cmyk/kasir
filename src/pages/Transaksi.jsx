@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Wifi, Printer, Key, UserCheck, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { pickInvoiceNumber } from '../utils/runsnetSync';
+import { isPaidThisMonth } from '../utils/visits';
 import './Transaksi.css';
 
 // Cari nomor invoice asli Runsnet buat pelanggan ini (custid), timeout 6 detik supaya kasir
@@ -69,7 +70,7 @@ const resolvePackageAndPrice = (cust, packagesList = []) => {
   return { name: rawPkg || 'NET HOME 10 Mbps', price: 200000 };
 };
 
-const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComplete }) => {
+const Transaksi = ({ customers = [], transactions = [], packages = [], companyInfo, session, onComplete }) => {
   const defaultCashierName = session?.profile?.full_name || (session?.profile?.role === 'superadmin' ? 'Super Admin' : (companyInfo?.adminName || 'Admin Kasir'));
   const [selectedCust, setSelectedCust] = useState('');
   const [activePackage, setActivePackage] = useState(null);
@@ -81,7 +82,11 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
   const [selectedCustomerData, setSelectedCustomerData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredCustomers = customers
+  // Pelanggan yang sudah LUNAS bulan ini tidak perlu muncul lagi di daftar pembayaran.
+  const unpaidCustomers = customers.filter(c => !isPaidThisMonth(c, transactions));
+  const paidHiddenCount = customers.length - unpaidCustomers.length;
+
+  const filteredCustomers = unpaidCustomers
     .filter(c => {
       const term = searchCust.toLowerCase();
       const pppoe = (c.pppoe_id || c.pppoeId || '').toLowerCase();
@@ -228,6 +233,10 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
                 </span>
               )}
             </div>
+
+            {paidHiddenCount > 0 && (
+              <p className="text-[11px] text-gray-400 -mt-1">{paidHiddenCount} pelanggan yang sudah lunas bulan ini tidak ditampilkan.</p>
+            )}
 
             {/* Auto-complete Search Box */}
             <div className="relative">

@@ -37,11 +37,12 @@ export function formatShortDate(isoDate) {
 
 const sameMonth = (date, now) => date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
 
-const isPaidThisMonth = (customer, transactions, now) =>
+// Transaksi baru memakai customerName (camelCase), yang dibaca dari database memakai customer_name.
+export const isPaidThisMonth = (customer, transactions, now = new Date()) =>
   transactions.some((trx) =>
     trx.type === 'retail' &&
     trx.status === 'LUNAS' &&
-    (trx.customerName || '').trim().toLowerCase() === (customer.name || '').trim().toLowerCase() &&
+    (trx.customerName || trx.customer_name || '').trim().toLowerCase() === (customer.name || '').trim().toLowerCase() &&
     sameMonth(new Date(trx.date), now)
   );
 
