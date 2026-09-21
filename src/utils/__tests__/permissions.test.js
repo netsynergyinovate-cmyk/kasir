@@ -23,8 +23,9 @@ describe('isPathAllowedForRole', () => {
     expect(isPathAllowedForRole('admin', '/aktivitas')).toBe(true);
   });
 
-  it('allows admin on the visit route page', () => {
-    expect(isPathAllowedForRole('admin', '/rute')).toBe(true);
+  it('does not get the visit route page (admin sees the route on the dashboard instead)', () => {
+    expect(isPathAllowedForRole('admin', '/rute')).toBe(false);
+    expect(isPathAllowedForRole('superadmin', '/rute')).toBe(true);
   });
 
   it('blocks admin on paths outside the allow-list', () => {

@@ -287,7 +287,7 @@ const DashboardSuperadmin = (props) => {
         </div>
       </div>
 
-      <Dashboard {...props} hideHeader />
+      <Dashboard {...props} hideHeader canManageRoute />
     </div>
   );
 };

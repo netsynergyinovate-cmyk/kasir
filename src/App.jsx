@@ -807,6 +807,8 @@ export default function App() {
               session?.profile?.role === 'superadmin' ? (
                 <DashboardSuperadmin
                   session={session}
+                  visits={visits}
+                  onAddVisit={handleAddVisit}
                   transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
                   customers={customers} 
                   packages={packages}
@@ -816,6 +818,8 @@ export default function App() {
                 />
               ) : (
                 <Dashboard 
+                  visits={visits}
+                  onAddVisit={handleAddVisit}
                   transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
                   customers={customers} 
                   packages={packages}
@@ -895,7 +899,7 @@ export default function App() {
           </Routes>
         </main>
 
-        <Navigation />
+        <Navigation role={session?.profile?.role} />
       </div>
 
       <AddCustomerModal

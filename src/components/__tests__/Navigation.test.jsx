@@ -3,25 +3,29 @@ import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import Navigation from '../Navigation';
 
-const html = renderToString(<MemoryRouter><Navigation /></MemoryRouter>).replace(/<!-- -->/g, '');
+const render = (role) => renderToString(<MemoryRouter><Navigation role={role} /></MemoryRouter>).replace(/<!-- -->/g, '');
 
 describe('bottom Navigation', () => {
-  it('has its own Rute menu linking to the visit route page', () => {
-    expect(html).toContain('href="/rute"');
+  it('gives the superadmin a Rute menu right next to Setting', () => {
+    const html = render('superadmin');
+    const rute = html.indexOf('href="/rute"');
+    expect(rute).toBeGreaterThan(html.indexOf('href="/history"'));
+    expect(html.indexOf('href="/settings"')).toBeGreaterThan(rute);
     expect(html).toContain('>Rute<');
   });
 
-  it('places the Rute menu right next to Setting', () => {
-    const rute = html.indexOf('href="/rute"');
-    const setting = html.indexOf('href="/settings"');
-    const history = html.indexOf('href="/history"');
-    expect(rute).toBeGreaterThan(history);
-    expect(setting).toBeGreaterThan(rute);
+  it('does not show the Rute menu to an admin (the route is on their dashboard)', () => {
+    const html = render('admin');
+    expect(html).not.toContain('href="/rute"');
+    expect(html).not.toContain('>Rute<');
   });
 
-  it('keeps the existing menus', () => {
-    ['href="/"', 'href="/customers"', 'href="/history"', 'href="/settings"', 'href="/pos"'].forEach((link) => {
-      expect(html).toContain(link);
+  it('keeps the existing menus for both roles', () => {
+    ['admin', 'superadmin'].forEach((role) => {
+      const html = render(role);
+      ['href="/"', 'href="/customers"', 'href="/history"', 'href="/settings"', 'href="/pos"'].forEach((link) => {
+        expect(html).toContain(link);
+      });
     });
   });
 });

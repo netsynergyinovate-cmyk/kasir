@@ -43,7 +43,7 @@ describe('Rute Kunjungan page', () => {
 
   it('shows the visit status labels', () => {
     expect(adminHtml).toContain('Tidak ada di rumah');
-    expect(adminHtml).toContain('Sudah bayar');
+    expect(adminHtml).toContain('Sudah terbayarkan');
     expect(adminHtml).toContain('Belum dikunjungi');
   });
 

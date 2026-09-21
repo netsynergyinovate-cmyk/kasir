@@ -26,7 +26,9 @@ describe('customerVisitStatus', () => {
 
   it('marks a customer as paid when a paid retail transaction exists this month', () => {
     const trx = [{ type: 'retail', status: 'LUNAS', customerName: 'ani', date: '2026-09-03T10:00:00' }];
-    expect(customerVisitStatus(ani, [visit()], trx, now).key).toBe('sudah_bayar');
+    const status = customerVisitStatus(ani, [visit()], trx, now);
+    expect(status.key).toBe('sudah_bayar');
+    expect(status.label).toBe('Sudah terbayarkan');
   });
 
   it('ignores payments from another month', () => {

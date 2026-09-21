@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { parseCoordinates } from '../utils/geo';
+import { addBaseLayers } from '../utils/leafletBase';
+import { MAP_MAX_ZOOM } from '../utils/mapConfig';
 
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const DEFAULT_CENTER = [-2.5, 118];
 
 const pinIcon = L.divIcon({
@@ -30,8 +30,8 @@ const LocationPicker = ({ value, onChange, otherPoints = [] }) => {
 
   useEffect(() => {
     const start = value ? [value.lat, value.lng] : (otherPoints[0] ? [otherPoints[0].lat, otherPoints[0].lng] : DEFAULT_CENTER);
-    const map = L.map(containerRef.current).setView(start, value || otherPoints[0] ? 16 : 5);
-    L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTRIBUTION }).addTo(map);
+    const map = L.map(containerRef.current, { maxZoom: MAP_MAX_ZOOM }).setView(start, value || otherPoints[0] ? 17 : 5);
+    addBaseLayers(map);
     mapRef.current = map;
 
     const placeMarker = (lat, lng) => {

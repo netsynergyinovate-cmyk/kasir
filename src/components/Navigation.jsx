@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { Home, Users, History, Settings as SettingsIcon, PlusCircle, Route as RouteIcon } from 'lucide-react';
 
-const Navigation = () => {
+const Navigation = ({ role }) => {
   return (
     <nav className="bg-white border-t border-gray-200 h-[72px] flex justify-between items-center px-2 z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.03)] shrink-0 fixed bottom-0 left-0 right-0 max-w-md mx-auto print:hidden">
       <div className="flex w-full justify-between items-center relative">
@@ -23,10 +23,12 @@ const Navigation = () => {
             <History size={22} className="fill-current opacity-20" />
             <span className="text-[9px] font-bold">Riwayat</span>
           </NavLink>
-          <NavLink to="/rute" className={({ isActive }) => `flex flex-col items-center gap-1 w-14 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
-            <RouteIcon size={22} />
-            <span className="text-[9px] font-bold">Rute</span>
-          </NavLink>
+          {role === 'superadmin' && (
+            <NavLink to="/rute" className={({ isActive }) => `flex flex-col items-center gap-1 w-14 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
+              <RouteIcon size={22} />
+              <span className="text-[9px] font-bold">Rute</span>
+            </NavLink>
+          )}
           <NavLink to="/settings" className={({ isActive }) => `flex flex-col items-center gap-1 w-14 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
             <SettingsIcon size={22} className="fill-current opacity-20" />
             <span className="text-[9px] font-bold">Setting</span>

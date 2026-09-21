@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { STATUS_COLORS } from '../utils/visits';
+import { addBaseLayers } from '../utils/leafletBase';
+import { MAP_MAX_ZOOM } from '../utils/mapConfig';
 
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const DEFAULT_CENTER = [-2.5, 118];
 
 const numberIcon = (number, color, selected) => L.divIcon({
@@ -16,15 +16,20 @@ const numberIcon = (number, color, selected) => L.divIcon({
 
 // Peta rute. stops: [{ id, lat, lng, number, statusKey, title }]. routeLine: [[lat, lng], ...] jalur jalan
 // dari layanan routing; jika null dipakai garis lurus putus-putus sebagai cadangan.
-const RouteMap = ({ stops, routeLine, selectedId, onSelect }) => {
+// compact: dipakai di dashboard; scroll mouse tidak memperbesar peta dan di HP satu jari tetap menggulir halaman.
+const RouteMap = ({ stops, routeLine, selectedId, onSelect, compact = false }) => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const fittedKeyRef = useRef('');
 
   useEffect(() => {
-    const map = L.map(containerRef.current).setView(DEFAULT_CENTER, 5);
-    L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTRIBUTION }).addTo(map);
+    const map = L.map(containerRef.current, {
+      maxZoom: MAP_MAX_ZOOM,
+      scrollWheelZoom: !compact,
+      dragging: !(compact && L.Browser.mobile),
+    }).setView(DEFAULT_CENTER, 5);
+    addBaseLayers(map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
@@ -34,7 +39,7 @@ const RouteMap = ({ stops, routeLine, selectedId, onSelect }) => {
       layerRef.current = null;
       fittedKeyRef.current = '';
     };
-  }, []);
+  }, [compact]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -71,7 +76,7 @@ const RouteMap = ({ stops, routeLine, selectedId, onSelect }) => {
     }
   }, [stops, routeLine, selectedId, onSelect]);
 
-  return <div ref={containerRef} className="h-72 w-full rounded-2xl overflow-hidden border border-gray-100 z-0" />;
+  return <div ref={containerRef} className={`${compact ? 'h-56' : 'h-72'} w-full rounded-2xl overflow-hidden border border-gray-100 z-0`} />;
 };
 
 export default RouteMap;

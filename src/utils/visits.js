@@ -39,7 +39,7 @@ const isPaidThisMonth = (customer, transactions, now) =>
 //  perlu_didatangi  - pernah dikunjungi tapi sudah waktunya didatangi lagi
 export function customerVisitStatus(customer, visits, transactions, now = new Date()) {
   if (isPaidThisMonth(customer, transactions, now)) {
-    return { key: 'sudah_bayar', label: 'Sudah bayar', visit: null, availableOn: null };
+    return { key: 'sudah_bayar', label: 'Sudah terbayarkan', visit: null, availableOn: null };
   }
 
   const latest = visits

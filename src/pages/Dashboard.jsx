@@ -4,10 +4,11 @@ import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Cal
 import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
+import RouteOverview from '../components/RouteOverview';
 import { getGreeting } from '../utils/dashboardStats';
 import './Dashboard.css';
 
-const Dashboard = ({ hideHeader = false, transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
+const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute = false, transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
   const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -150,6 +151,9 @@ const Dashboard = ({ hideHeader = false, transactions = [], customers = [], pack
           </div>
         </div>
       )}
+
+      {/* Peta + jalur rute kunjungan dan tujuan berikutnya */}
+      <RouteOverview customers={customers} transactions={transactions} visits={visits} onAddVisit={onAddVisit} canManageRoute={canManageRoute} />
 
       {/* Pengingat Tagihan (due-date reminders, always real-time) */}
       {reminderList.length > 0 && (

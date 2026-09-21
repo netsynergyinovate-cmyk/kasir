@@ -55,9 +55,11 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session }) => {
             <NavLink to="/customers" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
               <Users size={18} /> Pelanggan Retail
             </NavLink>
-            <NavLink to="/rute" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-              <RouteIcon size={18} /> Rute Kunjungan
-            </NavLink>
+            {isSuper && (
+              <NavLink to="/rute" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+                <RouteIcon size={18} /> Rute Kunjungan
+              </NavLink>
+            )}
             <NavLink to="/pos" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
               <Printer size={18} /> Kasir (58mm)
             </NavLink>
