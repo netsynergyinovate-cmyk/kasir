@@ -1,9 +1,9 @@
 import process from 'node:process';
 import { isConfigPlaceholder } from '../../src/utils/runsnetSync.js';
 
-const BASE_URL = process.env.RUNSNET_BASE_URL || 'https://app.runsnet.id';
-const USERNAME = process.env.RUNSNET_USERNAME;
-const PASSWORD = process.env.RUNSNET_PASSWORD;
+// Dibaca lewat fungsi (bukan konstanta top-level) supaya skrip lokal yang memuat .env.local
+// setelah statement import tetap melihat nilainya.
+const getBaseUrl = () => process.env.RUNSNET_BASE_URL || 'https://app.runsnet.id';
 
 // ==========================================================================
 // KONFIGURASI YANG WAJIB DIISI SEBELUM SINKRON BISA BENAR-BENAR MENGIRIM APA PUN.
@@ -53,12 +53,14 @@ class RunsnetNotConfiguredError extends Error {
 }
 
 async function loginToRunsnet() {
-  if (!USERNAME || !PASSWORD) {
+  const username = process.env.RUNSNET_USERNAME;
+  const password = process.env.RUNSNET_PASSWORD;
+  if (!username || !password) {
     throw new Error('RUNSNET_USERNAME / RUNSNET_PASSWORD belum di-set di Environment Variables Vercel.');
   }
 
-  const body = new URLSearchParams({ username: USERNAME, password: PASSWORD, panelOption: 'admin' });
-  const response = await fetch(`${BASE_URL}/view/control/bagan_login.php`, {
+  const body = new URLSearchParams({ username, password, panelOption: 'admin' });
+  const response = await fetch(`${getBaseUrl()}/view/control/bagan_login.php`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
@@ -103,7 +105,7 @@ export async function searchInvoice(cookie, query) {
   if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
 
   const body = new URLSearchParams({ [CONFIG.searchQueryField]: query });
-  const response = await fetch(`${BASE_URL}/${CONFIG.searchPath}`, {
+  const response = await fetch(`${getBaseUrl()}/${CONFIG.searchPath}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
     body,
@@ -124,7 +126,7 @@ export async function payInvoiceCash(cookie, invoiceId) {
     [CONFIG.paymentInvoiceIdField]: invoiceId,
     [CONFIG.paymentMethodField]: CONFIG.paymentMethodValue,
   });
-  const response = await fetch(`${BASE_URL}/${CONFIG.paymentPath}`, {
+  const response = await fetch(`${getBaseUrl()}/${CONFIG.paymentPath}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
     body,

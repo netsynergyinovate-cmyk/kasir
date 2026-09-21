@@ -23,7 +23,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 function loadEnvFile(fileName) {
   const filePath = path.join(__dirname, '..', fileName);
   if (!fs.existsSync(filePath)) return;
-  for (const line of fs.readFileSync(filePath, 'utf8').split('\n')) {
+  // split(/\r?\n/) supaya baris CRLF (umum di file yang pernah dibuka di Windows) tetap cocok:
+  // regex $ di JS tidak menganggap \r sebagai akhir baris, jadi \r yang tersisa bikin match gagal total.
+  for (const line of fs.readFileSync(filePath, 'utf8').split(/\r?\n/)) {
     const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
     if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
   }
