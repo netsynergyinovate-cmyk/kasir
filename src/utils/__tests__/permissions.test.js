@@ -14,8 +14,11 @@ describe('isPathAllowedForRole', () => {
     });
   });
 
+  it('allows admin on the dashboard', () => {
+    expect(isPathAllowedForRole('admin', '/')).toBe(true);
+  });
+
   it('blocks admin on paths outside the allow-list', () => {
-    expect(isPathAllowedForRole('admin', '/')).toBe(false);
     expect(isPathAllowedForRole('admin', '/instansi')).toBe(false);
     expect(isPathAllowedForRole('admin', '/aktivitas')).toBe(false);
     expect(isPathAllowedForRole('admin', '/history')).toBe(false);

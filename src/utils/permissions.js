@@ -1,4 +1,4 @@
-export const ADMIN_ALLOWED_PATHS = ['/pos', '/customers', '/settings'];
+export const ADMIN_ALLOWED_PATHS = ['/', '/pos', '/customers', '/settings'];
 export const ADMIN_DEFAULT_PATH = '/pos';
 
 export function isPathAllowedForRole(role, pathname) {
