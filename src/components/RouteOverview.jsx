@@ -8,14 +8,12 @@ import StatusLegend from './StatusLegend';
 import { useRouteData, hasCoords } from '../hooks/useRouteData';
 import { googleMapsNavUrl, formatDistance, formatDuration } from '../utils/geo';
 import { TONE_COLORS } from '../utils/visits';
-import { describeLocationAge } from '../utils/location';
+import { describeLocationAge, locationAdvice, accuracyLevel } from '../utils/location';
 
-const LOCATION_NOTES = {
-  active: { className: 'text-emerald-700 bg-emerald-50', text: 'Lokasi Anda dibagikan ke superadmin selama aplikasi terbuka. Rute dimulai dari posisi Anda.' },
-  waiting: { className: 'text-gray-600 bg-gray-50', text: 'Mencari lokasi Anda...' },
-  denied: { className: 'text-amber-800 bg-amber-50', text: 'Izin lokasi ditolak. Aktifkan izin lokasi di browser agar rute dimulai dari posisi Anda.' },
-  unavailable: { className: 'text-amber-800 bg-amber-50', text: 'Lokasi belum tersedia. Rute sementara dimulai dari rumah pertama.' },
-  unsupported: { className: 'text-amber-800 bg-amber-50', text: 'Perangkat ini tidak mendukung lokasi. Rute dimulai dari rumah pertama.' },
+const NOTE_CLASSES = {
+  ok: 'text-emerald-700 bg-emerald-50',
+  info: 'text-gray-600 bg-gray-50',
+  warn: 'text-amber-800 bg-amber-50',
 };
 
 // Kartu rute di Dashboard: peta satelit + jalur jalan + tujuan berikutnya + catatan kunjungan.
@@ -24,7 +22,7 @@ const LOCATION_NOTES = {
 //  - adminLocations: posisi semua admin, hanya untuk superadmin.
 const RouteOverview = ({
   customers = [], transactions = [], visits = [], onAddVisit, canManageRoute = false,
-  origin = null, myPosition = null, locationStatus = 'off', adminLocations = [],
+  origin = null, myPosition = null, locationStatus = 'off', adminLocations = [], onRetryLocation,
 }) => {
   const [visitFor, setVisitFor] = useState(null);
   const [justSaved, setJustSaved] = useState(false);
@@ -41,10 +39,10 @@ const RouteOverview = ({
 
   const people = useMemo(() => {
     const list = [];
-    if (myPosition) list.push({ id: 'me', lat: myPosition.lat, lng: myPosition.lng, title: 'Posisi Anda', self: true });
+    if (myPosition) list.push({ id: 'me', lat: myPosition.lat, lng: myPosition.lng, accuracy: myPosition.accuracy, title: 'Posisi Anda', self: true });
     adminLocations.forEach((admin) => {
       const age = describeLocationAge(admin.updatedAt);
-      list.push({ id: admin.id, lat: admin.lat, lng: admin.lng, title: `${admin.name} · ${age.label}`, stale: age.stale });
+      list.push({ id: admin.id, lat: admin.lat, lng: admin.lng, accuracy: admin.accuracy, title: `${admin.name} · ${age.label}`, stale: age.stale });
     });
     return list;
   }, [myPosition, adminLocations]);
@@ -60,7 +58,8 @@ const RouteOverview = ({
     return ok;
   };
 
-  const locationNote = LOCATION_NOTES[locationStatus];
+  const locationNote = locationAdvice(locationStatus);
+  const accuracy = locationStatus === 'active' && myPosition ? accuracyLevel(myPosition.accuracy) : null;
   const legToNext = nextStop ? legBefore[nextStop.id] : null;
   const showMap = mapStops.length > 0 || people.length > 0;
 
@@ -85,9 +84,19 @@ const RouteOverview = ({
         )}
 
         {locationNote && (
-          <p className={`text-[11px] font-semibold rounded-xl px-3 py-2 flex items-start gap-1.5 ${locationNote.className}`}>
-            <LocateFixed size={13} className="shrink-0 mt-0.5" /> {locationNote.text}
-          </p>
+          <div className={`text-[11px] font-semibold rounded-xl px-3 py-2 space-y-2 ${NOTE_CLASSES[locationNote.tone]}`}>
+            <p className="flex items-start gap-1.5"><LocateFixed size={13} className="shrink-0 mt-0.5" /> {locationNote.text}</p>
+            {accuracy && (
+              <p className={accuracy.level === 'poor' ? 'text-amber-800' : ''}>
+                {accuracy.label}{accuracy.hint ? `. ${accuracy.hint}` : ''}
+              </p>
+            )}
+            {locationNote.canRetry && onRetryLocation && (
+              <button type="button" onClick={onRetryLocation} className="w-full py-2 rounded-lg bg-white/80 text-[11px] font-black text-indigo-700 active:scale-95 transition-all">
+                Aktifkan lokasi
+              </button>
+            )}
+          </div>
         )}
 
         {routeCustomers.length === 0 && people.length === 0 ? (

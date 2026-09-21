@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-const POLL_MS = 20_000;
+const POLL_MS = 15_000;
 
-// Untuk superadmin: mengambil posisi terakhir semua admin dan memperbaruinya tiap 20 detik.
-// Mengembalikan [{ id, name, lat, lng, updatedAt }].
+// Untuk superadmin: posisi terakhir semua admin, diperbarui langsung saat ada perubahan lewat Supabase
+// Realtime, dengan polling 15 detik sebagai cadangan (mis. bila Realtime belum diaktifkan di database).
+// Mengembalikan [{ id, name, lat, lng, accuracy, updatedAt }].
 export function useAdminLocations({ enabled }) {
   const [locations, setLocations] = useState([]);
 
@@ -14,7 +15,7 @@ export function useAdminLocations({ enabled }) {
 
     const load = async () => {
       const [locationsRes, profilesRes] = await Promise.all([
-        supabase.from('admin_locations').select('admin_id, lat, lng, updated_at'),
+        supabase.from('admin_locations').select('admin_id, lat, lng, accuracy, updated_at'),
         supabase.from('admin_profiles').select('id, full_name'),
       ]);
       if (cancelled || locationsRes.error || !locationsRes.data) return;
@@ -27,15 +28,22 @@ export function useAdminLocations({ enabled }) {
         name: names[row.admin_id] || 'Admin',
         lat: row.lat,
         lng: row.lng,
+        accuracy: row.accuracy,
         updatedAt: row.updated_at,
       })));
     };
 
     load();
     const timer = setInterval(load, POLL_MS);
+    const channel = supabase
+      .channel('admin-locations-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'admin_locations' }, () => load())
+      .subscribe();
+
     return () => {
       cancelled = true;
       clearInterval(timer);
+      supabase.removeChannel(channel);
     };
   }, [enabled]);
 

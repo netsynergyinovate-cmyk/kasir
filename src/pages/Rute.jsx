@@ -8,7 +8,7 @@ import VisitModal from '../components/VisitModal';
 import StatusBadge from '../components/StatusBadge';
 import { useRouteData, hasCoords } from '../hooks/useRouteData';
 import { googleMapsNavUrl, googleMapsRouteUrl, formatDistance, formatDuration } from '../utils/geo';
-import { describeLocationAge } from '../utils/location';
+import { describeLocationAge, accuracyLevel } from '../utils/location';
 
 const NavButton = ({ customer, primary }) => (
   hasCoords(customer) ? (
@@ -45,7 +45,7 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
   // Posisi admin (pelacakan) untuk superadmin: penanda di peta dan daftar di bawahnya.
   const people = useMemo(() => adminLocations.map((admin) => {
     const age = describeLocationAge(admin.updatedAt);
-    return { id: admin.id, lat: admin.lat, lng: admin.lng, title: `${admin.name} · ${age.label}`, stale: age.stale };
+    return { id: admin.id, lat: admin.lat, lng: admin.lng, accuracy: admin.accuracy, title: `${admin.name} · ${age.label}`, stale: age.stale };
   }), [adminLocations]);
 
   // Mode Atur Rute selalu menampilkan semua rumah supaya urutan bisa disusun.
@@ -202,6 +202,9 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
                     <p className={`text-[11px] font-bold ${age.stale ? 'text-gray-400' : 'text-emerald-600'}`}>
                       {age.stale ? `Tidak aktif · terakhir ${age.label}` : `Aktif · ${age.label}`}
                     </p>
+                    {admin.accuracy !== null && admin.accuracy !== undefined && (
+                      <p className="text-[10px] text-gray-400">{accuracyLevel(admin.accuracy).label}</p>
+                    )}
                   </div>
                   <a
                     href={googleMapsNavUrl({ lat: admin.lat, lng: admin.lng })}

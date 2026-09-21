@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldUploadLocation, describeLocationAge, buildRoutePoints, legIndexFor } from '../location';
+import { shouldUploadLocation, describeLocationAge, buildRoutePoints, legIndexFor, locationAdvice, accuracyLevel } from '../location';
 
 const here = { lat: -6.2, lng: 106.8 };
 
@@ -15,14 +15,41 @@ describe('shouldUploadLocation', () => {
     expect(shouldUploadLocation(last, { lat: -6.20001, lng: 106.8 }, now)).toBe(false);
   });
 
-  it('uploads when the admin moved more than 30 metres', () => {
-    const last = { ...here, at: now - 10_000 };
-    expect(shouldUploadLocation(last, { lat: -6.2005, lng: 106.8 }, now)).toBe(true);
+  it('uploads a real move (more than 10 metres) once 5 seconds have passed', () => {
+    const last = { ...here, at: now - 6_000 };
+    expect(shouldUploadLocation(last, { lat: -6.2002, lng: 106.8 }, now)).toBe(true); // sekitar 22 m
   });
 
-  it('uploads a heartbeat after 60 seconds even without moving', () => {
-    const last = { ...here, at: now - 61_000 };
+  it('does not flood the server: at most one upload per 5 seconds while moving', () => {
+    const last = { ...here, at: now - 3_000 };
+    expect(shouldUploadLocation(last, { lat: -6.2005, lng: 106.8 }, now)).toBe(false);
+  });
+
+  it('ignores a small move of a few metres (GPS jitter)', () => {
+    const last = { ...here, at: now - 20_000 };
+    expect(shouldUploadLocation(last, { lat: -6.20005, lng: 106.8 }, now)).toBe(false); // sekitar 5 m
+  });
+
+  it('uploads a heartbeat after 30 seconds even without moving', () => {
+    const last = { ...here, at: now - 31_000 };
     expect(shouldUploadLocation(last, here, now)).toBe(true);
+  });
+});
+
+describe('accuracyLevel', () => {
+  it('rates GPS accuracy in metres', () => {
+    expect(accuracyLevel(8)).toMatchObject({ level: 'good', label: 'Akurasi baik (±8 m)' });
+    expect(accuracyLevel(60)).toMatchObject({ level: 'fair' });
+    expect(accuracyLevel(450)).toMatchObject({ level: 'poor' });
+  });
+
+  it('warns that low accuracy usually means Wi-Fi/IP location instead of GPS', () => {
+    expect(accuracyLevel(1200).label).toContain('±1200 m');
+    expect(accuracyLevel(1200).hint).toMatch(/GPS/);
+  });
+
+  it('is unknown when the browser gave no accuracy', () => {
+    expect(accuracyLevel(null)).toMatchObject({ level: 'unknown' });
   });
 });
 
@@ -62,5 +89,33 @@ describe('buildRoutePoints and legIndexFor', () => {
     // tanpa posisi: stop pertama tidak punya leg masuk
     expect(legIndexFor(false, 0)).toBe(-1);
     expect(legIndexFor(false, 2)).toBe(1);
+  });
+});
+
+describe('locationAdvice', () => {
+  it('explains that location needs https or localhost when the page is not a secure context', () => {
+    const advice = locationAdvice('insecure');
+    expect(advice.text).toMatch(/https/i);
+    expect(advice.text).toMatch(/localhost/i);
+    expect(advice.canRetry).toBe(false);
+  });
+
+  it('explains how to re-enable a denied permission and offers a retry', () => {
+    const advice = locationAdvice('denied');
+    expect(advice.text).toMatch(/gembok|pengaturan situs/i);
+    expect(advice.canRetry).toBe(true);
+  });
+
+  it('offers to activate location while still waiting for the browser prompt', () => {
+    expect(locationAdvice('waiting').canRetry).toBe(true);
+  });
+
+  it('offers a retry when the position is temporarily unavailable', () => {
+    expect(locationAdvice('unavailable').canRetry).toBe(true);
+  });
+
+  it('has nothing to say when tracking is active or off', () => {
+    expect(locationAdvice('active').canRetry).toBe(false);
+    expect(locationAdvice('off')).toBeNull();
   });
 });

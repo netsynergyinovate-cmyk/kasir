@@ -95,6 +95,15 @@ const RouteMap = ({ stops, routeLine, selectedId, onSelect, compact = false, peo
     if (!layer) return;
     layer.clearLayers();
     people.forEach((person) => {
+      // Lingkaran akurasi: makin besar berarti posisi makin tidak pasti.
+      if (person.accuracy && person.accuracy >= 15) {
+        L.circle([person.lat, person.lng], {
+          radius: person.accuracy,
+          color: person.self ? '#2563eb' : '#7c3aed',
+          weight: 1,
+          fillOpacity: 0.12,
+        }).addTo(layer);
+      }
       const marker = L.marker([person.lat, person.lng], { icon: personIcon(person.self, person.stale), zIndexOffset: 2000 });
       const tooltip = document.createElement('span');
       tooltip.textContent = person.title;

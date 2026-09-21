@@ -105,4 +105,22 @@ describe('Dashboard route overview (what an admin sees on the home page)', () =>
     expect(html).not.toContain('Lokasi Anda dibagikan');
     expect(html).not.toContain('Izin lokasi ditolak');
   });
+
+  it('offers an Aktifkan lokasi button while waiting for or after denying the permission', () => {
+    ['waiting', 'denied', 'unavailable'].forEach((locationStatus) => {
+      const html = render({ customers: routeCustomers, visits: [], locationStatus, onRetryLocation: () => {} });
+      expect(html).toContain('Aktifkan lokasi');
+    });
+  });
+
+  it('explains the https requirement instead of a retry button when the page is not secure', () => {
+    const html = render({ customers: routeCustomers, visits: [], locationStatus: 'insecure', onRetryLocation: () => {} });
+    expect(html).toMatch(/https/i);
+    expect(html).not.toContain('Aktifkan lokasi');
+  });
+
+  it('shows no retry button once the location is active', () => {
+    const html = render({ customers: routeCustomers, visits: [], locationStatus: 'active', onRetryLocation: () => {} });
+    expect(html).not.toContain('Aktifkan lokasi');
+  });
 });

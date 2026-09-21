@@ -8,7 +8,7 @@ import RouteOverview from '../components/RouteOverview';
 import { getGreeting } from '../utils/dashboardStats';
 import './Dashboard.css';
 
-const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute = false, origin = null, myPosition = null, locationStatus = 'off', adminLocations = [], transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
+const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute = false, origin = null, myPosition = null, locationStatus = 'off', adminLocations = [], onRetryLocation, transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
   const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -153,7 +153,7 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
       )}
 
       {/* Peta + jalur rute kunjungan dan tujuan berikutnya */}
-      <RouteOverview customers={customers} transactions={transactions} visits={visits} onAddVisit={onAddVisit} canManageRoute={canManageRoute} origin={origin} myPosition={myPosition} locationStatus={locationStatus} adminLocations={adminLocations} />
+      <RouteOverview customers={customers} transactions={transactions} visits={visits} onAddVisit={onAddVisit} canManageRoute={canManageRoute} origin={origin} myPosition={myPosition} locationStatus={locationStatus} adminLocations={adminLocations} onRetryLocation={onRetryLocation} />
 
       {/* Pengingat Tagihan (due-date reminders, always real-time) */}
       {reminderList.length > 0 && (

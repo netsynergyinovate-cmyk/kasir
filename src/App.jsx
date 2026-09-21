@@ -830,6 +830,7 @@ export default function App() {
                   origin={shareLocation.routeOrigin}
                   myPosition={shareLocation.position}
                   locationStatus={shareLocation.status}
+                  onRetryLocation={shareLocation.retry}
                   transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
                   customers={customers} 
                   packages={packages}

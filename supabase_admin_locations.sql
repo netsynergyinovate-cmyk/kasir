@@ -38,3 +38,14 @@ drop policy if exists "locations delete superadmin" on admin_locations;
 create policy "locations delete superadmin"
 on admin_locations for delete
 using (current_role_is_superadmin());
+
+-- Realtime: superadmin menerima perubahan posisi langsung (RLS tetap berlaku, hanya superadmin yang melihat semua).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'admin_locations'
+  ) then
+    alter publication supabase_realtime add table admin_locations;
+  end if;
+end $$;
