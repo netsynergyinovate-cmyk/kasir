@@ -62,3 +62,33 @@ export function syncToastTone(status) {
   if (status === 'failed') return 'bad';
   return 'info';
 }
+
+const STAGE_TEXT = {
+  invoice_lookup: { text: 'Cek nomor invoice', className: 'bg-indigo-100 text-indigo-700' },
+  payment: { text: 'Kirim pembayaran', className: 'bg-blue-100 text-blue-700' },
+};
+
+// Label + warna lencana untuk tahap sebuah baris log: 'invoice_lookup' (dijalankan saat transaksi
+// dibuat, mencari nomor invoice asli Runsnet) atau 'payment' (dijalankan setelah lunas, mengirim
+// tanda bayar ke Runsnet). Baris log lama (sebelum kolom stage ada) dianggap 'payment'.
+export function describeLogStage(stage) {
+  return STAGE_TEXT[stage] || { text: stage, className: 'bg-gray-100 text-gray-500' };
+}
+
+// Keputusan status+pesan log untuk hasil pencarian nomor invoice (dipanggil saat transaksi baru
+// dibuat, BUKAN saat pembayaran). Dipisah dari endpoint API supaya bisa diuji tanpa memanggil Runsnet.
+export function buildInvoiceLookupLog({ configured, invoice, query }) {
+  if (!configured) {
+    return { status: 'skipped_not_configured', runsnet_ref: null, message: 'Field Runsnet belum dikonfigurasi, nomor invoice lokal dipakai.' };
+  }
+  if (invoice) {
+    return { status: 'success', runsnet_ref: String(invoice.id), message: `Nomor invoice Runsnet ${invoice.id} ditemukan untuk "${query}" dan dipakai.` };
+  }
+  return { status: 'failed', runsnet_ref: null, message: `Invoice Runsnet tidak ditemukan untuk "${query}", nomor invoice lokal dipakai.` };
+}
+
+// Nomor invoice final yang dipakai transaksi: kode Runsnet kalau ketemu, kalau tidak (tidak
+// ketemu / Runsnet mati / belum dikonfigurasi) pakai id lokal supaya kasir tidak pernah terhambat.
+export function pickInvoiceNumber({ localId, invoice }) {
+  return invoice?.id || localId;
+}

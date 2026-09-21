@@ -27,8 +27,8 @@ export default async function handler(req, res) {
   const supabase = getServiceClient();
   const log = async (status, extra = {}) => {
     await supabase.from('runsnet_sync_log').upsert(
-      { transaction_id: transaction.id, status, created_at: new Date().toISOString(), ...extra },
-      { onConflict: 'transaction_id' },
+      { transaction_id: transaction.id, stage: 'payment', status, created_at: new Date().toISOString(), ...extra },
+      { onConflict: 'transaction_id,stage' },
     );
   };
 
@@ -44,6 +44,7 @@ export default async function handler(req, res) {
     .from('runsnet_sync_log')
     .select('id, status')
     .eq('transaction_id', transaction.id)
+    .eq('stage', 'payment')
     .maybeSingle();
   if (existing) {
     res.status(200).json({ skipped: 'already_processed', status: existing.status });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Printer } from 'lucide-react';
-import { formatRupiah, formatDate } from '../utils/format';
+import { formatRupiah, formatDate, getInvoiceNumber } from '../utils/format';
 
 const ReceiptA4 = ({ transaction, companyInfo, onClose, onPrint }) => {
   if (!transaction || transaction.type !== 'instansi') return null;
@@ -28,7 +28,7 @@ const ReceiptA4 = ({ transaction, companyInfo, onClose, onPrint }) => {
             <h2 className="text-5xl font-black text-blue-600 tracking-tighter uppercase mb-3">INVOICE</h2>
             <div className="space-y-1">
               <p className="font-bold text-gray-500 text-xs tracking-widest uppercase">Nomor Invoice</p>
-              <p className="font-mono text-lg font-bold text-gray-900">{transaction.id}</p>
+              <p className="font-mono text-lg font-bold text-gray-900">{getInvoiceNumber(transaction)}</p>
               <p className="font-bold text-gray-500 text-xs tracking-widest uppercase mt-4">Tanggal Terbit</p>
               <p className="font-bold text-gray-900">{formatDate(transaction.date)}</p>
             </div>

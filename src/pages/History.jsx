@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Search, Calendar, Filter, FileText, Building2, ChevronRight, Trash2 } from 'lucide-react';
-import { formatRupiah } from '../utils/format';
+import { formatRupiah, getInvoiceNumber } from '../utils/format';
 
 const History = ({ transactions, role, setReceiptToView, setInstansiReceiptToView, onDeleteTransaction }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,7 +115,7 @@ const History = ({ transactions, role, setReceiptToView, setInstansiReceiptToVie
             >
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-gray-400">{trx.id}</span>
+                  <span className="text-[10px] font-mono text-gray-400">{getInvoiceNumber(trx)}</span>
                   {trx.type !== 'instansi' && (
                     <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${trx.status === 'LUNAS' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                       {trx.status}

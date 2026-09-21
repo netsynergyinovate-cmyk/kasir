@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, Zap, Wifi, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { describeSyncStatus } from '../utils/runsnetSync';
+import { describeSyncStatus, describeLogStage } from '../utils/runsnetSync';
 
 const formatTime = (iso) =>
   new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -20,7 +20,7 @@ const RunsnetSyncPanel = ({ session }) => {
 
   const fetchAll = () => Promise.all([
     supabase.from('company_settings').select('runsnet_sync_enabled, runsnet_dry_run').eq('id', 1).maybeSingle(),
-    supabase.from('runsnet_sync_log').select('*').order('created_at', { ascending: false }).limit(10),
+    supabase.from('runsnet_sync_log').select('*').order('created_at', { ascending: false }).limit(20),
   ]);
 
   const applyResults = ([settingsRes, logsRes]) => {
@@ -151,16 +151,18 @@ const RunsnetSyncPanel = ({ session }) => {
             <div className="space-y-1.5">
               {logs.map((row) => {
                 const status = describeSyncStatus(row.status);
+                const stage = describeLogStage(row.stage || 'payment');
                 return (
                   <div key={row.id} className="p-2.5 bg-slate-50 rounded-lg space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] font-bold text-gray-700 truncate">{row.search_query || row.transaction_id}</span>
                       <span className={`shrink-0 text-[9px] font-extrabold px-2 py-0.5 rounded-full ${status.className}`}>{status.text}</span>
                     </div>
-                    <p className="text-[10px] text-gray-400">
-                      {formatTime(row.created_at)}
-                      {row.runsnet_ref && ` · invoice Runsnet: ${row.runsnet_ref}`}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${stage.className}`}>{stage.text}</span>
+                      <span className="text-[10px] text-gray-400">{formatTime(row.created_at)}</span>
+                    </div>
+                    {row.runsnet_ref && <p className="text-[10px] text-gray-400">invoice Runsnet: <span className="font-mono font-bold text-gray-600">{row.runsnet_ref}</span></p>}
                     {row.message && <p className="text-[10px] text-gray-500">{row.message}</p>}
                   </div>
                 );

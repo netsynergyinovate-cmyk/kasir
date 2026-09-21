@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone } from '../runsnetSync';
+import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber } from '../runsnetSync';
 
 const trx = (over) => ({
   id: 't1', status: 'LUNAS', type: 'retail', payment_method: 'CASH',
@@ -133,5 +133,49 @@ describe('syncToastTone', () => {
     expect(syncToastTone('dry_run')).toBe('info');
     expect(syncToastTone('skipped_disabled')).toBe('info');
     expect(syncToastTone('skipped_not_configured')).toBe('info');
+  });
+});
+
+describe('describeLogStage', () => {
+  it('labels the invoice-number lookup stage (done when a transaction is created)', () => {
+    expect(describeLogStage('invoice_lookup').text).toMatch(/nomor invoice/i);
+  });
+
+  it('labels the payment stage (done after a transaction is marked lunas)', () => {
+    expect(describeLogStage('payment').text).toMatch(/pembayaran/i);
+  });
+
+  it('falls back to the raw stage for anything unknown', () => {
+    expect(describeLogStage('weird_stage').text).toBe('weird_stage');
+  });
+});
+
+describe('buildInvoiceLookupLog', () => {
+  it('reports success with the matched invoice code as runsnet_ref', () => {
+    const result = buildInvoiceLookupLog({ configured: true, invoice: { id: 'INVRT202609002184' }, query: '17060001849' });
+    expect(result).toMatchObject({ status: 'success', runsnet_ref: 'INVRT202609002184' });
+    expect(result.message).toContain('INVRT202609002184');
+  });
+
+  it('reports failed (not found) when Runsnet is configured but no invoice matched', () => {
+    const result = buildInvoiceLookupLog({ configured: true, invoice: null, query: '17060001849' });
+    expect(result.status).toBe('failed');
+    expect(result.runsnet_ref).toBeNull();
+    expect(result.message).toContain('17060001849');
+  });
+
+  it('reports skipped_not_configured when Runsnet credentials are not set up, without treating it as a failure', () => {
+    const result = buildInvoiceLookupLog({ configured: false, invoice: null, query: '17060001849' });
+    expect(result.status).toBe('skipped_not_configured');
+  });
+});
+
+describe('pickInvoiceNumber', () => {
+  it('uses the Runsnet invoice code when one was matched', () => {
+    expect(pickInvoiceNumber({ localId: 'INV-123', invoice: { id: 'INVRT202609002184' } })).toBe('INVRT202609002184');
+  });
+
+  it('falls back to the local id when nothing matched (not found, Runsnet down, or not configured)', () => {
+    expect(pickInvoiceNumber({ localId: 'INV-123', invoice: null })).toBe('INV-123');
   });
 });

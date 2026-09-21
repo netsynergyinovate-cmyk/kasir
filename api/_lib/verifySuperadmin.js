@@ -5,9 +5,11 @@ import { getServiceClient } from './supabaseAdmin.js';
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-// Memverifikasi bahwa permintaan datang dari superadmin yang sedang login, lewat token sesi
-// browsernya sendiri (header Authorization: Bearer <access_token>), bukan lewat key rahasia.
-export async function verifySuperadmin(req) {
+// Memverifikasi bahwa permintaan datang dari staf (admin ATAU superadmin) yang sedang login, lewat
+// token sesi browsernya sendiri (header Authorization: Bearer <access_token>), bukan lewat key
+// rahasia. Dipakai untuk aksi yang aman diakses siapa pun yang login (mis. baca-baca), bukan aksi
+// sensitif superadmin-only (pakai verifySuperadmin untuk itu).
+export async function verifyStaff(req) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) {
@@ -27,14 +29,22 @@ export async function verifySuperadmin(req) {
     .eq('id', callerData.user.id)
     .maybeSingle();
 
-  if (profileError || callerProfile?.role !== 'superadmin') {
-    // Detail diagnostik sementara (aman ditampilkan ke pemilik akun sendiri — cuma user id &
-    // role miliknya sendiri, bukan rahasia) supaya mudah melacak penyebab penolakan.
-    const detail = profileError
-      ? `query error: ${profileError.message}`
-      : `user id ${callerData.user.id}, profil ditemukan: ${callerProfile ? 'ya' : 'tidak'}, role: ${callerProfile?.role ?? '(tidak ada)'}`;
-    return { error: { status: 403, message: `Hanya superadmin yang boleh melakukan aksi ini. [${detail}]` } };
+  if (profileError || !callerProfile) {
+    return { error: { status: 403, message: 'Akun ini belum terdaftar sebagai staf KAsir.' } };
   }
 
-  return { adminClient, callerId: callerData.user.id };
+  return { adminClient, callerId: callerData.user.id, role: callerProfile.role };
+}
+
+// Memverifikasi bahwa permintaan datang dari superadmin yang sedang login. Dibangun di atas
+// verifyStaff, lalu menolak kalau rolenya bukan superadmin.
+export async function verifySuperadmin(req) {
+  const staff = await verifyStaff(req);
+  if (staff.error) return staff;
+
+  if (staff.role !== 'superadmin') {
+    return { error: { status: 403, message: `Hanya superadmin yang boleh melakukan aksi ini. [role: ${staff.role}]` } };
+  }
+
+  return staff;
 }

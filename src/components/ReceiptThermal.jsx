@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Printer } from 'lucide-react';
-import { formatRupiah, formatDate } from '../utils/format';
+import { formatRupiah, formatDate, getInvoiceNumber } from '../utils/format';
 
 const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }) => {
   const [isPrinting, setIsConnecting] = useState(false);
@@ -111,7 +111,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
       await left();
       await printLine(formatRow('Waktu:', formatDate(transaction.date)));
       await printLine(formatRow('Kasir:', transaction.cashierName || 'Admin'));
-      await printLine(formatRow('INV:', transaction.id));
+      await printLine(formatRow('INV:', getInvoiceNumber(transaction)));
       await printLine('--------------------------------');
 
       await center();
@@ -226,7 +226,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
               </div>
               <div className="flex justify-between border-t border-dotted border-black mt-1 pt-1">
                 <span>NO. INVOICE:</span>
-                <span className="font-bold">{transaction.id}</span>
+                <span className="font-bold">{getInvoiceNumber(transaction)}</span>
               </div>
             </div>
 
@@ -278,7 +278,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, btDevice }
                     <div key={i} className="bg-black h-full" style={{ width: `${w}px` }}></div>
                   ))}
                 </div>
-                <p className="mt-1 tracking-[0.3em] font-bold text-[8px]">{transaction.id}</p>
+                <p className="mt-1 tracking-[0.3em] font-bold text-[8px]">{getInvoiceNumber(transaction)}</p>
               </div>
             </div>
           </div>

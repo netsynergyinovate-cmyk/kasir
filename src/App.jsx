@@ -396,6 +396,7 @@ export default function App() {
         payment_method: newTrx.paymentMethod || newTrx.payment_method || 'Cash',
         amount_paid: Number(newTrx.amountPaid) || Number(newTrx.price) || 0,
         cashier_name: newTrx.cashierName || newTrx.cashier_name || 'Admin',
+        invoice_number: newTrx.invoiceNumber || newTrx.invoice_number || null,
         type: 'retail'
       };
 

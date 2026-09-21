@@ -23,6 +23,11 @@ export const formatRupiahCompact = (angka) => {
   return `${value}`;
 };
 
+// Nomor invoice yang ditampilkan ke pelanggan (struk, riwayat): kode asli Runsnet kalau ketemu
+// saat transaksi dibuat (lihat pickInvoiceNumber di utils/runsnetSync.js), kalau tidak ada
+// (transaksi lama, atau tidak ketemu di Runsnet) pakai id transaksi seperti biasa.
+export const getInvoiceNumber = (transaction) => transaction?.invoice_number || transaction?.invoiceNumber || transaction?.id || '';
+
 export const formatDate = (isoString) => {
   if (!isoString) return '';
   const date = new Date(isoString);

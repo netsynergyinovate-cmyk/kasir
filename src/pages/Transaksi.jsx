@@ -1,7 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { Wifi, Printer, Key, UserCheck, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
+import { pickInvoiceNumber } from '../utils/runsnetSync';
 import './Transaksi.css';
+
+// Cari nomor invoice asli Runsnet buat pelanggan ini (custid), timeout 6 detik supaya kasir
+// tidak pernah terhambat lama kalau Runsnet lambat/mati — kalau gagal/timeout, null (nomor lokal
+// dipakai sebagai cadangan, lihat pickInvoiceNumber).
+async function lookupRunsnetInvoice({ query, localId, accessToken }) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  try {
+    const response = await fetch('/api/runsnet/invoice-lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ query, localId }),
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const result = await response.json();
+    return result.invoice || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 const resolvePackageAndPrice = (cust, packagesList = []) => {
   if (!cust) return null;
@@ -55,6 +79,7 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
   const [searchCust, setSearchCust] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCustomerData, setSelectedCustomerData] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredCustomers = customers
     .filter(c => {
@@ -122,27 +147,35 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
     setIsSearching(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    
+
     if (!selectedCustomerData) {
       alert('Wajib memilih pelanggan dari daftar dropdown / auto-complete!');
       return;
     }
 
     const currentPkg = activePackage || resolvePackageAndPrice(selectedCustomerData, packages);
-    
+
     const bayar = Number(amountPaid) || currentPkg.price;
     const selectedDate = formData.get('printDate') ? new Date(formData.get('printDate')) : new Date();
     const now = new Date();
     selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
-    
+
     const targetCust = selectedCustomerData;
     const custIdValue = targetCust.custid || targetCust.customer_id || targetCust.pppoe_id || targetCust.pppoeId || targetCust.id;
-    
+    const localId = `INV-${Date.now()}`;
+
+    setIsSubmitting(true);
+    const invoice = session?.access_token
+      ? await lookupRunsnetInvoice({ query: custIdValue, localId, accessToken: session.access_token })
+      : null;
+    setIsSubmitting(false);
+
     const newTransaction = {
-      id: `INV-${Date.now()}`,
+      id: localId,
+      invoiceNumber: pickInvoiceNumber({ localId, invoice }),
       date: selectedDate.toISOString(),
       custid: custIdValue,
       customerId: custIdValue,
@@ -157,7 +190,7 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
       cashierName: formData.get('cashierName') || companyInfo?.adminName || 'Admin Utama',
       type: 'retail'
     };
-    
+
     onComplete(newTransaction);
     e.target.reset();
     setSelectedCust('');
@@ -390,12 +423,12 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
           </div>
         </div>
 
-        <button 
-          type="submit" 
-          disabled={!selectedCustomerData || !activePackage} 
+        <button
+          type="submit"
+          disabled={!selectedCustomerData || !activePackage || isSubmitting}
           className="w-full bg-blue-600 text-white font-black text-lg py-4 rounded-2xl mt-4 shadow-xl shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95"
         >
-          <Printer size={20} /> {!selectedCustomerData ? 'Pilih Pelanggan Dulu' : 'Cetak Struk (58mm)'}
+          <Printer size={20} /> {!selectedCustomerData ? 'Pilih Pelanggan Dulu' : (isSubmitting ? 'Menyamakan Nomor Invoice...' : 'Cetak Struk (58mm)')}
         </button>
       </form>
     </div>

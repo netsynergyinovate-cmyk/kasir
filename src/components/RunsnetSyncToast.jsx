@@ -34,6 +34,7 @@ const RunsnetSyncToast = ({ watchId }) => {
         .from('runsnet_sync_log')
         .select('status, message')
         .eq('transaction_id', watchId)
+        .eq('stage', 'payment')
         .maybeSingle();
       if (cancelled) return;
 
