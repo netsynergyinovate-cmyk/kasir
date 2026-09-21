@@ -101,3 +101,16 @@ export function pickPaymentTarget(transaction) {
   const isRunsnetCode = number && number !== transaction.id && !/^INV-\d+$/.test(number);
   return { code: isRunsnetCode ? number : null, query: buildSearchQuery(transaction) };
 }
+
+// Menilai respons HTTP dari perintah bayar Runsnet. Dialihkan (302) ke login.php berarti SESI TIDAK VALID: perintah
+// tidak dijalankan sama sekali, walau HTTP-nya bukan error. Hanya status "ok" yang layak dianggap terkirim.
+export function describePayResponse({ status, location }) {
+  const where = location ? ` → ${location}` : '';
+  if (status >= 300 && status < 400 && /login\.php/i.test(location || '')) {
+    return { ok: false, reason: `Sesi login Runsnet tidak valid (HTTP ${status}${where}); perintah bayar TIDAK dijalankan.` };
+  }
+  if (status >= 400) {
+    return { ok: false, reason: `Runsnet menolak perintah bayar (HTTP ${status}${where}).` };
+  }
+  return { ok: true, reason: `HTTP ${status}${where}` };
+}

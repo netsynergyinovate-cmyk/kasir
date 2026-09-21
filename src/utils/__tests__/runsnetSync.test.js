@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber, pickPaymentTarget } from '../runsnetSync';
+import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber, pickPaymentTarget, describePayResponse } from '../runsnetSync';
 
 const trx = (over) => ({
   id: 't1', status: 'LUNAS', type: 'retail', payment_method: 'CASH',
@@ -191,5 +191,23 @@ describe('pickPaymentTarget', () => {
     expect(pickPaymentTarget(trx({ id: 'INV-1789', invoice_number: 'INV-1789' })).code).toBeNull();
     expect(pickPaymentTarget(trx({ id: 'INV-1789', invoice_number: null })).code).toBeNull();
     expect(pickPaymentTarget(trx({ id: 'INV-1789', invoice_number: null, customer_name: 'ANITA' })).query).toBe('ANITA');
+  });
+});
+
+describe('describePayResponse', () => {
+  it('treats a redirect to login.php as an invalid session, not as sent', () => {
+    const r = describePayResponse({ status: 302, location: '../login.php?result=Q4' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/sesi/i);
+    expect(r.reason).toContain('TIDAK dijalankan');
+  });
+
+  it('treats HTTP errors as rejected', () => {
+    expect(describePayResponse({ status: 500, location: null }).ok).toBe(false);
+  });
+
+  it('accepts a normal response (the real result is proven afterwards by the PAID check)', () => {
+    expect(describePayResponse({ status: 200, location: null }).ok).toBe(true);
+    expect(describePayResponse({ status: 302, location: 'index.php?x=y' }).ok).toBe(true);
   });
 });

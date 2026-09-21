@@ -1,5 +1,5 @@
 import process from 'node:process';
-import { isConfigPlaceholder, parseInvoiceListResponse, stripHtml } from '../../src/utils/runsnetSync.js';
+import { isConfigPlaceholder, parseInvoiceListResponse, stripHtml, describePayResponse } from '../../src/utils/runsnetSync.js';
 import { parsePelangganRow } from '../../src/utils/runsnetCustomers.js';
 
 // Dibaca lewat fungsi (bukan konstanta top-level) supaya skrip lokal yang memuat .env.local
@@ -80,7 +80,8 @@ async function loginToRunsnet() {
     redirect: 'manual',
   });
 
-  const cookie = response.headers.get('set-cookie');
+  // Yang dikirim balik ke server hanya pasangan nama=nilai (bukan atribut path/expires dari Set-Cookie).
+  const cookie = response.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
   if (!cookie) {
     throw new Error('Login Runsnet gagal: server tidak mengirim cookie sesi. Cek RUNSNET_USERNAME/PASSWORD.');
   }
@@ -100,16 +101,32 @@ export async function pingRunsnet() {
 
 // Sesi login disimpan di tabel runsnet_session supaya tidak login ulang tiap transaksi
 // (Vercel Function stateless antar pemanggilan; login berulang bisa memicu proteksi anti-bot).
-export async function ensureSession(supabaseAdmin) {
+export async function ensureSession(supabaseAdmin, { force = false } = {}) {
   const { data } = await supabaseAdmin.from('runsnet_session').select('cookie, updated_at').eq('id', 1).maybeSingle();
 
   const ageMs = data?.updated_at ? Date.now() - new Date(data.updated_at).getTime() : Infinity;
   const ONE_HOUR = 60 * 60 * 1000;
-  if (data?.cookie && ageMs < ONE_HOUR) return data.cookie;
+  if (!force && data?.cookie && ageMs < ONE_HOUR) return data.cookie;
 
   const cookie = await loginToRunsnet();
   await supabaseAdmin.from('runsnet_session').upsert({ id: 1, cookie, updated_at: new Date().toISOString() });
   return cookie;
+}
+
+// true kalau cookie sesi masih diterima Runsnet: memuat halaman daftar invoice tidak dialihkan ke login.php.
+// Sesi bisa habis sendiri atau tergeser kalau akun yang sama login di tempat lain, jadi dicek tepat sebelum membayar.
+export async function isSessionValid(cookie) {
+  const url = new URL(`${getBaseUrl()}/view/index.php`);
+  url.searchParams.set(CONFIG.menuKeyParam, CONFIG.invoiceListMenuValue);
+  const response = await fetch(url, { method: 'GET', headers: { Cookie: cookie }, redirect: 'manual' });
+  return response.status === 200;
+}
+
+// Sesi yang pasti valid: pakai sesi tersimpan kalau masih diterima Runsnet, kalau tidak login ulang.
+export async function ensureValidSession(supabaseAdmin) {
+  const cookie = await ensureSession(supabaseAdmin);
+  if (await isSessionValid(cookie)) return cookie;
+  return ensureSession(supabaseAdmin, { force: true });
 }
 
 // Kolom filter tanggal endpoint pencarian (format MM/DD/YYYY, sesuai input date-range Runsnet).
@@ -234,13 +251,17 @@ export async function payInvoiceCash(cookie, invoiceCode) {
   url.searchParams.set('data2', 'Pembayaran Tunai');
   url.searchParams.set('data3', today);
 
+  const listUrl = new URL(`${getBaseUrl()}/view/index.php`);
+  listUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.invoiceListMenuValue);
+
   const response = await fetch(url, {
     method: 'GET',
-    headers: { Cookie: cookie },
+    headers: { Cookie: cookie, Referer: listUrl.toString() },
     redirect: 'manual',
   });
-  if (response.status >= 400) throw new Error(`Pembayaran Runsnet gagal: HTTP ${response.status}`);
-  return { invoiceCode, paidAt: today };
+  const verdict = describePayResponse({ status: response.status, location: response.headers.get('location') });
+  if (!verdict.ok) throw new Error(verdict.reason);
+  return { invoiceCode, paidAt: today, response: verdict.reason };
 }
 
 // Kolom tabel Pelanggan Runsnet, sama urutan dengan <thead> aslinya.

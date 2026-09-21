@@ -1,5 +1,5 @@
 import { shouldSyncTransaction, pickPaymentTarget } from '../../src/utils/runsnetSync.js';
-import { ensureSession, searchInvoice, payInvoiceCash, verifyInvoicePaid, isRunsnetConfigured } from './runsnetClient.js';
+import { ensureValidSession, isSessionValid, ensureSession, searchInvoice, payInvoiceCash, verifyInvoicePaid, isRunsnetConfigured } from './runsnetClient.js';
 
 // Mengirim pembayaran satu transaksi KAsir ke Runsnet dan MEMBUKTIKAN hasilnya: status 'success' di log
 // hanya dicatat kalau Runsnet sendiri menunjukkan invoice itu berstatus PAID setelah dibayar. Dipanggil
@@ -49,7 +49,7 @@ export async function syncPayment(supabase, transaction) {
   }
 
   try {
-    const cookie = await ensureSession(supabase);
+    let cookie = await ensureValidSession(supabase);
 
     // 1. Tentukan invoice PENDING yang akan dibayar.
     let invoice;
@@ -68,14 +68,24 @@ export async function syncPayment(supabase, transaction) {
       }
     }
 
-    // 2. Bayar (efek nyata di Runsnet), lalu 3. buktikan lewat status PAID.
-    await payInvoiceCash(cookie, invoice.id);
+    // 2. Bayar (efek nyata di Runsnet), lalu 3. buktikan lewat status PAID. Sesi dicek lagi tepat sebelum bayar.
+    if (!(await isSessionValid(cookie))) cookie = await ensureSession(supabase, { force: true });
+    let payResult;
+    try {
+      payResult = await payInvoiceCash(cookie, invoice.id);
+    } catch (payError) {
+      return log('failed', {
+        search_query: label,
+        runsnet_ref: String(invoice.id),
+        message: `Langkah 2 dari 3 (kirim perintah bayar) gagal: ${payError.message}`,
+      });
+    }
     const paid = await verifyInvoicePaid(cookie, invoice.id);
     if (!paid) {
       return log('failed', {
         search_query: label,
         runsnet_ref: String(invoice.id),
-        message: `Perintah bayar untuk ${invoice.id} sudah dikirim, tetapi Runsnet belum menunjukkan status PAID. Periksa manual di Runsnet sebelum mengirim ulang.`,
+        message: `Langkah 3 dari 3 (cek status PAID) gagal: perintah bayar untuk ${invoice.id} dijawab Runsnet ${payResult.response}, tetapi invoice belum berstatus PAID. Periksa manual di Runsnet sebelum mengirim ulang.`,
       });
     }
     return log('success', { search_query: label, runsnet_ref: String(invoice.id), message: `Invoice ${invoice.id} terbukti berstatus PAID di Runsnet.` });
