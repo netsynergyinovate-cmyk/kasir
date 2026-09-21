@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Building2, Lock, Mail, Loader2, Eye, EyeOff, Smartphone, MapPin } from 'lucide-react';
 import { getDeviceLabel } from '../utils/deviceId';
 import { fetchApproxLocation } from '../utils/authProfile';
+import { readAuthRedirectError } from '../utils/authRedirectError';
 
 const Login = ({ externalError }) => {
   const [email, setEmail] = useState('');
@@ -10,7 +11,11 @@ const Login = ({ externalError }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(() => {
+    const redirectError = readAuthRedirectError(window.location.href);
+    if (redirectError) window.history.replaceState(null, '', window.location.pathname);
+    return redirectError ? `Login Google gagal: ${redirectError}` : null;
+  });
   const [googleLoading, setGoogleLoading] = useState(false);
   const [geo, setGeo] = useState({ loaded: false, ip: null, location: null });
   const deviceLabel = getDeviceLabel();

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { loadVerifiedProfile } from '../authProfile';
+import { loadVerifiedProfile, fetchApproxLocation } from '../authProfile';
 
 const makeClient = ({ profile, selectError = null, rpcError = null }) => {
   const rpc = vi.fn(async () => ({ error: rpcError }));
@@ -97,5 +97,38 @@ describe('loadVerifiedProfile', () => {
     const result = await loadVerifiedProfile(client, session);
     expect(result.error).toMatch(/terkunci ke device lain/);
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchApproxLocation', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to the next provider when the first one fails', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ip: '5.6.7.8', city: 'Bandung', country: 'Indonesia' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await fetchApproxLocation();
+    expect(result).toEqual({ ip: '5.6.7.8', location: 'Bandung, Indonesia' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('caches a successful lookup for the tab session', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ ip: '1.1.1.1', city: 'Jakarta', country: 'Indonesia' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    await fetchApproxLocation();
+    await fetchApproxLocation();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns nulls when every provider fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+    expect(await fetchApproxLocation()).toEqual({ ip: null, location: null });
   });
 });

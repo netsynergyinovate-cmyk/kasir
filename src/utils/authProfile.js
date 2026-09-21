@@ -3,20 +3,50 @@ import { getOrCreateDeviceId, getDeviceLabel } from './deviceId';
 const PROFILE_COLUMNS = 'id, full_name, role, device_id, device_label';
 const RECORDED_KEY = 'kasir_login_recorded';
 
-// Lokasi perkiraan dari IP publik (best-effort, gagal diam-diam jika offline/diblokir).
+const GEO_CACHE_KEY = 'kasir_geo_cache';
+// Layanan geolokasi IP yang mengizinkan pemanggilan dari browser (CORS); dicoba berurutan.
+const GEO_PROVIDERS = ['https://get.geojs.io/v1/ip/geo.json', 'https://ipwho.is/'];
+
+async function fetchFromProvider(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.success === false) return null;
+    const location = [data.city, data.country_name || data.country].filter(Boolean).join(', ') || null;
+    const ip = data.ip || null;
+    return ip || location ? { ip, location } : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Lokasi perkiraan dari IP publik (best-effort). Hasil sukses di-cache per sesi tab agar tidak
+// kena batas permintaan; gagal diam-diam jika offline/diblokir.
 export async function fetchApproxLocation() {
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch('https://ipapi.co/json/', { signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) return { ip: null, location: null };
-    const data = await res.json();
-    const location = [data.city, data.country_name].filter(Boolean).join(', ') || null;
-    return { ip: data.ip || null, location };
+    const cached = sessionStorage.getItem(GEO_CACHE_KEY);
+    if (cached) return JSON.parse(cached);
   } catch {
-    return { ip: null, location: null };
+    // cache tidak tersedia; lanjut ke jaringan.
   }
+
+  for (const url of GEO_PROVIDERS) {
+    const result = await fetchFromProvider(url);
+    if (result) {
+      try {
+        sessionStorage.setItem(GEO_CACHE_KEY, JSON.stringify(result));
+      } catch {
+        // abaikan
+      }
+      return result;
+    }
+  }
+  return { ip: null, location: null };
 }
 
 export function clearLoginRecorded() {
