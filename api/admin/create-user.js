@@ -7,7 +7,15 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { error, adminClient } = await verifySuperadmin(req);
+  let auth;
+  try {
+    auth = await verifySuperadmin(req);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+    return;
+  }
+
+  const { error, adminClient } = auth;
   if (error) {
     res.status(error.status).json({ error: error.message });
     return;
