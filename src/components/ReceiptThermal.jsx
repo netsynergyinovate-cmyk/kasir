@@ -194,6 +194,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
       // Isi struk dari sumber yang sama dengan pratinjau (utils/receiptLines.js).
       let currentAlign = 'center';
       let currentBold = false;
+      let currentSize = 'normal';
       for (const l of receiptLines) {
         if (l.align !== currentAlign) {
           await (l.align === 'center' ? center() : left());
@@ -203,9 +204,16 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
           await (l.bold ? boldOn() : boldOff());
           currentBold = l.bold;
         }
+        if (l.size !== currentSize) {
+          // GS ! n: 0x11 = lebar & tinggi 2x, 0x01 = tinggi 2x saja, 0x00 = normal.
+          const sizeCode = l.size === 'large' ? 0x11 : l.size === 'tall' ? 0x01 : 0x00;
+          await characteristic.writeValue(new Uint8Array([0x1d, 0x21, sizeCode]));
+          currentSize = l.size;
+        }
         await printLine(l.text);
       }
       if (currentBold) await boldOff();
+      if (currentSize !== 'normal') await characteristic.writeValue(new Uint8Array([0x1d, 0x21, 0x00]));
       await feed();
       setToast({ title: 'Struk berhasil dicetak', sub: `Invoice ${getInvoiceNumber(transaction)}` });
       return true;
@@ -288,10 +296,17 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
             {logoData && (
               <img src={logoData} alt="Logo" width={160} className="block mx-auto mb-2" style={{ imageRendering: 'pixelated' }} />
             )}
-            <div className="font-mono text-[13px] leading-[1.4] print:text-[10px]">
+            {/* Lebar tepat 32 karakter dan di tengah kertas, supaya garis pemisah dan teks tengah sejajar. */}
+            <div className="mx-auto font-mono text-[13px] leading-[1.4] print:text-[10px]" style={{ width: '32ch' }}>
               {receiptLines.map((l, i) => (
-                <div key={i} className={`whitespace-pre ${l.align === 'center' ? 'text-center' : 'text-left'} ${l.bold ? 'font-bold' : ''}`}>
-                  {l.text || ' '}
+                <div
+                  key={i}
+                  className={`whitespace-pre ${l.align === 'center' ? 'text-center' : 'text-left'} ${l.bold ? 'font-bold' : ''} ${l.size === 'large' ? 'text-[2em] leading-[1.15]' : ''}`}
+                  style={l.size === 'tall' ? { height: '2.8em' } : undefined}
+                >
+                  {l.size === 'tall'
+                    ? <div style={{ transform: 'scaleY(2)', transformOrigin: 'top' }}>{l.text || ' '}</div>
+                    : (l.text || ' ')}
                 </div>
               ))}
             </div>

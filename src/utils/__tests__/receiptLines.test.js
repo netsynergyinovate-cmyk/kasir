@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildReceiptLines, RECEIPT_WIDTH } from '../receiptLines';
+import { buildReceiptLines, RECEIPT_WIDTH, LARGE_WIDTH } from '../receiptLines';
 
 const company = { name: 'PT Net Synergy Inovate', address: 'RT 02/RW 00, Dusun I, Pasar Sabtu, Desa Tunggal Jaya, Teras Terunjam, Mukomuko, Bengkulu', phone: '085179722146' };
 const trx = (over) => ({
@@ -10,49 +10,49 @@ const trx = (over) => ({
 const texts = (lines) => lines.map((l) => l.text);
 
 describe('buildReceiptLines', () => {
-  it('never produces a line wider than the printer (32 columns), so preview and print wrap identically', () => {
-    buildReceiptLines(trx(), company).forEach((l) => expect(l.text.length).toBeLessThanOrEqual(RECEIPT_WIDTH));
+  it('keeps normal lines within 32 columns and large (double-size) lines within 16, so preview and print wrap identically', () => {
+    buildReceiptLines(trx(), company).forEach((l) => {
+      expect(l.text.length).toBeLessThanOrEqual(l.size === 'large' ? LARGE_WIDTH : RECEIPT_WIDTH);
+    });
   });
 
-  it('centers the header block: company name, address, WA and the receipt title', () => {
+  it('prints the company name and the receipt title in tall (double-height) bold centered type', () => {
     const lines = buildReceiptLines(trx(), company);
-    const centered = texts(lines.filter((l) => l.align === 'center'));
-    expect(centered).toContain('PT NET SYNERGY INOVATE');
-    expect(centered).toContain('STRUK PEMBAYARAN');
-    expect(centered.some((t) => t.startsWith('WA:'))).toBe(true);
-    expect(lines.find((l) => l.text === 'PT NET SYNERGY INOVATE').bold).toBe(true);
+    const big = lines.filter((l) => l.size === 'tall');
+    expect(texts(big)).toContain('STRUK PEMBAYARAN');
+    expect(texts(big)).toContain('PT NET SYNERGY INOVATE');
+    big.forEach((l) => expect(l).toMatchObject({ align: 'center', bold: true }));
   });
 
-  it('wraps a long company address over several centered lines', () => {
+  it('centers the address and WA lines under the company name', () => {
     const lines = buildReceiptLines(trx(), company);
-    const nameIdx = lines.findIndex((l) => l.text === 'PT NET SYNERGY INOVATE');
-    const waIdx = lines.findIndex((l) => l.text.startsWith('WA:'));
-    expect(waIdx - nameIdx).toBeGreaterThan(2);
+    const wa = lines.find((l) => l.text.startsWith('WA:'));
+    expect(wa.align).toBe('center');
+    expect(lines.filter((l) => l.align === 'center' && l.size === 'normal' && l.text.includes('Bengkulu')).length).toBe(1);
+  });
+
+  it('shows the total amount in large type and the payment status in tall type, both centered', () => {
+    const lines = buildReceiptLines(trx(), company);
+    expect(texts(lines.filter((l) => l.size === 'large'))).toEqual(['Rp 250.000']);
+    expect(texts(lines.filter((l) => l.size === 'tall'))).toContain('LUNAS');
   });
 
   it('aligns every colon of the data rows in the same column', () => {
     const rows = buildReceiptLines(trx({ pppoeId: 'budi01' }), company).filter((l) => l.align === 'left' && /^[A-Za-z ]{1,7} : /.test(l.text));
-    expect(rows.length).toBeGreaterThanOrEqual(9);
+    expect(rows.length).toBeGreaterThanOrEqual(8);
     rows.forEach((l) => expect(l.text.indexOf(':')).toBe(8));
   });
 
-  it('shows the Runsnet invoice number and the payment status (bold) as rows', () => {
-    const lines = buildReceiptLines(trx(), company);
-    expect(lines.find((l) => l.text.startsWith('Invoice')).text).toMatch(/: INVRT202609000855$/);
-    expect(lines.find((l) => l.text.startsWith('Status'))).toMatchObject({ bold: true });
+  it('shows the Runsnet invoice number on the Invoice row', () => {
+    expect(buildReceiptLines(trx(), company).find((l) => l.text.startsWith('Invoice')).text).toMatch(/: INVRT202609000855$/);
   });
 
-  it('right-aligns money values to the full width and makes Total bold', () => {
-    const total = buildReceiptLines(trx(), company).find((l) => l.text.startsWith('Total'));
-    expect(total.text).toMatch(/Rp 250\.000$/);
-    expect(total.text.length).toBe(RECEIPT_WIDTH);
-    expect(total.bold).toBe(true);
-  });
-
-  it('shows the method, the amount paid, and change without ever going negative', () => {
+  it('shows the method, the amount paid right-aligned, and change without ever going negative', () => {
     const lines = buildReceiptLines(trx({ amountPaid: 300000 }), company);
     expect(lines.find((l) => l.text.startsWith('Metode')).text).toMatch(/: Cash$/);
-    expect(lines.find((l) => l.text.startsWith('Bayar')).text).toMatch(/Rp 300\.000$/);
+    const bayar = lines.find((l) => l.text.startsWith('Bayar'));
+    expect(bayar.text).toMatch(/Rp 300\.000$/);
+    expect(bayar.text.length).toBe(RECEIPT_WIDTH);
     expect(lines.find((l) => l.text.startsWith('Kembali')).text).toMatch(/Rp 50\.000$/);
     const short = buildReceiptLines(trx({ amountPaid: 100000 }), company);
     expect(short.find((l) => l.text.startsWith('Kembali')).text).toMatch(/Rp 0$/);
@@ -75,5 +75,15 @@ describe('buildReceiptLines', () => {
     const idx = lines.findIndex((l) => l.text === 'TERIMA KASIH');
     expect(idx).toBeGreaterThan(-1);
     expect(lines[idx]).toMatchObject({ align: 'center', bold: true });
+  });
+
+  it('produces the same receipt for a transaction read back from the database (snake_case, as opened from Riwayat)', () => {
+    const fresh = trx({ amountPaid: 300000, pppoeId: 'budi01' });
+    const fromDb = {
+      id: 'INV-1', invoice_number: 'INVRT202609000855', date: fresh.date, cashier_name: 'Super Administrator',
+      status: 'LUNAS', customer_name: 'Aguinus Iwan Pujianto', package_name: 'NET.SI NETWORK 15 Mbps',
+      price: 250000, amount_paid: 300000, payment_method: 'Cash', pppoe_id: 'budi01',
+    };
+    expect(buildReceiptLines(fromDb, company)).toEqual(buildReceiptLines(fresh, company));
   });
 });

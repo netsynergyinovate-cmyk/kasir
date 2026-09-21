@@ -33,8 +33,15 @@ export function wrapText(text, width = RECEIPT_WIDTH) {
   return lines;
 }
 
-const line = (text, opts = {}) => ({ text, align: 'left', bold: false, ...opts });
+// Ukuran huruf: 'normal'; 'tall' = tinggi 2x, lebar tetap (ESC/POS GS ! 0x01, tetap muat 32 kolom) untuk
+// nama usaha, judul, dan status; 'large' = lebar & tinggi 2x (GS ! 0x11) hanya muat separuh kolom, jadi
+// teks dipotong selebar LARGE_WIDTH — khusus nominal total.
+export const LARGE_WIDTH = RECEIPT_WIDTH / 2;
+
+const line = (text, opts = {}) => ({ text, align: 'left', bold: false, size: 'normal', ...opts });
 const center = (text, opts = {}) => line(text, { align: 'center', ...opts });
+const large = (text) => wrapText(text, LARGE_WIDTH).map((t) => line(t, { align: 'center', bold: true, size: 'large' }));
+const tall = (text) => wrapText(text, RECEIPT_WIDTH).map((t) => line(t, { align: 'center', bold: true, size: 'tall' }));
 
 // Tabel "Label : nilai" — label selebar LABEL_WIDTH sehingga titik dua selalu sejajar lurus. Nilai yang
 // panjang dipotong ke baris berikutnya dengan menjorok sejajar nilai. money: nilai rata kanan (kolom angka).
@@ -50,37 +57,56 @@ function field(label, value, { bold = false, money = false } = {}) {
   return parts.map((part, i) => line((i === 0 ? prefix : indent) + (money ? part.padStart(VALUE_WIDTH) : part), { bold }));
 }
 
+// Transaksi dari form baru memakai camelCase, yang dibaca ulang dari database (Riwayat) memakai snake_case.
+// Diseragamkan di sini supaya struk cetak ulang dari Riwayat persis sama dengan struk saat transaksi dibuat.
+function normalize(t) {
+  const price = Number(t.price) || 0;
+  return {
+    date: t.date,
+    cashierName: t.cashierName ?? t.cashier_name,
+    customerName: t.customerName ?? t.customer_name,
+    packageName: t.packageName ?? t.package_name,
+    paymentMethod: t.paymentMethod ?? t.payment_method,
+    pppoe: t.pppoeId ?? t.pppoe_id,
+    status: t.status,
+    price,
+    paid: Number(t.amountPaid ?? t.amount_paid) || price,
+    invoice: getInvoiceNumber(t),
+  };
+}
+
 export function buildReceiptLines(transaction, companyInfo = {}) {
-  const t = transaction;
-  const paid = t.amountPaid || t.price;
+  const t = normalize(transaction);
   const dash = '-'.repeat(RECEIPT_WIDTH);
   const double = '='.repeat(RECEIPT_WIDTH);
   const out = [];
 
-  // Kop: nama usaha, alamat, dan kontak rata tengah.
-  out.push(center(String(companyInfo.name || '').toUpperCase(), { bold: true }));
+  // Kop: nama usaha besar, alamat dan kontak rata tengah.
+  out.push(...tall(String(companyInfo.name || '').toUpperCase()));
   wrapText(companyInfo.address).forEach((a) => out.push(center(a)));
   if (companyInfo.phone) out.push(center(`WA: ${companyInfo.phone}`));
   out.push(line(double));
-  out.push(center('STRUK PEMBAYARAN', { bold: true }));
+  out.push(...tall('STRUK PEMBAYARAN'));
   out.push(line(double));
 
   out.push(...field('Waktu', formatReceiptDate(t.date)));
   out.push(...field('Kasir', t.cashierName || 'Admin'));
-  out.push(...field('Invoice', getInvoiceNumber(t)));
-  out.push(...field('Status', String(t.status || '').toUpperCase(), { bold: true }));
+  out.push(...field('Invoice', t.invoice));
   out.push(line(dash));
 
   out.push(...field('Nama', String(t.customerName || '').toUpperCase(), { bold: true }));
-  const pppoe = t.pppoeId || t.pppoe_id;
-  if (pppoe) out.push(...field('PPPoE', pppoe));
+  if (t.pppoe) out.push(...field('PPPoE', t.pppoe));
   out.push(...field('Layanan', t.packageName || ''));
   out.push(line(dash));
 
-  out.push(...field('Total', formatRupiah(t.price), { bold: true, money: true }));
+  out.push(center('TOTAL PEMBAYARAN', { bold: true }));
+  out.push(...large(formatRupiah(t.price)));
   out.push(...field('Metode', t.paymentMethod || '-'));
-  out.push(...field('Bayar', formatRupiah(paid), { money: true }));
-  out.push(...field('Kembali', formatRupiah(Math.max(0, paid - t.price)), { money: true }));
+  out.push(...field('Bayar', formatRupiah(t.paid), { money: true }));
+  out.push(...field('Kembali', formatRupiah(Math.max(0, t.paid - t.price)), { money: true }));
+  out.push(line(double));
+
+  out.push(...tall(String(t.status || '').toUpperCase()));
   out.push(line(double));
 
   out.push(center('TERIMA KASIH', { bold: true }));
