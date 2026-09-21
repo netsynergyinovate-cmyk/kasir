@@ -180,8 +180,16 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
 
       {/* Tujuan berikutnya */}
       {routeCustomers.length === 0 ? (
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 text-center text-xs text-gray-500">
-          Belum ada rumah di rute. {isSuper ? 'Klik "Atur Rute" lalu tambahkan pelanggan.' : 'Superadmin belum menyusun rute.'}
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 text-center space-y-3">
+          <p className="text-sm font-bold text-gray-800">Belum ada rumah di rute.</p>
+          <p className="text-xs text-gray-500">
+            {isSuper ? 'Tambahkan pelanggan ke rute, isi koordinat rumahnya, lalu peta dan jalur kunjungan akan muncul di sini.' : 'Superadmin belum menyusun rute.'}
+          </p>
+          {isSuper && (
+            <button type="button" onClick={() => setEditMode(true)} className="px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-indigo-200">
+              Mulai Atur Rute
+            </button>
+          )}
         </div>
       ) : nextStop ? (
         <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-4 rounded-2xl shadow-lg shadow-indigo-200 space-y-3">
@@ -225,6 +233,19 @@ const Rute = ({ customers = [], transactions = [], visits = [], role, onAddVisit
       )}
 
       {/* Peta */}
+      {routeCustomers.length > 0 && mapStops.length === 0 && (
+        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-center space-y-2">
+          <MapPin className="mx-auto text-indigo-500" size={22} />
+          <p className="text-xs font-bold text-indigo-900">Peta muncul setelah koordinat rumah diisi.</p>
+          {isSuper ? (
+            <button type="button" onClick={() => setEditMode(true)} className="px-3 py-2 bg-indigo-600 text-white text-[11px] font-bold rounded-lg">
+              Atur Rute lalu Isi koordinat
+            </button>
+          ) : (
+            <p className="text-[11px] text-indigo-700">Minta superadmin mengisi koordinat rumah pelanggan.</p>
+          )}
+        </div>
+      )}
       {mapStops.length > 0 && (
         <div className="space-y-2">
           <RouteMap stops={mapStops} routeLine={route?.coordinates || null} selectedId={selectedId} onSelect={setSelectedId} />

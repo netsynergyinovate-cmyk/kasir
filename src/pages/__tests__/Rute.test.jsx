@@ -61,3 +61,27 @@ describe('Rute Kunjungan page', () => {
     expect(render('superadmin')).toContain('Atur Rute');
   });
 });
+
+describe('Rute Kunjungan page without a route yet', () => {
+  const emptyHtml = (role, list) => renderToString(
+    <Rute customers={list} transactions={[]} visits={[]} role={role} onAddVisit={() => {}} onUpdateCustomerRoute={() => {}} />
+  ).replace(/<!-- -->/g, '');
+
+  it('guides the superadmin to build the route when the route is empty', () => {
+    const html = emptyHtml('superadmin', [{ id: 'c1', name: 'Ani', route_order: null }]);
+    expect(html).toContain('Belum ada rumah di rute');
+    expect(html).toContain('Mulai Atur Rute');
+  });
+
+  it('tells an admin that the superadmin has not built the route yet', () => {
+    const html = emptyHtml('admin', [{ id: 'c1', name: 'Ani', route_order: null }]);
+    expect(html).toContain('Superadmin belum menyusun rute');
+    expect(html).not.toContain('Mulai Atur Rute');
+  });
+
+  it('explains that the map appears once coordinates are filled in', () => {
+    const html = emptyHtml('superadmin', [{ id: 'c1', name: 'Ani', address: 'Jl. A', route_order: 1, lat: null, lng: null }]);
+    expect(html).toContain('Peta muncul setelah koordinat rumah diisi');
+    expect(html).not.toContain('data-testid="route-map"');
+  });
+});
