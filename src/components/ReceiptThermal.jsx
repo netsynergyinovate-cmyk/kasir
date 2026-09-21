@@ -3,6 +3,7 @@ import { Printer, Download, X, CheckCircle2, Loader2, Save } from 'lucide-react'
 import { toPng } from 'html-to-image';
 import { getInvoiceNumber } from '../utils/format';
 import { buildReceiptLines } from '../utils/receiptLines';
+import { loadReceiptLogo } from '../utils/receiptLogo';
 
 const TOAST_MS = 4000;
 
@@ -15,7 +16,16 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
   const [isCommitting, setIsCommitting] = useState(false);
   const [committed, setCommitted] = useState(!isDraft);
   const [toast, setToast] = useState(null);
+  const [logoData, setLogoData] = useState(null);
   const receiptRef = useRef(null);
+  const logoUrl = companyInfo?.logo;
+
+  // Logo dijadikan hitam-putih murni, dipakai sama persis oleh pratinjau dan printer.
+  useEffect(() => {
+    let cancelled = false;
+    loadReceiptLogo(logoUrl).then((data) => { if (!cancelled) setLogoData(data); });
+    return () => { cancelled = true; };
+  }, [logoUrl]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -167,13 +177,13 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
       await center();
       
       // Print Logo if exists
-      if (companyInfo.logo) {
+      if (logoData) {
         try {
-          const logoData = await printLogo(companyInfo.logo);
+          const logoBytes = await printLogo(logoData);
           // ESC/POS chips can only handle small chunks at a time
           const chunkSize = 512;
-          for (let i = 0; i < logoData.length; i += chunkSize) {
-            await printRaw(logoData.slice(i, i + chunkSize));
+          for (let i = 0; i < logoBytes.length; i += chunkSize) {
+            await printRaw(logoBytes.slice(i, i + chunkSize));
           }
           await printLine(''); // Space after logo
         } catch (err) {
@@ -235,7 +245,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
       img {
         display: block !important;
         visibility: visible !important;
-        width: 120px !important;
+        width: 160px !important;
         height: auto !important;
         margin-left: auto !important;
         margin-right: auto !important;
@@ -275,8 +285,8 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
           <div className="h-3 w-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSI1Ij48cG9seWdvbiBwb2ludHM9IjAsNSA1LDAgMTAsNSIgZmlsbD0id2hpdGUiLz48L3N2Zz4=')] bg-repeat-x absolute -top-[1px] left-0 z-10 print:hidden"></div>
 
           <div className="px-4 py-6 print:p-2">
-            {companyInfo.logo && (
-              <img src={companyInfo.logo} alt="Logo" className="w-16 h-16 object-contain mx-auto mb-3 grayscale brightness-50" />
+            {logoData && (
+              <img src={logoData} alt="Logo" width={160} className="block mx-auto mb-2" style={{ imageRendering: 'pixelated' }} />
             )}
             <div className="font-mono text-[13px] leading-[1.4] print:text-[10px]">
               {receiptLines.map((l, i) => (

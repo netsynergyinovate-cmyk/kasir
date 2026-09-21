@@ -11,6 +11,7 @@ import { testBillingSystemConnection, getEbillingLogs, clearEbillingLogs } from 
 import AdminAccountsPanel from '../components/AdminAccountsPanel';
 import RunsnetSyncPanel from '../components/RunsnetSyncPanel';
 import ToggleSwitch from '../components/ToggleSwitch';
+import { resizeImageFile } from '../utils/imageResize';
 
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
@@ -111,16 +112,16 @@ const Settings = ({
     }
   };
 
-  const handleLogoUpload = (e) => {
+  const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const updated = { ...localCompany, logo: reader.result };
-        setLocalCompany(updated);
-        setCompanyInfo(updated);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    try {
+      const logo = await resizeImageFile(file);
+      const updated = { ...localCompany, logo };
+      setLocalCompany(updated);
+      setCompanyInfo(updated);
+    } catch (err) {
+      alert('Gagal memproses logo: ' + err.message);
     }
   };
 

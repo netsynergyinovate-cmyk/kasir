@@ -667,9 +667,11 @@ export default function App() {
         api_monitoring_key: keyToSave,
         api_monitoring_enabled: mergedSettings.apiMonitoringEnabled ?? false
       };
-      await supabase.from('company_settings').upsert(payload);
+      const { error } = await supabase.from('company_settings').upsert(payload);
+      if (error) throw error;
     } catch (e) {
       console.warn('Supabase settings upsert note:', e);
+      alert('Pengaturan (termasuk logo) belum tersimpan ke database: ' + (e.message || e));
     }
   };
 

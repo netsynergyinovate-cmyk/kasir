@@ -34,52 +34,58 @@ export function wrapText(text, width = RECEIPT_WIDTH) {
 }
 
 const line = (text, opts = {}) => ({ text, align: 'left', bold: false, ...opts });
+const center = (text, opts = {}) => line(text, { align: 'center', ...opts });
 
-// Baris "label ........ nilai" rata kiri-kanan selebar struk; kalau tidak muat, nilai turun ke baris berikutnya.
-function row(label, value, opts = {}) {
-  const v = String(value ?? '');
-  if (label.length + 1 + v.length <= RECEIPT_WIDTH) {
-    return [line(label + ' '.repeat(RECEIPT_WIDTH - label.length - v.length) + v, opts)];
-  }
-  return [line(label, opts), ...wrapText(v, RECEIPT_WIDTH).map((t) => line(t.padStart(RECEIPT_WIDTH), opts))];
+// Tabel "Label : nilai" — label selebar LABEL_WIDTH sehingga titik dua selalu sejajar lurus. Nilai yang
+// panjang dipotong ke baris berikutnya dengan menjorok sejajar nilai. money: nilai rata kanan (kolom angka).
+const LABEL_WIDTH = 7;
+const SEPARATOR = ' : ';
+const VALUE_WIDTH = RECEIPT_WIDTH - LABEL_WIDTH - SEPARATOR.length;
+
+function field(label, value, { bold = false, money = false } = {}) {
+  const prefix = label.padEnd(LABEL_WIDTH) + SEPARATOR;
+  const indent = ' '.repeat(prefix.length);
+  const parts = wrapText(value ?? '', VALUE_WIDTH);
+  if (parts.length === 0) parts.push('');
+  return parts.map((part, i) => line((i === 0 ? prefix : indent) + (money ? part.padStart(VALUE_WIDTH) : part), { bold }));
 }
 
 export function buildReceiptLines(transaction, companyInfo = {}) {
   const t = transaction;
   const paid = t.amountPaid || t.price;
   const dash = '-'.repeat(RECEIPT_WIDTH);
-  const center = (text, opts = {}) => line(text, { align: 'center', ...opts });
+  const double = '='.repeat(RECEIPT_WIDTH);
   const out = [];
 
+  // Kop: nama usaha, alamat, dan kontak rata tengah.
   out.push(center(String(companyInfo.name || '').toUpperCase(), { bold: true }));
   wrapText(companyInfo.address).forEach((a) => out.push(center(a)));
   if (companyInfo.phone) out.push(center(`WA: ${companyInfo.phone}`));
-  out.push(center('='.repeat(RECEIPT_WIDTH)));
+  out.push(line(double));
+  out.push(center('STRUK PEMBAYARAN', { bold: true }));
+  out.push(line(double));
 
-  out.push(...row('Waktu:', formatReceiptDate(t.date)));
-  out.push(...row('Kasir:', t.cashierName || 'Admin'));
-  out.push(...row('INV:', getInvoiceNumber(t)));
+  out.push(...field('Waktu', formatReceiptDate(t.date)));
+  out.push(...field('Kasir', t.cashierName || 'Admin'));
+  out.push(...field('Invoice', getInvoiceNumber(t)));
+  out.push(...field('Status', String(t.status || '').toUpperCase(), { bold: true }));
   out.push(line(dash));
 
-  out.push(center(String(t.status || '').toUpperCase(), { bold: true }));
-  out.push(line(dash));
-
-  out.push(line('PELANGGAN:'));
-  wrapText(String(t.customerName || '').toUpperCase()).forEach((n) => out.push(line(n, { bold: true })));
+  out.push(...field('Nama', String(t.customerName || '').toUpperCase(), { bold: true }));
   const pppoe = t.pppoeId || t.pppoe_id;
-  if (pppoe) wrapText(`ID PPPoE: ${pppoe}`).forEach((p) => out.push(line(p, { bold: true })));
-  wrapText(`LAYANAN: ${t.packageName || ''}`).forEach((p) => out.push(line(p)));
+  if (pppoe) out.push(...field('PPPoE', pppoe));
+  out.push(...field('Layanan', t.packageName || ''));
   out.push(line(dash));
 
-  out.push(...row('TOTAL', formatRupiah(t.price), { bold: true }));
-  out.push(...row('METODE:', t.paymentMethod || ''));
-  out.push(...row('BAYAR:', formatRupiah(paid)));
-  out.push(...row('KEMBALI:', formatRupiah(Math.max(0, paid - t.price))));
-  out.push(line(dash));
+  out.push(...field('Total', formatRupiah(t.price), { bold: true, money: true }));
+  out.push(...field('Metode', t.paymentMethod || '-'));
+  out.push(...field('Bayar', formatRupiah(paid), { money: true }));
+  out.push(...field('Kembali', formatRupiah(Math.max(0, paid - t.price)), { money: true }));
+  out.push(line(double));
 
   out.push(center('TERIMA KASIH', { bold: true }));
-  out.push(center('Layanan internet handal & cepat'));
-  out.push(center('Simpan struk ini sebagai bukti'));
+  out.push(center('Simpan struk ini sebagai'));
+  out.push(center('bukti pembayaran yang sah'));
 
   return out;
 }
