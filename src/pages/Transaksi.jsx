@@ -56,18 +56,22 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCustomerData, setSelectedCustomerData] = useState(null);
 
-  const filteredCustomers = customers.filter(c => {
-    const term = searchCust.toLowerCase();
-    const pppoe = (c.pppoe_id || c.pppoeId || '').toLowerCase();
-    const custIdStr = (c.custid || c.customer_id || c.id || '').toLowerCase();
-    return (
-      c.name.toLowerCase().includes(term) || 
-      (c.nickname && c.nickname.toLowerCase().includes(term)) ||
-      c.address.toLowerCase().includes(term) ||
-      pppoe.includes(term) ||
-      custIdStr.includes(term)
-    );
-  });
+  const filteredCustomers = customers
+    .filter(c => {
+      const term = searchCust.toLowerCase();
+      const pppoe = (c.pppoe_id || c.pppoeId || '').toLowerCase();
+      const custIdStr = (c.custid || c.customer_id || c.id || '').toLowerCase();
+      return (
+        c.name.toLowerCase().includes(term) ||
+        (c.nickname && c.nickname.toLowerCase().includes(term)) ||
+        c.address.toLowerCase().includes(term) ||
+        pppoe.includes(term) ||
+        custIdStr.includes(term)
+      );
+    })
+    // Diurutkan nama A-Z — memudahkan kasir menggulir mencari pelanggan saat lupa namanya
+    // (kotak kosong menampilkan semua pelanggan, bukan cuma hasil ketikan).
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   useEffect(() => {
     if (selectedCust) {
@@ -196,9 +200,9 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
             <div className="relative">
               <div className="relative">
                 <Search size={18} className="absolute left-3.5 top-3.5 text-gray-400" />
-                <input 
-                  type="text" 
-                  placeholder="Ketik untuk mencari (Nama, custid, ID PPPoE)..." 
+                <input
+                  type="text"
+                  placeholder="Ketik nama, atau klik untuk lihat semua pelanggan..."
                   value={searchCust}
                   onChange={(e) => {
                     setSearchCust(e.target.value);
@@ -209,11 +213,12 @@ const Transaksi = ({ customers = [], packages = [], companyInfo, session, onComp
                     }
                   }}
                   onFocus={() => setIsSearching(true)}
+                  onBlur={() => setTimeout(() => setIsSearching(false), 150)}
                   className={`w-full pl-10 pr-3.5 py-3.5 bg-gray-50 border rounded-xl outline-none text-xs font-medium transition-all ${selectedCustomerData ? 'border-emerald-500 bg-emerald-50/20 font-bold text-emerald-900' : 'border-gray-200 focus:ring-2 focus:ring-blue-500'}`}
                 />
               </div>
 
-              {isSearching && searchCust.length > 0 && (
+              {isSearching && (
                 <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
                   {filteredCustomers.length > 0 ? filteredCustomers.map(c => {
                     const pppoe = c.pppoe_id || c.pppoeId;
