@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, RotateCcw, Smartphone, Loader2, X } from 'lucide-react';
+import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
+const ACCOUNT_COLUMNS = 'id, full_name, email, role, device_id, device_label, last_login_at, last_login_device, last_login_location, last_login_ip';
+
+const formatLastLogin = (iso) => {
+  if (!iso) return 'Belum pernah login';
+  return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
 const AdminAccountsPanel = ({ session }) => {
-  const [admins, setAdmins] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formName, setFormName] = useState('');
@@ -16,11 +23,10 @@ const AdminAccountsPanel = ({ session }) => {
   const loadAdmins = async () => {
     const { data, error } = await supabase
       .from('admin_profiles')
-      .select('id, full_name, device_id, device_label, created_at')
-      .eq('role', 'admin')
-      .order('created_at', { ascending: false });
+      .select(ACCOUNT_COLUMNS)
+      .order('last_login_at', { ascending: false, nullsFirst: false });
 
-    if (!error && data) setAdmins(data);
+    if (!error && data) setAccounts(data);
     setIsLoading(false);
   };
 
@@ -28,12 +34,11 @@ const AdminAccountsPanel = ({ session }) => {
     let cancelled = false;
     supabase
       .from('admin_profiles')
-      .select('id, full_name, device_id, device_label, created_at')
-      .eq('role', 'admin')
-      .order('created_at', { ascending: false })
+      .select(ACCOUNT_COLUMNS)
+      .order('last_login_at', { ascending: false, nullsFirst: false })
       .then(({ data, error }) => {
         if (cancelled) return;
-        if (!error && data) setAdmins(data);
+        if (!error && data) setAccounts(data);
         setIsLoading(false);
       });
     return () => { cancelled = true; };
@@ -89,7 +94,7 @@ const AdminAccountsPanel = ({ session }) => {
 
   return (
     <div>
-      <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Manajemen Akun</h2>
+      <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Manajemen Akun & Aktivitas Login</h2>
       <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
         <button
           type="button"
@@ -101,29 +106,50 @@ const AdminAccountsPanel = ({ session }) => {
 
         {isLoading ? (
           <p className="text-xs text-gray-400 italic text-center py-4">Memuat daftar admin...</p>
-        ) : admins.length === 0 ? (
-          <p className="text-xs text-gray-400 italic text-center py-4">Belum ada akun admin.</p>
+        ) : accounts.length === 0 ? (
+          <p className="text-xs text-gray-400 italic text-center py-4">Belum ada akun.</p>
         ) : (
           <div className="space-y-2">
-            {admins.map((admin) => (
-              <div key={admin.id} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-gray-800">{admin.full_name}</p>
-                  <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
-                    <Smartphone size={12} />
-                    {admin.device_label ? admin.device_label : 'Belum terkunci ke device manapun'}
-                  </p>
+            {accounts.map((acc) => (
+              <div key={acc.id} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-800 truncate">{acc.full_name}</p>
+                    {acc.email && <p className="text-[11px] text-gray-500 font-mono truncate">{acc.email}</p>}
+                  </div>
+                  <span className={`shrink-0 text-[10px] font-extrabold px-2 py-0.5 rounded-full ${acc.role === 'superadmin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                    {acc.role === 'superadmin' ? 'Super Admin' : 'Admin'}
+                  </span>
                 </div>
-                {admin.device_id && (
-                  <button
-                    type="button"
-                    onClick={() => handleResetDevice(admin.id)}
-                    disabled={resettingId === admin.id}
-                    className="text-[11px] font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
-                  >
-                    {resettingId === admin.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-                    Reset Device
-                  </button>
+
+                <div className="text-[11px] text-gray-600 space-y-1">
+                  <p className="flex items-center gap-1.5"><Clock size={12} className="shrink-0" /> Login terakhir: <b>{formatLastLogin(acc.last_login_at)}</b></p>
+                  {acc.last_login_at && (
+                    <>
+                      <p className="flex items-center gap-1.5"><Smartphone size={12} className="shrink-0" /> {acc.last_login_device || 'Device tidak diketahui'}</p>
+                      <p className="flex items-center gap-1.5"><MapPin size={12} className="shrink-0" /> {acc.last_login_location || 'Lokasi tidak diketahui'}{acc.last_login_ip ? ` (${acc.last_login_ip})` : ''}</p>
+                    </>
+                  )}
+                </div>
+
+                {acc.role === 'admin' && (
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200">
+                    <p className="text-[11px] text-gray-500 flex items-center gap-1">
+                      <Lock size={12} className="shrink-0" />
+                      {acc.device_label ? `Terkunci: ${acc.device_label}` : 'Belum terkunci ke device manapun'}
+                    </p>
+                    {acc.device_id && (
+                      <button
+                        type="button"
+                        onClick={() => handleResetDevice(acc.id)}
+                        disabled={resettingId === acc.id}
+                        className="text-[11px] font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {resettingId === acc.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                        Reset Device
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}

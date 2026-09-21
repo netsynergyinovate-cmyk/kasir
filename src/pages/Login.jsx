@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Building2, Lock, Mail, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Building2, Lock, Mail, Loader2, Eye, EyeOff, Smartphone, MapPin } from 'lucide-react';
+import { getDeviceLabel } from '../utils/deviceId';
+import { fetchApproxLocation } from '../utils/authProfile';
 
 const Login = ({ externalError }) => {
   const [email, setEmail] = useState('');
@@ -9,6 +11,16 @@ const Login = ({ externalError }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [geo, setGeo] = useState({ loaded: false, ip: null, location: null });
+  const deviceLabel = getDeviceLabel();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchApproxLocation().then((result) => {
+      if (!cancelled) setGeo({ loaded: true, ...result });
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Setelah signIn berhasil, App.jsx (onAuthStateChange) yang memverifikasi profil + device-lock
   // dan menampilkan penolakannya lewat prop externalError.
@@ -132,6 +144,15 @@ const Login = ({ externalError }) => {
             {loading ? <Loader2 className="animate-spin" size={18} /> : 'MASUK SEKARANG'}
           </button>
         </form>
+
+        <div className="mt-5 pt-4 border-t border-gray-100 text-[11px] text-gray-500 space-y-1">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Perangkat ini</p>
+          <p className="flex items-center gap-1.5"><Smartphone size={12} className="shrink-0" /> {deviceLabel}</p>
+          <p className="flex items-center gap-1.5">
+            <MapPin size={12} className="shrink-0" />
+            {!geo.loaded ? 'Mendeteksi lokasi...' : (geo.location ? `${geo.location}${geo.ip ? ` (${geo.ip})` : ''}` : 'Lokasi tidak terdeteksi')}
+          </p>
+        </div>
 
       </div>
     </div>

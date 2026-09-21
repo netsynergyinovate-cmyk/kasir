@@ -36,6 +36,7 @@ export default async function handler(req, res) {
   const { error: insertProfileError } = await adminClient.from('admin_profiles').insert({
     id: created.user.id,
     full_name: fullName,
+    email,
     role: 'admin',
   });
 

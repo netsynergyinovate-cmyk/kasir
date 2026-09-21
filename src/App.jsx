@@ -5,7 +5,7 @@ import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
 import { isPathAllowedForRole, ADMIN_DEFAULT_PATH } from './utils/permissions';
-import { loadVerifiedProfile } from './utils/authProfile';
+import { loadVerifiedProfile, clearLoginRecorded } from './utils/authProfile';
 
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
@@ -141,6 +141,7 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
       if (event === 'SIGNED_OUT') {
+        clearLoginRecorded();
         if (isMounted) setSession(null);
         return;
       }
