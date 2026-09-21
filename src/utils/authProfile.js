@@ -39,7 +39,8 @@ export async function loadVerifiedProfile(supabase, authSession) {
     .maybeSingle();
 
   if (profileError || !profile) {
-    return { error: 'Akun ini belum terdaftar sebagai admin/superadmin di sistem.' };
+    const who = authSession.user.email ? ` (${authSession.user.email})` : '';
+    return { error: `Akun${who} belum terdaftar sebagai admin/superadmin di sistem. Minta superadmin mendaftarkannya.` };
   }
 
   const currentDeviceId = getOrCreateDeviceId();

@@ -8,7 +8,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('ERROR: Supabase URL atau Key tidak ditemukan di .env!')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Sesi login disimpan di localStorage dan diperbarui otomatis, jadi tidak perlu login ulang
+// setiap membuka aplikasi. detectSessionInUrl dibutuhkan untuk menyelesaikan login Google.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+})
 
 // Fungsi tes koneksi sederhana
 export const testConnection = async () => {

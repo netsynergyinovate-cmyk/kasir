@@ -42,6 +42,7 @@ export default function App() {
   const location = useLocation();
   const [session, setSession] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [hasPin, setHasPin] = useState(false);
 
@@ -131,12 +132,13 @@ export default function App() {
       setSession({ ...authSession, profile: result.profile });
     };
 
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (data?.session) {
-        loadProfile(data.session);
+        await loadProfile(data.session);
       } else if (isMounted) {
         setSession(null);
       }
+      if (isMounted) setAuthChecked(true);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
@@ -661,7 +663,7 @@ export default function App() {
     window.print();
   };
 
-  if (isLoading) {
+  if (!authChecked || isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-blue-600">
         <div className="flex space-x-2 mb-4">
