@@ -30,7 +30,8 @@ const LocationPicker = ({ value, onChange, otherPoints = [] }) => {
 
   useEffect(() => {
     const start = value ? [value.lat, value.lng] : (otherPoints[0] ? [otherPoints[0].lat, otherPoints[0].lng] : DEFAULT_CENTER);
-    const map = L.map(containerRef.current, { maxZoom: MAP_MAX_ZOOM }).setView(start, value || otherPoints[0] ? 17 : 5);
+    const map = L.map(containerRef.current, { maxZoom: MAP_MAX_ZOOM, attributionControl: false }).setView(start, value || otherPoints[0] ? 17 : 5);
+    L.control.attribution({ prefix: false }).addTo(map);
     addBaseLayers(map);
     mapRef.current = map;
 

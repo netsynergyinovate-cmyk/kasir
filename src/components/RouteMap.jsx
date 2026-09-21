@@ -39,7 +39,9 @@ const RouteMap = ({ stops, routeLine, selectedId, onSelect, compact = false, peo
       maxZoom: MAP_MAX_ZOOM,
       scrollWheelZoom: !compact,
       dragging: !(compact && L.Browser.mobile),
+      attributionControl: false,
     }).setView(DEFAULT_CENTER, 5);
+    L.control.attribution({ prefix: false }).addTo(map);
     addBaseLayers(map);
     layerRef.current = L.layerGroup().addTo(map);
     peopleLayerRef.current = L.layerGroup().addTo(map);
