@@ -37,3 +37,20 @@ const STATUS_TEXT = {
 export function describeSyncStatus(status) {
   return STATUS_TEXT[status] || { text: status, className: 'bg-gray-100 text-gray-500' };
 }
+
+// Membuang tag HTML dari isi satu sel tabel Runsnet, mengembalikan teksnya saja.
+export function stripHtml(html) {
+  return String(html || '').replace(/<[^>]*>/g, '').trim();
+}
+
+// Mengurai respons DataTables server-side dari endpoint pencarian invoice Runsnet
+// (model/previewc/query/invoice.php). Kolom ke-2 (indeks 1) berisi kode invoice.
+//
+// Sengaja menolak memilih kalau hasilnya lebih dari 1 (mis. dua pelanggan nama mirip) — pembayaran
+// hanya boleh jalan kalau invoice-nya jelas tunggal, supaya tidak salah bayar invoice orang lain.
+export function parseInvoiceListResponse(json) {
+  const rows = json?.data || [];
+  if (rows.length !== 1) return null;
+  const invoiceCode = stripHtml(rows[0][1]);
+  return invoiceCode ? { id: invoiceCode } : null;
+}

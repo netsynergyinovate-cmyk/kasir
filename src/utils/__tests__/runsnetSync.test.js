@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus } from '../runsnetSync';
+import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse } from '../runsnetSync';
 
 const trx = (over) => ({
   id: 't1', status: 'LUNAS', type: 'retail', payment_method: 'CASH',
@@ -67,5 +67,57 @@ describe('describeSyncStatus', () => {
 
   it('falls back to the raw status for anything unknown', () => {
     expect(describeSyncStatus('weird_status').text).toBe('weird_status');
+  });
+});
+
+describe('stripHtml', () => {
+  it('removes tags and returns the trimmed inner text', () => {
+    expect(stripHtml("<a href='#' id='INVRT202609002184'>INVRT202609002184</a>")).toBe('INVRT202609002184');
+    expect(stripHtml('  plain text  ')).toBe('plain text');
+    expect(stripHtml(null)).toBe('');
+  });
+});
+
+describe('parseInvoiceListResponse', () => {
+  const okResponse = {
+    draw: 1,
+    recordsTotal: 33,
+    recordsFiltered: 1,
+    data: [[
+      "<input type='checkbox' name='select' value='INVRT202609002184'>",
+      "<a href='#' id='INVRT202609002184'>INVRT202609002184</a>",
+      "<a href='?x=y'>17060001849</a>",
+      'ROEDI FILANI',
+      '2026-09-24', '2026-09-24', '200,000', '200,000', null,
+      '<a>...</a>', '<a>...</a>', '<a>...</a>',
+    ]],
+  };
+
+  it('extracts the invoice code from the first matching row', () => {
+    expect(parseInvoiceListResponse(okResponse)).toEqual({ id: 'INVRT202609002184' });
+  });
+
+  it('returns null when nothing was found', () => {
+    expect(parseInvoiceListResponse({ draw: 1, recordsTotal: 33, recordsFiltered: 0, data: [] })).toBeNull();
+  });
+});
+
+describe('parseInvoiceListResponse with ambiguous matches', () => {
+  const rowFor = (code, custid) => [
+    "<input type='checkbox'>",
+    `<a id='${code}'>${code}</a>`,
+    `<a href='#'>${custid}</a>`,
+    'Nama Mirip',
+    '2026-09-24', '2026-09-24', '200,000', '200,000', null, '<a>x</a>', '<a>x</a>', '<a>x</a>',
+  ];
+
+  it('refuses to pick a winner when the search matches more than one invoice', () => {
+    const response = { draw: 1, recordsTotal: 2, recordsFiltered: 2, data: [rowFor('INVRT1', 'A'), rowFor('INVRT2', 'B')] };
+    expect(parseInvoiceListResponse(response)).toBeNull();
+  });
+
+  it('still returns the single match when there is exactly one', () => {
+    const response = { draw: 1, recordsTotal: 2, recordsFiltered: 1, data: [rowFor('INVRT1', 'A')] };
+    expect(parseInvoiceListResponse(response)).toEqual({ id: 'INVRT1' });
   });
 });

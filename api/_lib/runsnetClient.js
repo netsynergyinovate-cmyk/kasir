@@ -1,5 +1,5 @@
 import process from 'node:process';
-import { isConfigPlaceholder } from '../../src/utils/runsnetSync.js';
+import { isConfigPlaceholder, parseInvoiceListResponse } from '../../src/utils/runsnetSync.js';
 
 // Dibaca lewat fungsi (bukan konstanta top-level) supaya skrip lokal yang memuat .env.local
 // setelah statement import tetap melihat nilainya.
@@ -20,9 +20,18 @@ const CONFIG = {
   // Terverifikasi dari tangkapan nyata 2026-09-21.
   menuKeyParam: 'N3lSektGNnZMV3R3ZjRlN0h0a24xZz09',
 
-  // Nilai menuKeyParam untuk memuat daftar invoice (dipakai mencari invoice satu pelanggan).
-  // BELUM diisi — lihat catatan PENTING di searchInvoice() sebelum mengisi ini.
-  invoiceListMenuValue: 'REPLACE_ME',
+  // Nilai menuKeyParam untuk memuat daftar invoice (dipakai membentuk Referer saat mencari
+  // invoice). Terverifikasi dari tangkapan nyata 2026-09-21 (sama untuk page "Invoice" dan
+  // "Payment" — nilainya konsisten dipakai ulang, cuma untuk Referer, bukan untuk aksi).
+  invoiceListMenuValue: 'Ti9XSG9WdnFyakhKS0owRzh5ZVMrdUVJaHVTZk1wVGY3TjVOOUtReUlScz0=',
+
+  // Path (relatif ke view/) endpoint pencarian invoice — DataTables server-side, ditemukan
+  // langsung dari kode sumber halaman (bukan tangkapan DevTools), lalu diuji nyata (2026-09-21):
+  // POST dengan field standar DataTables (draw/start/length/search[value]/columns[]/order[]).
+  searchPath: 'model/previewc/query/invoice.php',
+
+  // Kode mitra/akun Runsnet ini — konstanta per akun, dipakai endpoint pencarian.
+  mitraTarget: 'ID00000000024',
 
   // Nilai menuKeyParam untuk EKSEKUSI pembayaran. Terverifikasi dari tangkapan nyata 2026-09-21:
   // GET ke `view/index.php` dengan param ini + data1 (kode invoice, mis. "INVRT202609002184")
@@ -97,16 +106,66 @@ export async function ensureSession(supabaseAdmin) {
   return cookie;
 }
 
+// Kolom filter tanggal endpoint pencarian (format MM/DD/YYYY, sesuai input date-range Runsnet).
+// Rentang lebar (dari lama, sampai +90 hari ke depan) supaya invoice yang jatuh tempo di masa
+// depan dekat (seperti pada tangkapan nyata: due date 3 hari setelah dibuat) tidak terlewat.
+function formatMmDdYyyy(date) {
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${mm}/${dd}/${date.getFullYear()}`;
+}
+
 // Mencari invoice di Runsnet berdasarkan query (PPPoE ID / custid / nama). Mengembalikan
-// { id: <kode invoice> } atau null jika tidak ketemu.
-//
-// BELUM DIISI. Mekanismenya belum dikonfirmasi — tabel invoice/payment Runsnet mungkin dimuat
-// sekali (lewat invoiceListMenuValue) lalu difilter di browser (DataTables client-side, tanpa
-// request jaringan terpisah saat mengetik di kolom pencarian), atau lewat endpoint AJAX
-// terpisah. Perlu satu tangkapan DevTools lagi: request yang memuat tabel invoice/payment
-// (bukan hasil ketik di kolom cari) — lihat RUNSNET_SETUP.md.
-export async function searchInvoice() {
-  throw new RunsnetNotConfiguredError(unconfiguredFields(['invoiceListMenuValue']));
+// { id: <kode invoice> } atau null jika tidak ketemu. Hanya mencari invoice berstatus PENDING
+// (data3='P') — invoice yang sudah lunas/batal tidak relevan untuk ditandai bayar.
+export async function searchInvoice(cookie, query) {
+  const fields = unconfiguredFields(['menuKeyParam', 'invoiceListMenuValue', 'searchPath', 'mitraTarget']);
+  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
+
+  const now = new Date();
+  const dateFrom = formatMmDdYyyy(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
+  const dateTo = formatMmDdYyyy(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90));
+
+  const listUrl = new URL(`${getBaseUrl()}/view/index.php`);
+  listUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.invoiceListMenuValue);
+
+  const searchUrl = new URL(`${getBaseUrl()}/view/${CONFIG.searchPath}`);
+  searchUrl.searchParams.set('data1', dateFrom);
+  searchUrl.searchParams.set('data2', dateTo);
+  searchUrl.searchParams.set('data3', 'P');
+  searchUrl.searchParams.set('data4', '');
+  searchUrl.searchParams.set('data5', '');
+  searchUrl.searchParams.set('target', CONFIG.mitraTarget);
+
+  // Kolom tabel sesuai urutan <thead> Runsnet: checkbox, InvoiceCode, CustID, CustNama,
+  // Periode, Tempo, Tagihan, SisaTagihan, Agent, Broadcast, File, Action.
+  const columnNames = ['', 'InvoiceCode', 'CustID', 'CustNama', 'Periode', 'Tempo', 'Tagihan', 'SisaTagihan', 'Agent', 'Broadcast', 'File', 'Action'];
+  const body = new URLSearchParams({ draw: '1', start: '0', length: '10', 'search[value]': query, 'search[regex]': 'false' });
+  columnNames.forEach((name, i) => {
+    body.set(`columns[${i}][data]`, String(i));
+    body.set(`columns[${i}][name]`, name);
+    body.set(`columns[${i}][searchable]`, i === 0 || i === 11 ? 'false' : 'true');
+    body.set(`columns[${i}][orderable]`, i === 0 || i >= 9 ? 'false' : 'true');
+    body.set(`columns[${i}][search][value]`, '');
+    body.set(`columns[${i}][search][regex]`, 'false');
+  });
+  body.set('order[0][column]', '1');
+  body.set('order[0][dir]', 'desc');
+
+  const response = await fetch(searchUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest',
+      Referer: listUrl.toString(),
+      Cookie: cookie,
+    },
+    body,
+  });
+  if (!response.ok) throw new Error(`Pencarian invoice Runsnet gagal: HTTP ${response.status}`);
+
+  const json = await response.json();
+  return parseInvoiceListResponse(json);
 }
 
 // Menjalankan pembayaran tunai untuk satu invoice. PERINGATAN: ini GET dengan efek samping nyata
