@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, Building2, Search, LogOut } from 'lucide-react';
+import { Menu, Building2, Search, LogOut, Lock } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
@@ -30,6 +30,8 @@ import { describeRouteError } from './utils/dbErrors';
 import { useShareLocation } from './hooks/useShareLocation';
 import { useAdminLocations } from './hooks/useAdminLocations';
 import PinPad from './components/PinPad';
+import { useIdleLock } from './hooks/useIdleLock';
+import { formatCountdown, countdownTone, markActivity } from './utils/idleLock';
 
 const INIT_COMPANY = {
   name: 'PT Net Synergy Inovate',
@@ -192,6 +194,7 @@ export default function App() {
       if (error) throw error;
       setCompanyInfo({ ...companyInfo, appPin: hashedPin });
       localStorage.setItem('device_unlocked', 'true');
+      markActivity();
       setIsLocked(false);
     } catch (e) {
       console.error('Error saving PIN to DB:', e);
@@ -200,16 +203,21 @@ export default function App() {
   };
 
   const handleUnlock = () => {
+    markActivity(); // hitungan 15 menit mulai dari nol setelah kode benar
     setIsLocked(false);
   };
+
+  // Kunci otomatis: setelah 15 menit tanpa disentuh (atau tombol Kunci), minta kode PIN lagi.
+  const lockApp = () => {
+    localStorage.removeItem('device_unlocked');
+    setIsLocked(true);
+  };
+  const idleLockEnabled = Boolean(session) && !isLoading && Boolean(companyInfo.appPin) && !isLocked;
+  const idleRemaining = useIdleLock({ enabled: idleLockEnabled, onLock: lockApp });
 
   // Determine lock state based on session, DB pin, and local unlock flag
   useEffect(() => {
     if (session && !isLoading) {
-      if (session.profile?.role === 'admin') {
-        setIsLocked(false);
-        return;
-      }
       const isDeviceUnlocked = localStorage.getItem('device_unlocked') === 'true';
       if (!isDeviceUnlocked && companyInfo.appPin) {
         setIsLocked(true);
@@ -821,7 +829,7 @@ export default function App() {
   }
 
   // If session exists, DB Pin exists, but device is locked -> Unlock mode
-  if (session && !isLoading && session.profile?.role !== 'admin' && companyInfo.appPin && isLocked) {
+  if (session && !isLoading && companyInfo.appPin && isLocked) {
     return <PinPad mode="unlock" dbPin={companyInfo.appPin} onUnlock={handleUnlock} />;
   }
 
@@ -830,7 +838,15 @@ export default function App() {
       
       <div className="flex-1 relative flex flex-col print:hidden">
         
-        <header className="bg-white px-4 py-3.5 border-b border-gray-100 sticky top-0 z-10 flex items-center gap-3 shrink-0 shadow-sm">
+        <div className="sticky top-0 z-10 shrink-0">
+        {idleLockEnabled && (
+          <div className={`flex items-center justify-center gap-2 px-3 py-1 text-[11px] font-bold text-white transition-colors ${countdownTone(idleRemaining) === 'critical' ? 'bg-red-600 animate-pulse' : countdownTone(idleRemaining) === 'warning' ? 'bg-amber-500' : 'bg-slate-800'}`}>
+            <Lock size={12} className="shrink-0" />
+            <span>Terkunci otomatis dalam <span className="font-mono tabular-nums">{formatCountdown(idleRemaining)}</span></span>
+            <button type="button" onClick={lockApp} className="ml-1 px-2 py-0.5 rounded-md bg-white/15 hover:bg-white/25 active:scale-95 transition-all">Kunci sekarang</button>
+          </div>
+        )}
+        <header className="bg-white px-4 py-3.5 border-b border-gray-100 flex items-center gap-3 shadow-sm">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
             <Menu size={22} />
           </button>
@@ -869,6 +885,7 @@ export default function App() {
             </button>
           </div>
         </header>
+        </div>
 
         <Sidebar 
           isOpen={isSidebarOpen} 
