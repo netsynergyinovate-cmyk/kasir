@@ -37,13 +37,15 @@ async function pingSupabase() {
   const startTime = Date.now();
 
   try {
-    const response = await fetch(`${supabaseUrl}/rest/v1/customers?select=id&limit=1`, {
-      method: 'GET',
+    const response = await fetch(`${supabaseUrl}/rest/v1/ping_logs`, {
+      method: 'POST',
       headers: {
         'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${supabaseAnonKey}`,
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ source: 'github_action' })
     });
 
     const duration = Date.now() - startTime;
