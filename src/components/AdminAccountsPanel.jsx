@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2, ShieldCheck } from 'lucide-react';
+import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2, ShieldCheck, Crown, Mail } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import AdminAccessModal from './AdminAccessModal';
 
@@ -9,6 +9,8 @@ const formatLastLogin = (iso) => {
   if (!iso) return 'Belum pernah login';
   return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
+
+const initialsOf = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
 const AdminAccountsPanel = () => {
   const [accounts, setAccounts] = useState([]);
@@ -162,69 +164,78 @@ const AdminAccountsPanel = () => {
         ) : accounts.length === 0 ? (
           <p className="text-xs text-gray-400 italic text-center py-4">Belum ada akun.</p>
         ) : (
-          <div className="space-y-2">
-            {accounts.map((acc) => (
-              <div key={acc.id} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-gray-800 truncate">{acc.full_name}</p>
-                    {acc.email && <p className="text-[11px] text-gray-500 font-mono truncate">{acc.email}</p>}
+          <div className="space-y-2.5">
+            {accounts.map((acc) => {
+              const isSuper = acc.role === 'superadmin';
+              return (
+                <div key={acc.id} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                  <div className="p-3.5 flex items-center gap-3">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0 ${isSuper ? 'bg-gradient-to-tr from-purple-600 to-indigo-600' : 'bg-gradient-to-tr from-blue-600 to-sky-500'}`}>
+                      {initialsOf(acc.full_name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-black text-gray-900 truncate">{acc.full_name}</p>
+                      </div>
+                      {acc.email && (
+                        <p className="text-[11px] text-gray-400 flex items-center gap-1 truncate"><Mail size={11} className="shrink-0" />{acc.email}</p>
+                      )}
+                    </div>
+                    <span className={`shrink-0 text-[10px] font-extrabold px-2 py-1 rounded-full flex items-center gap-1 ${isSuper ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {isSuper ? <Crown size={11} /> : <ShieldCheck size={11} />}
+                      {isSuper ? 'Super Admin' : 'Admin'}
+                    </span>
                   </div>
-                  <span className={`shrink-0 text-[10px] font-extrabold px-2 py-0.5 rounded-full ${acc.role === 'superadmin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {acc.role === 'superadmin' ? 'Super Admin' : 'Admin'}
-                  </span>
-                </div>
 
-                <div className="text-[11px] text-gray-600 space-y-1">
-                  <p className="flex items-center gap-1.5"><Clock size={12} className="shrink-0" /> Login terakhir: <b>{formatLastLogin(acc.last_login_at)}</b></p>
-                  {acc.last_login_at && (
-                    <>
-                      <p className="flex items-center gap-1.5"><Smartphone size={12} className="shrink-0" /> {acc.last_login_device || 'Device tidak diketahui'}</p>
-                      <p className="flex items-center gap-1.5"><MapPin size={12} className="shrink-0" /> {acc.last_login_location || 'Lokasi tidak diketahui'}{acc.last_login_ip ? ` (${acc.last_login_ip})` : ''}</p>
-                    </>
-                  )}
-                </div>
+                  <div className="px-3.5 pb-3.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-400">
+                    <span className="flex items-center gap-1"><Clock size={11} className="shrink-0" />{formatLastLogin(acc.last_login_at)}</span>
+                    {acc.last_login_at && (
+                      <>
+                        <span className="flex items-center gap-1"><Smartphone size={11} className="shrink-0" />{acc.last_login_device || 'Tidak diketahui'}</span>
+                        <span className="flex items-center gap-1"><MapPin size={11} className="shrink-0" />{acc.last_login_location || 'Tidak diketahui'}{acc.last_login_ip ? ` · ${acc.last_login_ip}` : ''}</span>
+                      </>
+                    )}
+                  </div>
 
-                {acc.role === 'admin' && (
-                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200">
-                    <p className="text-[11px] text-gray-500 flex items-center gap-1">
-                      <Lock size={12} className="shrink-0" />
-                      {acc.device_label ? `Terkunci: ${acc.device_label}` : 'Belum terkunci ke device manapun'}
-                    </p>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setAccessAdmin(acc)}
-                        className="text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-                      >
-                        <ShieldCheck size={12} />
-                        Atur Akses
-                      </button>
-                      {acc.device_id && (
+                  {!isSuper && (
+                    <div className="bg-slate-50 border-t border-gray-100 p-3 space-y-2.5">
+                      <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                        <Lock size={12} className="shrink-0" />
+                        {acc.device_label ? <>Terkunci ke <b className="text-gray-700">{acc.device_label}</b></> : 'Belum terkunci ke device manapun'}
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAccessAdmin(acc)}
+                          className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all"
+                        >
+                          <ShieldCheck size={15} />
+                          Akses
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleResetDevice(acc.id)}
-                          disabled={resettingId === acc.id}
-                          className="text-[11px] font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                          disabled={!acc.device_id || resettingId === acc.id}
+                          className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95 transition-all disabled:opacity-40 disabled:hover:bg-amber-50"
                         >
-                          {resettingId === acc.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-                          Reset Device
+                          {resettingId === acc.id ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
+                          Device
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteAdmin(acc)}
-                        disabled={deletingId === acc.id}
-                        className="text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
-                      >
-                        {deletingId === acc.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                        Hapus
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAdmin(acc)}
+                          disabled={deletingId === acc.id}
+                          className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[10px] font-bold text-red-700 bg-red-50 hover:bg-red-100 active:scale-95 transition-all disabled:opacity-40"
+                        >
+                          {deletingId === acc.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                          Hapus
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
