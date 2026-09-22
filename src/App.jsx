@@ -5,6 +5,7 @@ import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
 import { isPathAllowedForRole, ADMIN_DEFAULT_PATH } from './utils/permissions';
+import { saveLastPath, getLastPath } from './utils/lastPage';
 import { loadVerifiedProfile, clearLoginRecorded } from './utils/authProfile';
 
 import Navigation from './components/Navigation';
@@ -233,6 +234,23 @@ export default function App() {
       navigate(ADMIN_DEFAULT_PATH, { replace: true });
     }
   }, [session, location.pathname, navigate]);
+
+  // Ingat halaman yang sedang dibuka, supaya membuka ulang aplikasi (ikon PWA selalu mulai dari '/', bukan
+  // halaman terakhir) bisa kembali ke sana, bukan selalu ke Beranda.
+  useEffect(() => {
+    saveLastPath(location.pathname);
+  }, [location.pathname]);
+
+  // Dipulihkan HANYA saat aplikasi baru saja "mendarat" di '/' setelah login/buka-kunci — itu tandanya
+  // start_url PWA yang membuka, bukan pilihan sadar membuka Beranda dari menu.
+  useEffect(() => {
+    if (!session || !authChecked || isLoading || isLocked || location.pathname !== '/') return;
+    const last = getLastPath();
+    if (last && last !== '/' && isPathAllowedForRole(session.profile?.role, last)) {
+      navigate(last, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, authChecked, isLoading, isLocked]);
 
   useEffect(() => {
     if (!session) {
