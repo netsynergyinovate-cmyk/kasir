@@ -45,7 +45,9 @@ const INIT_COMPANY = {
   appPin: null,
   apiMonitoringUrl: '',
   apiMonitoringKey: localStorage.getItem('api_monitoring_key') || '',
-  apiMonitoringEnabled: localStorage.getItem('api_monitoring_enabled') === 'true'
+  apiMonitoringEnabled: localStorage.getItem('api_monitoring_enabled') === 'true',
+  watbizToken: '',
+  watbizEnabled: false
 };
 
 export default function App() {
@@ -328,7 +330,9 @@ export default function App() {
             appPin: settingsData.app_pin || null,
             apiMonitoringUrl: settingsData.api_monitoring_url || '',
             apiMonitoringKey: finalKey,
-            apiMonitoringEnabled: finalEnabled
+            apiMonitoringEnabled: finalEnabled,
+            watbizToken: settingsData.watbiz_token || '',
+            watbizEnabled: settingsData.watbiz_enabled || false
           });
         }
         console.log('Data berhasil dimuat.');
@@ -740,7 +744,9 @@ export default function App() {
         admin_fee: mergedSettings.adminFee,
         api_monitoring_url: mergedSettings.apiMonitoringUrl || '',
         api_monitoring_key: keyToSave,
-        api_monitoring_enabled: mergedSettings.apiMonitoringEnabled ?? false
+        api_monitoring_enabled: mergedSettings.apiMonitoringEnabled ?? false,
+        watbiz_token: mergedSettings.watbizToken || '',
+        watbiz_enabled: mergedSettings.watbizEnabled ?? false
       };
       const { error } = await supabase.from('company_settings').upsert(payload);
       if (error) throw error;

@@ -3,7 +3,7 @@ import {
   Building2, Wifi, Trash2, Bluetooth, BluetoothConnected,
   BluetoothOff, AlertCircle, Printer, User, LogOut, Image, ChevronRight,
   Key, Globe, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send,
-  Zap, Clock, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users
+  Zap, Clock, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users, MessageCircle
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { supabase } from '../lib/supabase';
@@ -32,6 +32,10 @@ const Settings = ({
   const [ebillingLogs, setEbillingLogs] = useState([]);
   const [livePingStatus, setLivePingStatus] = useState(null);
   const [activeTab, setActiveTab] = useState('umum');
+  const [showWatbizToken, setShowWatbizToken] = useState(false);
+  const [watbizTestNumber, setWatbizTestNumber] = useState('');
+  const [isTestingWatbiz, setIsTestingWatbiz] = useState(false);
+  const [watbizTestResult, setWatbizTestResult] = useState(null);
 
   const currentUser = session?.user;
   const isSuper = session?.profile?.role === 'superadmin';
@@ -58,10 +62,44 @@ const Settings = ({
     ...(isSuper ? [
       { key: 'toko', label: 'Toko', icon: Building2 },
       { key: 'ebilling', label: 'E-Billing', icon: Activity },
+      { key: 'watbiz', label: 'WhatsApp', icon: MessageCircle },
       { key: 'admin', label: 'Admin', icon: Users },
       { key: 'runsnet', label: 'Runsnet', icon: Zap },
     ] : []),
   ];
+
+  // Tombol "Test Ping" WhatsApp (Watbiz): kirim satu pesan tes sungguhan lewat proxy server
+  // (api/watbiz/ping.js), supaya token tervalidasi tanpa diblokir CORS dan tanpa expose token
+  // dari sisi client ke domain lain.
+  const handleTestWatbiz = async () => {
+    if (!localCompany.watbizToken) {
+      setWatbizTestResult({ success: false, message: 'Isi token Watbiz terlebih dahulu.' });
+      return;
+    }
+    if (!watbizTestNumber.trim()) {
+      setWatbizTestResult({ success: false, message: 'Isi nomor WhatsApp tujuan tes (contoh: 628123456789).' });
+      return;
+    }
+    setIsTestingWatbiz(true);
+    setWatbizTestResult(null);
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const response = await fetch('/api/watbiz/ping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token}` },
+        body: JSON.stringify({ token: localCompany.watbizToken, to: watbizTestNumber.trim() }),
+      });
+      const result = await response.json();
+      if (response.ok && result.ok) {
+        setWatbizTestResult({ success: true, message: `Pesan tes terkirim ke ${watbizTestNumber.trim()}.`, detail: JSON.stringify(result.body) });
+      } else {
+        setWatbizTestResult({ success: false, message: result.error || 'Watbiz menolak permintaan.', detail: JSON.stringify(result.body || result) });
+      }
+    } catch (err) {
+      setWatbizTestResult({ success: false, message: 'Gagal menghubungi server: ' + err.message });
+    }
+    setIsTestingWatbiz(false);
+  };
 
   // Sync local state & load API Key guarantee from localStorage
   useEffect(() => {
@@ -649,6 +687,102 @@ const Settings = ({
           </div>
         </div>
         </>
+        )}
+
+        {isSuper && activeTab === 'watbiz' && (
+        <div>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 flex items-center gap-1.5">
+            <MessageCircle size={14} className="text-emerald-600" /> Integrasi WhatsApp (Watbiz)
+          </h2>
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <p className="text-sm font-bold text-gray-800">Aktifkan Integrasi WhatsApp</p>
+                <p className="text-xs text-gray-400">Dipakai untuk kirim reminder tagihan / invoice lewat Watbiz</p>
+              </div>
+              <ToggleSwitch
+                label="Integrasi Watbiz"
+                checked={localCompany.watbizEnabled || false}
+                onChange={(checked) => {
+                  const updated = { ...localCompany, watbizEnabled: checked };
+                  setLocalCompany(updated);
+                  setCompanyInfo(updated);
+                }}
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1 ml-1">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase">Token API Watbiz</label>
+                {localCompany.watbizToken && (
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <ShieldCheck size={12} /> Terpasang
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                  <Key size={16} />
+                </div>
+                <input
+                  name="watbizToken"
+                  value={localCompany.watbizToken || ''}
+                  onChange={handleLocalChange}
+                  onBlur={handleBlur}
+                  type={showWatbizToken ? 'text' : 'password'}
+                  placeholder="Token dari dashboard app.watbiz.com"
+                  className="w-full pl-9 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-emerald-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowWatbizToken(!showWatbizToken)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  {showWatbizToken ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1.5 ml-1">Ambil dari dashboard Watbiz Anda, lalu tempel di sini. Tersimpan otomatis saat pindah kolom.</p>
+            </div>
+
+            <div className="pt-2 border-t border-gray-100">
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1.5 ml-1">Nomor WhatsApp Tujuan Tes</label>
+              <input
+                value={watbizTestNumber}
+                onChange={(e) => setWatbizTestNumber(e.target.value)}
+                type="text"
+                placeholder="Contoh: 628123456789 (nomor Anda sendiri)"
+                className="w-full px-3.5 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm font-medium mb-2"
+              />
+              <button
+                type="button"
+                onClick={handleTestWatbiz}
+                disabled={isTestingWatbiz}
+                className="w-full py-3 px-4 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 border border-emerald-100"
+              >
+                {isTestingWatbiz ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                    Mengirim Pesan Tes...
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} /> Test Ping — Kirim Pesan Tes
+                  </>
+                )}
+              </button>
+
+              {watbizTestResult && (
+                <div className={`mt-3 p-3.5 rounded-xl text-xs font-medium space-y-1.5 ${watbizTestResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                  <div className="flex items-center gap-2 font-bold">
+                    {watbizTestResult.success ? <CheckCircle2 size={16} className="shrink-0 text-emerald-600" /> : <XCircle size={16} className="shrink-0 text-red-600" />}
+                    <span>{watbizTestResult.message}</span>
+                  </div>
+                  {watbizTestResult.detail && <p className="text-[10px] opacity-70 pl-6 truncate">{watbizTestResult.detail}</p>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         )}
 
         {/* Tab: Akun Admin (khusus superadmin) */}
