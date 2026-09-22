@@ -36,6 +36,12 @@ const Settings = ({
   const [watbizTestNumber, setWatbizTestNumber] = useState('');
   const [isTestingWatbiz, setIsTestingWatbiz] = useState(false);
   const [watbizTestResult, setWatbizTestResult] = useState(null);
+  const [watbizLogs, setWatbizLogs] = useState([]);
+
+  const loadWatbizLogs = async () => {
+    const { data } = await supabase.from('watbiz_logs').select('*').order('sent_at', { ascending: false }).limit(30);
+    if (data) setWatbizLogs(data);
+  };
 
   const currentUser = session?.user;
   const isSuper = session?.profile?.role === 'superadmin';
@@ -87,7 +93,7 @@ const Settings = ({
       const response = await fetch('/api/watbiz/ping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token}` },
-        body: JSON.stringify({ token: localCompany.watbizToken, to: watbizTestNumber.trim() }),
+        body: JSON.stringify({ token: localCompany.watbizToken, to: watbizTestNumber.trim(), senderName: myFullName || null }),
       });
       const result = await response.json();
       if (response.ok && result.ok) {
@@ -95,6 +101,7 @@ const Settings = ({
       } else {
         setWatbizTestResult({ success: false, message: result.error || 'Watbiz menolak permintaan.', detail: JSON.stringify(result.body || result) });
       }
+      loadWatbizLogs();
     } catch (err) {
       setWatbizTestResult({ success: false, message: 'Gagal menghubungi server: ' + err.message });
     }
@@ -113,6 +120,10 @@ const Settings = ({
 
     setEbillingLogs(getEbillingLogs());
   }, [companyInfo]);
+
+  useEffect(() => {
+    if (activeTab === 'watbiz') loadWatbizLogs();
+  }, [activeTab]);
 
   // Periodic Live Ping Heartbeat (Menjalankan tes ping tiap 10 detik saat API Key ada)
   useEffect(() => {
@@ -778,6 +789,57 @@ const Settings = ({
                     <span>{watbizTestResult.message}</span>
                   </div>
                   {watbizTestResult.detail && <p className="text-[10px] opacity-70 pl-6 truncate">{watbizTestResult.detail}</p>}
+                </div>
+              )}
+            </div>
+
+            {/* Riwayat Pesan WhatsApp */}
+            <div className="pt-4 border-t border-gray-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Server size={16} className="text-emerald-600" />
+                  <h4 className="text-xs font-black text-gray-700 uppercase tracking-wider">Riwayat WhatsApp</h4>
+                </div>
+                {watbizLogs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!window.confirm('Bersihkan semua riwayat pesan WhatsApp?')) return;
+                      await supabase.from('watbiz_logs').delete().neq('id', 0);
+                      loadWatbizLogs();
+                    }}
+                    className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-2 py-1 rounded-md transition-colors"
+                  >
+                    Hapus Log
+                  </button>
+                )}
+              </div>
+
+              {watbizLogs.length > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {watbizLogs.map((log) => (
+                    <div key={log.id} className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-emerald-700">{log.phone_number}</span>
+                        <span className="font-mono text-gray-400 text-[10px]">{new Date(log.sent_at).toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs gap-2">
+                        <span className="text-gray-600 font-medium truncate flex-1">{log.message}</span>
+                        <span className={`shrink-0 font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${log.status === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                          {log.status === 'success' ? <CheckCircle2 size={10} /> : <XCircle size={10} />} {log.status === 'success' ? 'Sukses' : 'Gagal'}
+                        </span>
+                      </div>
+                      {(log.sender_name || log.kind) && (
+                        <p className="text-[10px] text-gray-400 italic border-t border-gray-100/60 pt-1 mt-1">
+                          {log.kind === 'test' ? 'Tes koneksi' : log.kind} {log.sender_name ? `• oleh ${log.sender_name}` : ''}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 bg-gray-50 rounded-xl text-center text-xs text-gray-400 italic">
+                  Belum ada pesan terkirim. Riwayat otomatis tercatat setiap kali Test Ping / reminder dikirim.
                 </div>
               )}
             </div>
