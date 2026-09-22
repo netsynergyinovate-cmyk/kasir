@@ -19,14 +19,13 @@ const formatRelative = (iso) => {
   return formatTime(iso);
 };
 
-// Urutan tetap tahap sinkron satu transaksi: cari nomor invoice -> kirim pembayaran -> (kalau dihapus) reversal.
-// Dipakai untuk menyusun kartu per-transaksi jadi alur yang jelas, bukan daftar baris lepas tercampur urutan waktu.
+// Label + ikon tahap, dipakai menyusun tiap baris di garis waktu (bukan lagi tetap 1 baris per tahap — kasir
+// bisa coba beberapa kali, jadi satu invoice bisa punya lebih dari satu baris "Kirim Pembayaran").
 const STAGE_META = {
   invoice_lookup: { label: 'Cek Nomor Invoice', icon: Search },
   payment: { label: 'Kirim Pembayaran', icon: Send },
   reversal: { label: 'Reversal (Batal)', icon: Undo2 },
 };
-const STAGE_ORDER = ['invoice_lookup', 'payment', 'reversal'];
 
 // Warna & ikon bulatan tahap berdasarkan status barisnya.
 const STEP_LOOK = {
@@ -166,28 +165,34 @@ const RunsnetSyncPanel = ({ session }) => {
     setPinging(false);
   };
 
-  // Satu kartu per TRANSAKSI (bukan per baris log), berisi tahap-tahapnya sebagai alur — supaya "sudah sampai mana"
-  // satu transaksi langsung terlihat (mis. Cek Invoice ✓ -> Kirim Pembayaran ✓ PAID -> Reversal belum pernah
-  // dijalankan), tanpa harus mencocokkan baris-baris lepas yang urutannya tercampur waktu.
+  // Satu kartu per INVOICE RUNSNET (bukan per baris log ATAU per id transaksi lokal): tiap kali kasir mencoba
+  // ulang, KAsir membuat id transaksi lokal yang baru, jadi mengelompokkan per id transaksi memecah "cek nomor
+  // invoice" dan "kirim pembayaran" untuk invoice yang sama jadi kartu terpisah. Dikelompokkan pakai kode invoice
+  // Runsnet-nya (runsnet_ref, atau search_query kalau belum ketemu) supaya seluruh percobaan untuk satu invoice
+  // yang sama tetap satu kartu, diurutkan sebagai garis waktu (bisa lebih dari satu baris per tahap kalau diulang).
   const groups = useMemo(() => {
     const map = new Map();
     logs.forEach((row) => {
-      const stage = row.stage || 'payment';
-      if (!map.has(row.transaction_id)) map.set(row.transaction_id, { transactionId: row.transaction_id, byStage: {}, latest: row.created_at });
-      const g = map.get(row.transaction_id);
-      g.byStage[stage] = row;
+      const key = row.runsnet_ref || row.search_query || row.transaction_id;
+      if (!map.has(key)) map.set(key, { key, rows: [], latest: row.created_at });
+      const g = map.get(key);
+      g.rows.push(row);
       if (row.created_at > g.latest) g.latest = row.created_at;
     });
-    return [...map.values()].sort((a, b) => (a.latest < b.latest ? 1 : -1));
+    return [...map.values()]
+      .map((g) => ({ ...g, rows: g.rows.sort((a, b) => (a.created_at < b.created_at ? -1 : 1)) }))
+      .sort((a, b) => (a.latest < b.latest ? 1 : -1));
   }, [logs]);
 
   const reversedIds = new Set(logs.filter((r) => r.stage === 'reversal' && r.status === 'success').map((r) => r.transaction_id));
+  const lastPaymentOf = (g) => [...g.rows].reverse().find((r) => (r.stage || 'payment') === 'payment');
+  const hasReversalOf = (g) => g.rows.some((r) => r.stage === 'reversal');
 
   const FILTERS = [
     { key: 'all', label: 'Semua', match: () => true },
-    { key: 'failed', label: 'Bermasalah', match: (g) => Object.values(g.byStage).some((r) => r.status === 'failed') },
-    { key: 'paid', label: 'Sudah PAID', match: (g) => g.byStage.payment?.status === 'success' },
-    { key: 'reversal', label: 'Reversal', match: (g) => Boolean(g.byStage.reversal) },
+    { key: 'failed', label: 'Bermasalah', match: (g) => g.rows.some((r) => r.status === 'failed') },
+    { key: 'paid', label: 'Sudah PAID', match: (g) => lastPaymentOf(g)?.status === 'success' },
+    { key: 'reversal', label: 'Reversal', match: (g) => hasReversalOf(g) },
   ];
   const visibleGroups = groups.filter((FILTERS.find((f) => f.key === filter) || FILTERS[0]).match);
 
@@ -282,19 +287,23 @@ const RunsnetSyncPanel = ({ session }) => {
           ) : (
             <div className="space-y-3">
               {visibleGroups.map((g) => {
-                const tx = txById[g.transactionId];
-                const anyRow = g.byStage.payment || g.byStage.invoice_lookup || g.byStage.reversal;
-                const name = tx?.customer_name || tx?.instansi_name || anyRow?.search_query || g.transactionId;
-                const paymentDone = g.byStage.payment?.status === 'success';
-                const needsReversalHint = paymentDone && !g.byStage.reversal;
-                const overallBad = Object.values(g.byStage).some((r) => r.status === 'failed');
+                // Nama & nominal diambil dari id transaksi PALING BARU dalam kelompok ini (percobaan terkini).
+                const lastRow = g.rows[g.rows.length - 1];
+                const tx = txById[lastRow.transaction_id];
+                const firstQuery = g.rows.find((r) => r.search_query)?.search_query;
+                const name = tx?.customer_name || tx?.instansi_name || firstQuery || g.key;
+                const lastPayment = lastPaymentOf(g);
+                const paymentDone = lastPayment?.status === 'success';
+                const needsReversalHint = paymentDone && !hasReversalOf(g);
+                const overallBad = g.rows.some((r) => r.status === 'failed');
+                const isOrphan = !tx && paymentDone && !reversedIds.has(lastRow.transaction_id);
 
                 return (
-                  <div key={g.transactionId} className={`p-3.5 rounded-xl border bg-white shadow-sm space-y-3 ${overallBad ? 'border-red-200' : 'border-gray-100'}`}>
+                  <div key={g.key} className={`p-3.5 rounded-xl border bg-white shadow-sm space-y-3 ${overallBad ? 'border-red-200' : 'border-gray-100'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-gray-900 leading-tight truncate">{name}</p>
-                        <p className="text-[10px] font-mono text-gray-400 truncate">{g.byStage.payment?.runsnet_ref || g.byStage.invoice_lookup?.runsnet_ref || g.transactionId}</p>
+                        <p className="text-[10px] font-mono text-gray-400 truncate">{g.key}</p>
                       </div>
                       <div className="text-right shrink-0">
                         {tx?.price != null && <p className="text-xs font-black text-blue-700">{formatRupiah(tx.price)}</p>}
@@ -302,27 +311,31 @@ const RunsnetSyncPanel = ({ session }) => {
                       </div>
                     </div>
 
-                    {!tx && paymentDone && !reversedIds.has(g.transactionId) && (
+                    {isOrphan && (
                       <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1.5">
                         Transaksi ini sudah tidak ada di Riwayat KAsir, tapi pembayarannya masih tercatat PAID di Runsnet.
                       </p>
                     )}
+                    {g.rows.length > 1 && (
+                      <p className="text-[10px] text-gray-400">{g.rows.length}x percobaan untuk invoice yang sama.</p>
+                    )}
 
                     <div className="space-y-0">
-                      {STAGE_ORDER.filter((stage) => g.byStage[stage]).map((stageKey, idx, arr) => {
-                        const row = g.byStage[stageKey];
+                      {g.rows.map((row, idx) => {
+                        const stageKey = row.stage || 'payment';
                         const meta = STAGE_META[stageKey];
                         const look = STEP_LOOK[row.status] || { dot: 'bg-blue-500 text-white', icon: meta.icon };
                         const StepIcon = look.icon;
                         const status = describeSyncStatus(row.status);
-                        const isLast = idx === arr.length - 1;
+                        const isLastRow = idx === g.rows.length - 1 && !needsReversalHint;
+                        const isCurrentPayment = stageKey === 'payment' && row.id === lastPayment?.id;
                         const noteTone = row.status === 'failed' ? 'bg-red-50 text-red-800 border-red-100' : row.status === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-gray-50 text-gray-600 border-gray-100';
                         const noteLabel = row.status === 'failed' ? 'Penyebab' : row.status === 'success' ? 'Bukti' : 'Keterangan';
                         return (
-                          <div key={stageKey} className="flex gap-2.5">
+                          <div key={row.id} className="flex gap-2.5">
                             <div className="flex flex-col items-center shrink-0">
                               <span className={`w-6 h-6 rounded-full flex items-center justify-center ${look.dot}`}><StepIcon size={13} /></span>
-                              {!isLast && <span className="w-[2px] flex-1 bg-gray-200 my-0.5" style={{ minHeight: 14 }} />}
+                              {!isLastRow && <span className="w-[2px] flex-1 bg-gray-200 my-0.5" style={{ minHeight: 14 }} />}
                             </div>
                             <div className="flex-1 min-w-0 pb-3">
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -335,7 +348,7 @@ const RunsnetSyncPanel = ({ session }) => {
                                   <b>{noteLabel}:</b> {row.message}
                                 </p>
                               )}
-                              {stageKey === 'payment' && row.status === 'success' && !tx && !reversedIds.has(g.transactionId) && (
+                              {isCurrentPayment && row.status === 'success' && isOrphan && (
                                 <button
                                   type="button"
                                   onClick={() => reverseOrphan(row)}
@@ -346,7 +359,7 @@ const RunsnetSyncPanel = ({ session }) => {
                                   {retryingId === row.id ? 'Membatalkan...' : 'Batalkan pembayaran di Runsnet'}
                                 </button>
                               )}
-                              {stageKey === 'payment' && row.status !== 'success' && (
+                              {isCurrentPayment && row.status !== 'success' && (
                                 <button
                                   type="button"
                                   onClick={() => retryRow(row)}
@@ -362,12 +375,12 @@ const RunsnetSyncPanel = ({ session }) => {
                         );
                       })}
 
-                      {needsReversalHint && tx && (
+                      {needsReversalHint && (
                         <div className="flex gap-2.5">
                           <div className="flex flex-col items-center shrink-0">
                             <span className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-100 text-gray-400"><Undo2 size={12} /></span>
                           </div>
-                          <p className="flex-1 text-[11px] text-gray-400 italic pt-1">Reversal belum pernah dijalankan untuk transaksi ini.</p>
+                          <p className="flex-1 text-[11px] text-gray-400 italic pt-1">Reversal belum pernah dijalankan untuk invoice ini.</p>
                         </div>
                       )}
                     </div>
