@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2 } from 'lucide-react';
+import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import AdminAccessModal from './AdminAccessModal';
 
-const ACCOUNT_COLUMNS = 'id, full_name, email, role, device_id, device_label, last_login_at, last_login_device, last_login_location, last_login_ip';
+const ACCOUNT_COLUMNS = 'id, full_name, email, role, device_id, device_label, allowed_paths, last_login_at, last_login_device, last_login_location, last_login_ip';
 
 const formatLastLogin = (iso) => {
   if (!iso) return 'Belum pernah login';
@@ -20,6 +21,7 @@ const AdminAccountsPanel = () => {
   const [formError, setFormError] = useState(null);
   const [resettingId, setResettingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [accessAdmin, setAccessAdmin] = useState(null);
 
   const fetchAll = () => Promise.all([
     supabase
@@ -190,6 +192,14 @@ const AdminAccountsPanel = () => {
                       {acc.device_label ? `Terkunci: ${acc.device_label}` : 'Belum terkunci ke device manapun'}
                     </p>
                     <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setAccessAdmin(acc)}
+                        className="text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                      >
+                        <ShieldCheck size={12} />
+                        Atur Akses
+                      </button>
                       {acc.device_id && (
                         <button
                           type="button"
@@ -267,6 +277,14 @@ const AdminAccountsPanel = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {accessAdmin && (
+        <AdminAccessModal
+          admin={accessAdmin}
+          onClose={() => setAccessAdmin(null)}
+          onSaved={loadAdmins}
+        />
       )}
     </div>
   );
