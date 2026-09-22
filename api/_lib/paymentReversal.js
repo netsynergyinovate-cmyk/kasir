@@ -21,10 +21,13 @@ export async function reversePayment(supabase, transaction) {
   }
   if (!code) return { skipped: 'no_runsnet_invoice' };
 
-  const who = transaction.customer_name || transaction.instansi_name || code;
+  // Nama pelanggan: dari transaksi KAsir kalau masih ada; kalau tidak (transaksinya sudah dihapus — kasus
+  // yang paling sering butuh reversal manual), diisi dari Runsnet sendiri begitu ketemu (lihat langkah 2),
+  // supaya kartu log tetap punya nama, bukan cuma kode.
+  let who = transaction.customer_name || transaction.instansi_name || null;
   const log = async (status, message, extra = {}) => {
     await supabase.from('runsnet_sync_log').upsert(
-      { transaction_id: transaction.id, stage: 'reversal', status, search_query: code, runsnet_ref: code, message: `${who}: ${message}`, created_at: new Date().toISOString(), ...extra },
+      { transaction_id: transaction.id, stage: 'reversal', status, search_query: code, runsnet_ref: code, customer_name: who, message: `${who || code}: ${message}`, created_at: new Date().toISOString(), ...extra },
       { onConflict: 'transaction_id,stage' },
     );
     return { status, runsnet_ref: code, message };
@@ -54,6 +57,7 @@ export async function reversePayment(supabase, transaction) {
       return log('failed', `Langkah 1 dari 3 gagal: ditemukan ${payments.length} pembayaran untuk ${code}. Reversal otomatis hanya untuk tepat satu pembayaran — lakukan manual di menu Payment Runsnet.`);
     }
     const [payment] = payments;
+    if (!who) who = payment.custName || code;
 
     // 3. Reversal (efek nyata), sesi+kunci menu disegarkan lagi tepat sebelumnya.
     const freshSession = await getRunsnetSession(supabase);

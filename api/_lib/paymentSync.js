@@ -7,9 +7,18 @@ import { getRunsnetSession, searchInvoice, payInvoiceCash, verifyInvoicePaid, is
 // Mengembalikan { status, message, runsnet_ref } (status = nilai kolom runsnet_sync_log.status), atau
 // { skipped } kalau memang tidak perlu diproses.
 export async function syncPayment(supabase, transaction) {
+  // Nama pelanggan disimpan di baris log-nya sendiri (bukan cuma diandalkan dari tabel transactions)
+  // supaya tetap tampil di kartu log walau transaksinya belakangan dihapus dari KAsir.
   const log = async (status, extra = {}) => {
     await supabase.from('runsnet_sync_log').upsert(
-      { transaction_id: transaction.id, stage: 'payment', status, created_at: new Date().toISOString(), ...extra },
+      {
+        transaction_id: transaction.id,
+        stage: 'payment',
+        status,
+        customer_name: transaction.customer_name || transaction.instansi_name || null,
+        created_at: new Date().toISOString(),
+        ...extra,
+      },
       { onConflict: 'transaction_id,stage' },
     );
     return { status, runsnet_ref: extra.runsnet_ref ?? null, message: extra.message ?? null };

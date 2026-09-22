@@ -52,7 +52,7 @@ export function parseInvoiceListResponse(json) {
   const rows = json?.data || [];
   if (rows.length !== 1) return null;
   const invoiceCode = stripHtml(rows[0][1]);
-  return invoiceCode ? { id: invoiceCode } : null;
+  return invoiceCode ? { id: invoiceCode, custName: stripHtml(rows[0][3]) || null } : null;
 }
 
 // Nada warna untuk notifikasi status sinkron: hijau (berhasil), merah (gagal), abu-abu (lainnya —
@@ -127,6 +127,7 @@ export function parsePaymentRows(json, invoiceCode) {
       paymentCode: (String(row[0]).match(/value=['"]([^'"]+)['"]/) || [])[1] || null,
       amount: stripHtml(row[7]),
       payDate: stripHtml(row[6]),
+      custName: stripHtml(row[4]) || null,
     }))
     .filter((payment) => /^PAY\d+$/.test(payment.paymentCode || ''));
 }

@@ -42,7 +42,7 @@ export default async function handler(req, res) {
     : buildInvoiceLookupLog({ configured, invoice, query });
 
   await adminClient.from('runsnet_sync_log').upsert(
-    { transaction_id: localId, stage: 'invoice_lookup', search_query: query, created_at: new Date().toISOString(), ...logEntry },
+    { transaction_id: localId, stage: 'invoice_lookup', search_query: query, customer_name: invoice?.custName || null, created_at: new Date().toISOString(), ...logEntry },
     { onConflict: 'transaction_id,stage' },
   );
 

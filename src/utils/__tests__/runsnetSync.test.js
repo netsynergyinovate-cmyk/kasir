@@ -95,7 +95,7 @@ describe('parseInvoiceListResponse', () => {
   };
 
   it('extracts the invoice code from the first matching row', () => {
-    expect(parseInvoiceListResponse(okResponse)).toEqual({ id: 'INVRT202609002184' });
+    expect(parseInvoiceListResponse(okResponse)).toEqual({ id: 'INVRT202609002184', custName: 'ROEDI FILANI' });
   });
 
   it('returns null when nothing was found', () => {
@@ -119,7 +119,7 @@ describe('parseInvoiceListResponse with ambiguous matches', () => {
 
   it('still returns the single match when there is exactly one', () => {
     const response = { draw: 1, recordsTotal: 2, recordsFiltered: 1, data: [rowFor('INVRT1', 'A')] };
-    expect(parseInvoiceListResponse(response)).toEqual({ id: 'INVRT1' });
+    expect(parseInvoiceListResponse(response)).toEqual({ id: 'INVRT1', custName: 'Nama Mirip' });
   });
 });
 
@@ -222,7 +222,7 @@ describe('parsePaymentRows', () => {
 
   it('returns the payment(s) of exactly the requested invoice, with the payment code from the checkbox', () => {
     const json = { data: [row('PAY202609000941', 'INVRT202609001239'), row('PAY202609000942', 'INVRT202609002184')] };
-    expect(parsePaymentRows(json, 'INVRT202609001239')).toEqual([{ paymentCode: 'PAY202609000941', amount: '200,000', payDate: '2026-09-21' }]);
+    expect(parsePaymentRows(json, 'INVRT202609001239')).toEqual([{ paymentCode: 'PAY202609000941', amount: '200,000', payDate: '2026-09-21', custName: 'ANITA' }]);
   });
 
   it('returns nothing when the invoice has no payment (so a fuzzy search hit is never reversed by mistake)', () => {

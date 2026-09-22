@@ -290,8 +290,11 @@ const RunsnetSyncPanel = ({ session }) => {
                 // Nama & nominal diambil dari id transaksi PALING BARU dalam kelompok ini (percobaan terkini).
                 const lastRow = g.rows[g.rows.length - 1];
                 const tx = txById[lastRow.transaction_id];
+                // Nama Runsnet sendiri (tersimpan di baris log-nya) diutamakan — tetap ada walau transaksinya
+                // sudah dihapus dari KAsir. Baru turun ke nama transaksi KAsir, lalu kata kunci pencarian.
+                const runsnetName = [...g.rows].reverse().find((r) => r.customer_name)?.customer_name;
                 const firstQuery = g.rows.find((r) => r.search_query)?.search_query;
-                const name = tx?.customer_name || tx?.instansi_name || firstQuery || g.key;
+                const name = runsnetName || tx?.customer_name || tx?.instansi_name || firstQuery || g.key;
                 const lastPayment = lastPaymentOf(g);
                 const paymentDone = lastPayment?.status === 'success';
                 const needsReversalHint = paymentDone && !hasReversalOf(g);
