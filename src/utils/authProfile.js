@@ -49,6 +49,13 @@ export async function fetchApproxLocation() {
   return { ip: null, location: null };
 }
 
+// Mengubah nama tampilan akun yang SEDANG LOGIN (bukan akun lain) lewat fungsi database
+// update_my_name — supaya tiap admin/superadmin punya nama sendiri, bukan satu nama bersama.
+export async function updateMyName(supabase, fullName) {
+  const { error } = await supabase.rpc('update_my_name', { p_full_name: fullName });
+  return { error: error ? error.message : null };
+}
+
 export function clearLoginRecorded() {
   try {
     sessionStorage.removeItem(RECORDED_KEY);

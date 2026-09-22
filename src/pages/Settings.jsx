@@ -16,10 +16,13 @@ import { resizeImageFile } from '../utils/imageResize';
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
   btDevice, isConnecting, connectBluetooth, disconnectBluetooth, reconnectBluetooth, savedDeviceName,
-  deferredPrompt, onInstall, onSyncEbilling, session
+  deferredPrompt, onInstall, onSyncEbilling, onUpdateMyName, session
 }) => {
   const [newPkgName, setNewPkgName] = useState('');
   const [newPkgPrice, setNewPkgPrice] = useState('');
+  const [myName, setMyName] = useState('');
+  const [savingMyName, setSavingMyName] = useState(false);
+  const [myNameError, setMyNameError] = useState(null);
   const [localCompany, setLocalCompany] = useState(companyInfo);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isTestingApi, setIsTestingApi] = useState(false);
@@ -32,6 +35,23 @@ const Settings = ({
 
   const currentUser = session?.user;
   const isSuper = session?.profile?.role === 'superadmin';
+  const myFullName = session?.profile?.full_name || '';
+
+  useEffect(() => {
+    setMyName(myFullName);
+  }, [myFullName]);
+
+  // Nama tampilan akun yang SEDANG login (header, struk) — tiap admin/superadmin mengatur miliknya
+  // sendiri, bukan satu nama bersama untuk semua akun (lihat handleUpdateMyName di App.jsx).
+  const saveMyName = async () => {
+    const trimmed = myName.trim();
+    if (!trimmed || trimmed === myFullName) { setMyName(myFullName); return; }
+    setSavingMyName(true);
+    setMyNameError(null);
+    const error = await onUpdateMyName?.(trimmed);
+    if (error) setMyNameError(error);
+    setSavingMyName(false);
+  };
 
   const TABS = [
     { key: 'umum', label: 'Umum', icon: SlidersHorizontal },
@@ -231,7 +251,7 @@ const Settings = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-800">{isSuper ? 'Super Administrator' : (session?.profile?.full_name || 'Admin Kasir')}</span>
+                    <span className="text-xs font-bold text-gray-800">{myFullName || (isSuper ? 'Super Administrator' : 'Admin Kasir')}</span>
                     <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isSuper ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                       {isSuper ? 'Super Admin' : 'Admin'}
                     </span>
@@ -248,24 +268,48 @@ const Settings = ({
               </button>
             </div>
 
+            {/* Nama akun ini SENDIRI — tiap admin/superadmin punya namanya masing-masing, bukan satu nama bersama.
+                Ini yang tampil di header di atas dan sebagai nama kasir di struk transaksi akun ini. */}
             <div className="flex items-center gap-4 pt-1">
               <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
                 <User size={24} />
               </div>
               <div className="flex-1">
-                <label className="block text-[10px] font-bold text-gray-400 uppercase">Nama Kasir di Struk</label>
-                <input 
-                  name="adminName" 
-                  readOnly={!isSuper}
-                  value={localCompany.adminName || ''} 
-                  onChange={handleLocalChange} 
-                  onBlur={handleBlur} 
-                  type="text" 
-                  placeholder="Nama Admin / Kasir"
-                  className="font-bold text-gray-800 bg-transparent border-none p-0 w-full outline-none text-base"
+                <label className="block text-[10px] font-bold text-gray-400 uppercase">Nama Saya (tampil di header & struk)</label>
+                <input
+                  name="myName"
+                  value={myName}
+                  onChange={(e) => setMyName(e.target.value)}
+                  onBlur={saveMyName}
+                  disabled={savingMyName}
+                  type="text"
+                  placeholder="Nama Anda"
+                  className="font-bold text-gray-800 bg-transparent border-none p-0 w-full outline-none text-base disabled:opacity-60"
                 />
+                {myNameError && <p className="text-[10px] text-red-600 font-semibold mt-0.5">{myNameError}</p>}
               </div>
             </div>
+
+            {isSuper && (
+              <div className="flex items-center gap-4 pt-1">
+                <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center shrink-0">
+                  <Users size={20} />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase">Nama Kasir Default (Toko)</label>
+                  <input
+                    name="adminName"
+                    value={localCompany.adminName || ''}
+                    onChange={handleLocalChange}
+                    onBlur={handleBlur}
+                    type="text"
+                    placeholder="Nama Admin / Kasir"
+                    className="font-bold text-gray-800 bg-transparent border-none p-0 w-full outline-none text-sm"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">Dipakai hanya kalau seorang admin belum mengatur namanya sendiri di atas.</p>
+                </div>
+              </div>
+            )}
             <div className="pt-4 border-t border-gray-50 flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase">Fee per Transaksi</p>

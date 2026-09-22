@@ -6,7 +6,7 @@ import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
 import { isPathAllowedForRole, ADMIN_DEFAULT_PATH } from './utils/permissions';
 import { saveLastPath, getLastPath } from './utils/lastPage';
-import { loadVerifiedProfile, clearLoginRecorded } from './utils/authProfile';
+import { loadVerifiedProfile, clearLoginRecorded, updateMyName } from './utils/authProfile';
 
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
@@ -207,6 +207,16 @@ export default function App() {
   const handleUnlock = () => {
     markActivity(); // hitungan 15 menit mulai dari nol setelah kode benar
     setIsLocked(false);
+  };
+
+  // Nama tampilan akun yang sedang login (dipakai di header, struk, dsb) — tiap admin/superadmin
+  // mengubah namanya sendiri, bukan satu nama bersama untuk semua akun.
+  const handleUpdateMyName = async (fullName) => {
+    const { error } = await updateMyName(supabase, fullName);
+    if (!error) {
+      setSession((prev) => (prev ? { ...prev, profile: { ...prev.profile, full_name: fullName } } : prev));
+    }
+    return error;
   };
 
   // Kunci otomatis: setelah 15 menit tanpa disentuh (atau tombol Kunci), minta kode PIN lagi.
@@ -1019,6 +1029,7 @@ export default function App() {
                 deferredPrompt={deferredPrompt}
                 onInstall={installApp}
                 onSyncEbilling={handleSyncCustomersFromEbilling}
+                onUpdateMyName={handleUpdateMyName}
                 />
             } />
             <Route path="/pos" element={
