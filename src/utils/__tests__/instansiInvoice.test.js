@@ -13,6 +13,9 @@ import {
   formatNumber,
   formatDateIndo,
   formatDateIndoShort,
+  summarizeInvoices,
+  filterInvoices,
+  filterClients,
 } from '../instansiInvoice';
 
 describe('getRomanMonth', () => {
@@ -129,5 +132,72 @@ describe('formatDateIndo', () => {
 describe('formatDateIndoShort', () => {
   it('formats yyyy-mm-dd as a short Indonesian date', () => {
     expect(formatDateIndoShort('2026-09-09')).toBe('09 Sep 2026');
+  });
+});
+
+const invoice = (overrides = {}) => ({
+  id: 1, invoice_number: 'INV-001/A/NSI/I/2026', kind: 'invoice', client_id: 1,
+  amount: '300000', status: 'pending', issued_date: '2026-09-01',
+  client: { id: 1, institution_name: 'SD Negeri 05' }, ...overrides,
+});
+
+describe('summarizeInvoices', () => {
+  it('counts and sums amounts by status', () => {
+    const list = [
+      invoice({ id: 1, status: 'paid', amount: '300000' }),
+      invoice({ id: 2, status: 'paid', amount: '200000' }),
+      invoice({ id: 3, status: 'pending', amount: '150000' }),
+    ];
+    expect(summarizeInvoices(list)).toEqual({
+      total: 3, paid: 2, pending: 1, paidAmount: 500000, pendingAmount: 150000,
+    });
+  });
+
+  it('returns all zeros for an empty list', () => {
+    expect(summarizeInvoices([])).toEqual({ total: 0, paid: 0, pending: 0, paidAmount: 0, pendingAmount: 0 });
+  });
+});
+
+describe('filterInvoices', () => {
+  const list = [
+    invoice({ id: 1, status: 'paid', client_id: 1, issued_date: '2026-09-01', client: { id: 1, institution_name: 'SD Negeri 05' }, invoice_number: 'INV-001/A/NSI/IX/2026' }),
+    invoice({ id: 2, status: 'pending', client_id: 2, issued_date: '2026-08-10', client: { id: 2, institution_name: 'Pemdes Tunggal Jaya' }, invoice_number: 'INV-002/B/NSI/VIII/2026' }),
+  ];
+
+  it('filters by status', () => {
+    expect(filterInvoices(list, { status: 'paid' }).map((i) => i.id)).toEqual([1]);
+  });
+
+  it('filters by clientId', () => {
+    expect(filterInvoices(list, { clientId: 2 }).map((i) => i.id)).toEqual([2]);
+  });
+
+  it('filters by issued month and year', () => {
+    expect(filterInvoices(list, { month: 9, year: 2026 }).map((i) => i.id)).toEqual([1]);
+  });
+
+  it('searches invoice number and institution name case-insensitively', () => {
+    expect(filterInvoices(list, { search: 'tunggal jaya' }).map((i) => i.id)).toEqual([2]);
+    expect(filterInvoices(list, { search: 'inv-001' }).map((i) => i.id)).toEqual([1]);
+  });
+
+  it('returns everything when no filters are set', () => {
+    expect(filterInvoices(list).length).toBe(2);
+  });
+});
+
+describe('filterClients', () => {
+  const clients = [
+    { id: 1, institution_name: 'SD Negeri 05', client_code: '1609', status: 'active' },
+    { id: 2, institution_name: 'SMP Negeri 08', client_code: '1469', status: 'inactive' },
+  ];
+
+  it('filters by status', () => {
+    expect(filterClients(clients, { status: 'inactive' }).map((c) => c.id)).toEqual([2]);
+  });
+
+  it('searches by name or client code', () => {
+    expect(filterClients(clients, { search: '1609' }).map((c) => c.id)).toEqual([1]);
+    expect(filterClients(clients, { search: 'smp' }).map((c) => c.id)).toEqual([2]);
   });
 });

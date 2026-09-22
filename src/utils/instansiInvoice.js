@@ -107,3 +107,56 @@ export function formatDateIndoShort(dateStr) {
   const day = String(parsed.day).padStart(2, '0');
   return `${day} ${INDONESIAN_MONTHS_SHORT[parsed.month]} ${parsed.year}`;
 }
+
+// Ringkasan angka untuk kartu statistik di atas daftar invoice/faktur: jumlah & total nominal per
+// status. amount di baris DB bertipe numeric -> bisa datang sebagai string, makanya selalu Number(...).
+export function summarizeInvoices(invoices) {
+  const summary = { total: invoices.length, paid: 0, pending: 0, paidAmount: 0, pendingAmount: 0 };
+  invoices.forEach((inv) => {
+    const amount = Number(inv.amount) || 0;
+    if (inv.status === 'paid') {
+      summary.paid += 1;
+      summary.paidAmount += amount;
+    } else {
+      summary.pending += 1;
+      summary.pendingAmount += amount;
+    }
+  });
+  return summary;
+}
+
+// Filter daftar invoice/faktur untuk UI: status ('all'|'paid'|'pending'), clientId, bulan+tahun
+// terbit (month 1-12, keduanya opsional/null berarti tidak difilter), dan pencarian bebas (nomor
+// dokumen atau nama instansi, tidak case-sensitive). Butuh field `client` sudah ter-embed di baris
+// invoice (hasil join instansi_clients) supaya bisa mencocokkan nama instansi.
+export function filterInvoices(invoices, { status = 'all', clientId = null, month = null, year = null, search = '' } = {}) {
+  const needle = search.trim().toLowerCase();
+  return invoices.filter((inv) => {
+    if (status !== 'all' && inv.status !== status) return false;
+    if (clientId && inv.client_id !== clientId) return false;
+    if (month || year) {
+      const d = new Date(inv.issued_date);
+      if (month && d.getMonth() + 1 !== month) return false;
+      if (year && d.getFullYear() !== year) return false;
+    }
+    if (needle) {
+      const haystack = `${inv.invoice_number || ''} ${inv.client?.institution_name || ''}`.toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
+    return true;
+  });
+}
+
+// Filter daftar klien: status ('all'|'active'|'inactive') dan pencarian bebas (nama instansi atau
+// kode klien).
+export function filterClients(clients, { status = 'all', search = '' } = {}) {
+  const needle = search.trim().toLowerCase();
+  return clients.filter((c) => {
+    if (status !== 'all' && c.status !== status) return false;
+    if (needle) {
+      const haystack = `${c.institution_name || ''} ${c.client_code || ''}`.toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
+    return true;
+  });
+}
