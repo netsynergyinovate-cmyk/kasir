@@ -45,6 +45,17 @@ export function compareMonths(transactions, now = new Date()) {
   };
 }
 
+// Transaksi ini benar-benar dikerjakan akun (admin) yang sedang login? Diutamakan cocokkan lewat
+// cashierId (akun asli, tidak berubah walau nama diganti); transaksi lama yang belum punya cashierId
+// dicocokkan lewat nama sebagai cadangan. Dipakai supaya "Jasa Kasir" (komisi) seorang admin TIDAK
+// pernah ikut menghitung transaksi yang dikerjakan superadmin atau admin lain.
+export function isOwnTransaction(trx, userId, fullName) {
+  const cashierId = trx.cashierId || trx.cashier_id;
+  if (cashierId) return cashierId === userId;
+  if (!fullName) return false;
+  return (trx.cashierName || trx.cashier_name) === fullName;
+}
+
 export function cashierPerformance(transactions, year, month) {
   const byCashier = new Map();
 

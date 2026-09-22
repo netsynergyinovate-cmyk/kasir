@@ -5,10 +5,10 @@ import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
-import { getGreeting } from '../utils/dashboardStats';
+import { getGreeting, isOwnTransaction } from '../utils/dashboardStats';
 import './Dashboard.css';
 
-const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute = false, origin = null, myPosition = null, locationStatus = 'off', adminLocations = [], onRetryLocation, transactions = [], customers = [], packages = [], companyInfo = {}, setReceiptToView, setInstansiReceiptToView }) => {
+const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute = false, origin = null, myPosition = null, locationStatus = 'off', adminLocations = [], onRetryLocation, transactions = [], customers = [], packages = [], companyInfo = {}, session, setReceiptToView, setInstansiReceiptToView }) => {
   const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -48,10 +48,12 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
   // 3. Remaining Target
   const remainingTarget = totalPotentialTarget - grossRevenue;
 
-  // 4. Admin Fee Income (Jasa Kasir)
-  // Only for LUNAS transactions that are NOT 'CS'
-  const successTrxForAdmin = filteredTransactions.filter(t => 
+  // 4. Admin Fee Income (Jasa Kasir) — HANYA transaksi yang benar-benar dikerjakan akun yang sedang
+  // login (lewat cashierId, cadangan cocokkan nama). Transaksi yang dikerjakan superadmin atau admin
+  // lain tidak pernah ikut terhitung sebagai jasa admin ini.
+  const successTrxForAdmin = filteredTransactions.filter(t =>
     (t.status === 'LUNAS' || t.type === 'instansi') && t.payment_method !== 'CS'
+      && isOwnTransaction(t, session?.user?.id, session?.profile?.full_name)
   );
   const adminIncome = successTrxForAdmin.length * (companyInfo.adminFee || 10000);
 

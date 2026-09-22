@@ -3,7 +3,7 @@ import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import Navigation from '../Navigation';
 
-const render = (role) => renderToString(<MemoryRouter><Navigation role={role} /></MemoryRouter>).replace(/<!-- -->/g, '');
+const render = (role, allowedPaths) => renderToString(<MemoryRouter><Navigation role={role} allowedPaths={allowedPaths} /></MemoryRouter>).replace(/<!-- -->/g, '');
 
 describe('bottom Navigation', () => {
   it('gives the superadmin a Rute menu right next to Setting', () => {
@@ -27,5 +27,21 @@ describe('bottom Navigation', () => {
         expect(html).toContain(link);
       });
     });
+  });
+
+  it('only shows the menus a specific admin was granted by superadmin', () => {
+    const html = render('admin', ['/pos', '/history']);
+    expect(html).toContain('href="/pos"');
+    expect(html).toContain('href="/history"');
+    expect(html).not.toContain('href="/"');
+    expect(html).not.toContain('href="/customers"');
+    expect(html).not.toContain('href="/settings"');
+  });
+
+  it('ignores allowedPaths for superadmin (always sees everything)', () => {
+    const html = render('superadmin', []);
+    expect(html).toContain('href="/pos"');
+    expect(html).toContain('href="/customers"');
+    expect(html).toContain('href="/settings"');
   });
 });

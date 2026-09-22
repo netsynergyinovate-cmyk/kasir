@@ -193,6 +193,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
       paymentMethod: formData.get('paymentMethod') || 'Cash',
       amountPaid: Number(bayar) || Number(currentPkg.price) || 0,
       cashierName: formData.get('cashierName') || companyInfo?.adminName || 'Admin Utama',
+      cashierId: session?.user?.id || null,
       type: 'retail'
     };
 

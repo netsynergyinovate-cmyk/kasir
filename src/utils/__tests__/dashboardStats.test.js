@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue } from '../dashboardStats';
+import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction } from '../dashboardStats';
 
 describe('getGreeting', () => {
   it('returns the Indonesian greeting for each part of the day', () => {
@@ -207,5 +207,26 @@ describe('dailyTransactions', () => {
       trx('2026-09-20T09:00:00', 3, { id: 'y' }),
     ];
     expect(dailyTransactions(list, new Date(2026, 8, 21)).map((t) => t.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('isOwnTransaction', () => {
+  it('matches by cashierId when the transaction has one (robust to name changes)', () => {
+    expect(isOwnTransaction({ cashierId: 'u1', cashierName: 'Old Name' }, 'u1', 'New Name')).toBe(true);
+    expect(isOwnTransaction({ cashierId: 'u2' }, 'u1', 'Budi')).toBe(false);
+  });
+
+  it('reads the snake_case form too (transactions loaded from the database)', () => {
+    expect(isOwnTransaction({ cashier_id: 'u1' }, 'u1', 'Budi')).toBe(true);
+  });
+
+  it('falls back to matching the cashier name for old transactions with no cashierId at all', () => {
+    expect(isOwnTransaction({ cashierName: 'Budi' }, 'u1', 'Budi')).toBe(true);
+    expect(isOwnTransaction({ cashier_name: 'Budi' }, 'u1', 'Budi')).toBe(true);
+    expect(isOwnTransaction({ cashierName: 'Super Administrator' }, 'u1', 'Budi')).toBe(false);
+  });
+
+  it('never counts a transaction as this admin\'s own when it has neither cashierId nor a matching name (e.g. done by superadmin)', () => {
+    expect(isOwnTransaction({ cashierName: 'Super Administrator' }, 'u1', null)).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import { getOrCreateDeviceId, getDeviceLabel } from './deviceId';
 
-const PROFILE_COLUMNS = 'id, full_name, role, device_id, device_label';
+const PROFILE_COLUMNS = 'id, full_name, role, device_id, device_label, allowed_paths';
 const RECORDED_KEY = 'kasir_login_recorded';
 
 const GEO_CACHE_KEY = 'kasir_geo_cache';

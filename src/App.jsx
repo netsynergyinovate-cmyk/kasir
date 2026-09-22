@@ -240,7 +240,7 @@ export default function App() {
   }, [session, companyInfo.appPin, isLoading]);
 
   useEffect(() => {
-    if (session?.profile?.role === 'admin' && !isPathAllowedForRole('admin', location.pathname)) {
+    if (session?.profile?.role === 'admin' && !isPathAllowedForRole('admin', location.pathname, session.profile?.allowed_paths)) {
       navigate(ADMIN_DEFAULT_PATH, { replace: true });
     }
   }, [session, location.pathname, navigate]);
@@ -256,7 +256,7 @@ export default function App() {
   useEffect(() => {
     if (!session || !authChecked || isLoading || isLocked || location.pathname !== '/') return;
     const last = getLastPath();
-    if (last && last !== '/' && isPathAllowedForRole(session.profile?.role, last)) {
+    if (last && last !== '/' && isPathAllowedForRole(session.profile?.role, last, session.profile?.allowed_paths)) {
       navigate(last, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -511,6 +511,7 @@ export default function App() {
         payment_method: newTrx.paymentMethod || newTrx.payment_method || 'Cash',
         amount_paid: Number(newTrx.amountPaid) || Number(newTrx.price) || 0,
         cashier_name: newTrx.cashierName || newTrx.cashier_name || 'Admin',
+        cashier_id: newTrx.cashierId || newTrx.cashier_id || null,
         invoice_number: newTrx.invoiceNumber || newTrx.invoice_number || null,
         type: 'retail'
       };
@@ -961,19 +962,20 @@ export default function App() {
                   setInstansiReceiptToView={setInstansiReceiptToView} 
                 />
               ) : (
-                <Dashboard 
+                <Dashboard
+                  session={session}
                   visits={visits}
                   onAddVisit={handleAddVisit}
                   origin={shareLocation.routeOrigin}
                   myPosition={shareLocation.position}
                   locationStatus={shareLocation.status}
                   onRetryLocation={shareLocation.retry}
-                  transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
-                  customers={customers} 
+                  transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name, cashierId: t.cashier_id}))}
+                  customers={customers}
                   packages={packages}
                   companyInfo={companyInfo}
-                  setReceiptToView={setReceiptToView} 
-                  setInstansiReceiptToView={setInstansiReceiptToView} 
+                  setReceiptToView={setReceiptToView}
+                  setInstansiReceiptToView={setInstansiReceiptToView}
                 />
               )
             } />
@@ -1053,7 +1055,7 @@ export default function App() {
           </Routes>
         </main>
 
-        <Navigation role={session?.profile?.role} />
+        <Navigation role={session?.profile?.role} allowedPaths={session?.profile?.allowed_paths} />
       </div>
 
       <RunsnetSyncToast result={runsnetResult} onDone={() => setRunsnetResult(null)} />
