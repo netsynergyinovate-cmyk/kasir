@@ -52,6 +52,9 @@ body {
     height: auto !important;
     overflow: visible !important;
   }
+  .printable-invoice + .printable-invoice {
+    break-before: page;
+  }
 }
 
 @theme {

@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
-import { CheckCircle2, Loader2, Archive, Save } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Loader2, Archive, Save, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import InstansiA4Preview from './InstansiA4Preview';
+import InstansiMultiPreviewModal from './InstansiMultiPreviewModal';
 import { downloadInvoicesZip } from '../utils/instansiPdfExport';
 import {
   generateInvoiceNumber, nextSequence, billingPeriod, resolvePackagePrice, monthRange, amountInWords,
@@ -25,6 +26,7 @@ const InstansiMultipate = ({ clients, profile, internetPackages, existingInvoice
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const elRefs = useRef({});
 
   const toggleClient = (id) => {
@@ -108,6 +110,20 @@ const InstansiMultipate = ({ clients, profile, internetPackages, existingInvoice
   };
 
   const previewList = saved.length > 0 ? saved : drafts.map((d) => ({ ...d, invoice_number: `INV-XXX/${d.client.client_code}/NSI/.../${year}` }));
+
+  // Dikelompokkan per klien (satu klien bisa punya beberapa bulan sekaligus) supaya daftar hasil
+  // gampang ditelusuri, bukan ditumpuk rata per baris invoice.
+  const groupedByClient = useMemo(() => {
+    const map = new Map();
+    previewList.forEach((item) => {
+      const cid = item.client.id;
+      if (!map.has(cid)) map.set(cid, { client: item.client, items: [], subtotal: 0 });
+      const group = map.get(cid);
+      group.items.push(item);
+      group.subtotal += Number(item.amount) || 0;
+    });
+    return [...map.values()];
+  }, [previewList]);
 
   const buildPreviewProps = (item) => {
     const client = item.client;
@@ -199,25 +215,51 @@ const InstansiMultipate = ({ clients, profile, internetPackages, existingInvoice
             </div>
 
             {saved.length > 0 && (
-              <button type="button" onClick={handleDownloadZip} disabled={exporting} className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
-                {exporting ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />} {exporting ? exportProgress || 'Menyiapkan...' : 'Unduh Semua (ZIP)'}
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setShowPrintPreview(true)} className="py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
+                  <Printer size={16} /> Pratinjau & Cetak
+                </button>
+                <button type="button" onClick={handleDownloadZip} disabled={exporting} className="py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
+                  {exporting ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />} {exporting ? exportProgress || '...' : 'ZIP'}
+                </button>
+              </div>
             )}
 
-            <ul className="divide-y divide-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
-              {previewList.map((item) => (
-                <li key={item.key || item.id} className="px-3 py-2.5 flex items-center justify-between text-xs">
-                  <div className="min-w-0">
-                    <p className="font-bold text-gray-800 truncate">{item.client.institution_name}</p>
-                    <p className="font-mono text-gray-400 text-[10px] truncate">{item.invoice_number}</p>
+            <div className="space-y-2">
+              {groupedByClient.map((group) => (
+                <div key={group.client.id} className="border border-gray-100 rounded-2xl overflow-hidden">
+                  <div className="px-3 py-2.5 bg-gray-50 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="font-black text-gray-800 text-xs truncate">{group.client.institution_name}</p>
+                      <p className="text-[10px] text-gray-400 font-bold">{group.items.length} dokumen</p>
+                    </div>
+                    <p className="font-black text-gray-900 text-xs shrink-0">Rp {new Intl.NumberFormat('id-ID').format(group.subtotal)}</p>
                   </div>
-                  <p className="font-black text-gray-900 shrink-0">Rp {new Intl.NumberFormat('id-ID').format(item.amount)}</p>
-                </li>
+                  <ul className="divide-y divide-gray-50">
+                    {group.items.map((item) => (
+                      <li key={item.key || item.id} className="px-3 py-2 flex items-center justify-between text-xs">
+                        <div className="min-w-0">
+                          <p className="font-mono text-gray-500 text-[10px] truncate">{item.invoice_number}</p>
+                          <p className="text-gray-400 text-[10px]">{MONTHS[(item.month || 1) - 1]}</p>
+                        </div>
+                        <p className="font-bold text-gray-700 shrink-0">Rp {new Intl.NumberFormat('id-ID').format(item.amount)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
       </div>
+
+      {showPrintPreview && saved.length > 0 && (
+        <InstansiMultiPreviewModal
+          items={saved.map((inv) => ({ key: inv.id, ...buildPreviewProps({ ...inv, month: new Date(inv.issued_date).getMonth() + 1 }) }))}
+          profile={profile}
+          onClose={() => setShowPrintPreview(false)}
+        />
+      )}
 
       {/* Render off-screen (tak terlihat) untuk sumber rasterisasi ZIP — hanya dokumen yang sudah tersimpan. */}
       <div className="fixed left-0 top-[300vh] pointer-events-none w-[210mm]">
