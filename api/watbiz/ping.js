@@ -28,8 +28,8 @@ export default async function handler(req, res) {
 
   try {
     const result = await sendWatbizMessage(token, {
-      to,
-      text: 'Tes koneksi Watbiz dari KAsir berhasil ✅',
+      number: to,
+      message: 'Tes koneksi Watbiz dari KAsir berhasil ✅',
     });
     res.status(200).json(result);
   } catch (err) {
