@@ -561,39 +561,6 @@ export default function App() {
     return true;
   };
 
-  const handleInstansiComplete = async (newTrx) => {
-    try {
-      const payload = {
-        id: newTrx.id,
-        date: newTrx.date,
-        instansi_name: newTrx.instansiName || newTrx.instansi_name,
-        address: newTrx.address,
-        service_name: newTrx.serviceName || newTrx.service_name,
-        price: Number(newTrx.price) || 0,
-        cashier_name: newTrx.cashierName || newTrx.cashier_name || 'Admin',
-        type: 'instansi'
-      };
-
-      const { error } = await supabase.from('transactions').insert([payload]);
-
-      if (error) console.warn('Instansi DB insert note:', error.message);
-
-      const existingLocal = JSON.parse(localStorage.getItem('kasir_local_transactions') || '[]');
-      const filteredExisting = existingLocal.filter(t => t.id !== newTrx.id);
-      localStorage.setItem('kasir_local_transactions', JSON.stringify([newTrx, ...filteredExisting]));
-
-      setTransactions(prev => [newTrx, ...prev.filter(t => t.id !== newTrx.id)]);
-      setInstansiReceiptToView(newTrx);
-      if (!error) triggerRunsnetSync(newTrx.id);
-      showNotification('Invoice Instansi Berhasil', `${newTrx.instansiName} - ${formatRupiah(newTrx.price)}`);
-
-      // Automasi pengiriman data ke Billing Monitoring System
-      sendPaymentToBillingSystem(newTrx, companyInfo);
-    } catch (e) {
-      alert('Gagal menyimpan invoice: ' + e.message);
-    }
-  };
-
   const handleAddCustomer = async (newCust) => {
     try {
       const { error } = await supabase.from('customers').insert([{
@@ -1045,7 +1012,7 @@ export default function App() {
               />
             } />
             <Route path="/instansi" element={
-               <Instansi onComplete={handleInstansiComplete} />
+               <Instansi />
             } />
             <Route path="/aktivitas" element={
               <Aktivitas
