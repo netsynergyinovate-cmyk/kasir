@@ -1,5 +1,5 @@
 import process from 'node:process';
-import { isConfigPlaceholder, parseInvoiceListResponse, stripHtml, describePayResponse, parsePaymentRows } from '../../src/utils/runsnetSync.js';
+import { parseInvoiceListResponse, stripHtml, describePayResponse, parsePaymentRows } from '../../src/utils/runsnetSync.js';
 import { parsePelangganRow } from '../../src/utils/runsnetCustomers.js';
 
 // Dibaca lewat fungsi (bukan konstanta top-level) supaya skrip lokal yang memuat .env.local
@@ -7,69 +7,20 @@ import { parsePelangganRow } from '../../src/utils/runsnetCustomers.js';
 const getBaseUrl = () => process.env.RUNSNET_BASE_URL || 'https://app.runsnet.id';
 
 // ==========================================================================
-// KONFIGURASI YANG WAJIB DIISI SEBELUM SINKRON BISA BENAR-BENAR MENGIRIM APA PUN.
+// Runsnet tidak punya API resmi: semua navigasi lewat satu file `view/index.php` dengan satu
+// parameter GET "kunci menu" yang NAMA dan NILAINYA obfuskasi (base64 di atas sesuatu yang
+// terenkripsi) DAN BERUBAH — terbukti 2026-09-22: kunci yang terverifikasi jalan sehari sebelumnya
+// sudah tidak berlaku esoknya (menuju ke halaman lain, bukan error). Jadi TIDAK ADA yang dihardcode
+// di sini lagi. Sebagai gantinya, discoverMenuMap() membaca kunci yang BERLAKU SAAT INI langsung dari
+// menu resmi Runsnet sendiri (persis seperti membuka menunya di browser) tiap kali sesi login dibuat,
+// lalu disimpan bersama cookie-nya (lihat getRunsnetSession) supaya tidak perlu ditemukan ulang tiap
+// pemanggilan.
 //
-// Arsitektur asli Runsnet (dikonfirmasi lewat tangkapan DevTools 2026-09-21): SEMUA navigasi
-// lewat satu file `view/index.php`, dengan satu parameter GET "kunci menu" (nama tetap,
-// nilainya menentukan halaman/aksi apa yang dijalankan) ditambah data1/data2/data3 untuk
-// parameter aksi. Field yang masih 'REPLACE_ME' di bawah sengaja diisi begitu (bukan ditebak),
-// karena Runsnet tidak punya API resmi. Sampai diisi, fungsi terkait menolak mengirim apa pun
-// dan mencatat status 'skipped_not_configured' di log.
-// ==========================================================================
-const CONFIG = {
-  // Nama parameter GET "kunci menu" — TETAP untuk semua navigasi index.php.
-  // Terverifikasi dari tangkapan nyata 2026-09-21.
-  menuKeyParam: 'N3lSektGNnZMV3R3ZjRlN0h0a24xZz09',
-
-  // Nilai menuKeyParam untuk memuat daftar invoice (dipakai membentuk Referer saat mencari
-  // invoice). Terverifikasi dari tangkapan nyata 2026-09-21 (sama untuk page "Invoice" dan
-  // "Payment" — nilainya konsisten dipakai ulang, cuma untuk Referer, bukan untuk aksi).
-  invoiceListMenuValue: 'Ti9XSG9WdnFyakhKS0owRzh5ZVMrdUVJaHVTZk1wVGY3TjVOOUtReUlScz0=',
-
-  // Path (relatif ke view/) endpoint pencarian invoice — DataTables server-side, ditemukan
-  // langsung dari kode sumber halaman (bukan tangkapan DevTools), lalu diuji nyata (2026-09-21):
-  // POST dengan field standar DataTables (draw/start/length/search[value]/columns[]/order[]).
-  searchPath: 'model/previewc/query/invoice.php',
-
-  // Kode mitra/akun Runsnet ini — konstanta per akun, dipakai endpoint pencarian.
-  mitraTarget: 'ID00000000024',
-
-  // Nilai menuKeyParam untuk EKSEKUSI pembayaran. Terverifikasi dari tangkapan nyata 2026-09-21:
-  // GET ke `view/index.php` dengan param ini + data1 (kode invoice, mis. "INVRT202609002184")
-  // + data2 (label metode, "Pembayaran Tunai") + data3 (tanggal YYYY-MM-DD) LANGSUNG membayar
-  // invoice itu — tidak ada konfirmasi/tombol terpisah di sisi server. Satu request = satu
-  // pembayaran nyata; jangan pernah memanggil payInvoiceCash() di luar alur webhook yang sudah
-  // dijaga saklar + mode uji coba.
-  paymentMenuValue: 'Ti9XSG9WdnFyakhKS0owRzh5ZVMrZ2FpTm8wbDVWM1RLUllnTzZHN3l3dz0=',
-
-  // Nilai menuKeyParam untuk memuat daftar pelanggan (dipakai membentuk Referer). Path endpoint
-  // pencariannya berbeda dari invoice. Terverifikasi dari tangkapan nyata 2026-09-21.
-  customersMenuValue: 'Z3hlVzJ5R2w5empzMXhhclAyMkRaMzJJVWFwTVFQZ1JxNlRaNDJsYTgwUT0=',
-  customersPath: 'model/previewc/query/pelanggan.php',
-
-  // Halaman menu "Payment" (daftar pembayaran + tombol Reversal). URL halamannya diberikan pengguna (2026-09-21);
-  // path daftar pembayaran dan nilai menu reversal dibaca dari kode sumber halaman itu sendiri (fungsi
-  // createreversal). PERINGATAN: GET dengan reversalMenuValue + data1 (kode pembayaran, mis. PAY202609000942)
-  // LANGSUNG membatalkan pembayaran itu tanpa konfirmasi di server — hanya dipanggil dari alur reversal yang dijaga.
-  paymentPageMenuValue: 'MnZQbDhwVXRCcXFPNEVCWHdpR3dpUy9QeEpxMHUweGFOdlRNMmdEeGFoaz0=',
-  paymentListPath: 'model/previewc/query/payment.php',
-  reversalMenuValue: 'MnZQbDhwVXRCcXFPNEVCWHdpR3dpWmc2VUR2aWI5dFJvemUxcSt4eGNJcz0=',
-};
-
-function unconfiguredFields(keys) {
-  return keys.filter((key) => isConfigPlaceholder(CONFIG[key]));
-}
-
-export function isRunsnetConfigured() {
-  return unconfiguredFields(Object.keys(CONFIG)).length === 0;
-}
-
-class RunsnetNotConfiguredError extends Error {
-  constructor(fields) {
-    super(`Konfigurasi Runsnet belum diisi: ${fields.join(', ')}. Lihat komentar di api/_lib/runsnetClient.js.`);
-    this.name = 'RunsnetNotConfiguredError';
-  }
-}
+// Yang TETAP (bukan kunci menu, terbukti stabil karena berupa path/ID biasa, bukan token obfuskasi):
+const SEARCH_PATH = 'model/previewc/query/invoice.php';
+const PAYMENT_LIST_PATH = 'model/previewc/query/payment.php';
+const CUSTOMERS_PATH = 'model/previewc/query/pelanggan.php';
+const MITRA_TARGET = 'ID00000000024';
 
 async function loginToRunsnet() {
   const username = process.env.RUNSNET_USERNAME;
@@ -96,8 +47,11 @@ async function loginToRunsnet() {
   return cookie;
 }
 
-// Uji koneksi: hanya mencoba login, tidak menyentuh field pencarian/pembayaran (yang mungkin
-// masih REPLACE_ME) dan tidak menyimpan sesi. Dipakai tombol "Uji Koneksi" di Pengaturan.
+export function isRunsnetConfigured() {
+  return Boolean(process.env.RUNSNET_USERNAME && process.env.RUNSNET_PASSWORD);
+}
+
+// Uji koneksi: hanya mencoba login, tidak menyentuh menu/pembayaran. Dipakai tombol "Uji Koneksi" di Pengaturan.
 export async function pingRunsnet() {
   try {
     await loginToRunsnet();
@@ -107,34 +61,106 @@ export async function pingRunsnet() {
   }
 }
 
-// Sesi login disimpan di tabel runsnet_session supaya tidak login ulang tiap transaksi
-// (Vercel Function stateless antar pemanggilan; login berulang bisa memicu proteksi anti-bot).
-export async function ensureSession(supabaseAdmin, { force = false } = {}) {
-  const { data } = await supabaseAdmin.from('runsnet_session').select('cookie, updated_at').eq('id', 1).maybeSingle();
+// Label -> nilai kunci menu yang WAJIB ditemukan supaya fitur sinkron bisa jalan. Nama label persis
+// seperti teks <span> di menu Runsnet sendiri (previewc/FTTH -> GROUP 3 "Invoice", "Payment"; GROUP 2
+// "Pelanggan").
+const REQUIRED_MENU_LABELS = ['Invoice', 'Payment', 'Pelanggan'];
 
+// Membaca kunci-kunci menu yang BERLAKU SAAT INI lewat menu resmi Runsnet sendiri:
+// 1. Submenu FTTH (previewc) -> daftar link <a href="?<kunciMenu>=<nilai>"><span>Label</span></a>,
+//    dari situ didapat nama parameter kunci menu + nilai utk Invoice/Payment/Pelanggan.
+// 2. Buka halaman Invoice pakai nilainya -> baca teks fungsi createpayment() utk nilai eksekusi bayar.
+// 3. Buka halaman Payment pakai nilainya -> baca teks fungsi createreversal() utk nilai eksekusi reversal.
+// Semua langkah ini GET/POST biasa (hanya membaca), sama seperti membuka menu itu sendiri di browser.
+export async function discoverMenuMap(cookie) {
+  const subRes = await fetch(`${getBaseUrl()}/view/control/function/function_get_menu.php?menu=previewc_invoice&master=previewc&level=LVL06`, {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest', Cookie: cookie },
+  });
+  const subHtml = await subRes.text();
+
+  let menuKeyParam = null;
+  const byLabel = {};
+  const linkRe = /href="\?([A-Za-z0-9+/=]+)=([A-Za-z0-9+/=]+)"[^>]*>[\s\S]{0,60}?<span>([^<]+)<\/span>/g;
+  let m;
+  while ((m = linkRe.exec(subHtml)) !== null) {
+    menuKeyParam = m[1];
+    byLabel[m[3].trim()] = m[2];
+  }
+
+  const missingLabels = REQUIRED_MENU_LABELS.filter((label) => !byLabel[label]);
+  if (!menuKeyParam || missingLabels.length > 0) {
+    throw new Error(`Tidak menemukan menu Runsnet (${missingLabels.join(', ') || 'kunci menu'}). Struktur menu Runsnet mungkin berubah.`);
+  }
+
+  const fetchMenuPage = async (value) => {
+    const url = new URL(`${getBaseUrl()}/view/index.php`);
+    url.searchParams.set(menuKeyParam, value);
+    const response = await fetch(url, { headers: { Cookie: cookie } });
+    return response.text();
+  };
+
+  // Nilai eksekusi (createpayment/createreversal) ditemukan dari isi fungsi JS itu di halaman terkait —
+  // bentuknya persis window.open('?<kunciMenu>=<nilai>&data1=' + ..., '_self').
+  const extractActionValue = (html, fnName, keyParam) => {
+    const i = html.indexOf(`function ${fnName}(`);
+    if (i < 0) return null;
+    const re = new RegExp(`window\\.open\\('\\?${keyParam}=([A-Za-z0-9+/=]+)&`);
+    const found = html.slice(i, i + 800).match(re);
+    return found ? found[1] : null;
+  };
+
+  const invoiceHtml = await fetchMenuPage(byLabel.Invoice);
+  const paymentActionValue = extractActionValue(invoiceHtml, 'createpayment', menuKeyParam);
+
+  const paymentHtml = await fetchMenuPage(byLabel.Payment);
+  const reversalActionValue = extractActionValue(paymentHtml, 'createreversal', menuKeyParam);
+
+  if (!paymentActionValue || !reversalActionValue) {
+    throw new Error('Tidak menemukan tombol Bayar/Reversal di halaman Runsnet. Struktur halaman Runsnet mungkin berubah.');
+  }
+
+  return {
+    menuKeyParam,
+    invoiceListMenuValue: byLabel.Invoice,
+    paymentPageMenuValue: byLabel.Payment,
+    customersMenuValue: byLabel.Pelanggan,
+    paymentMenuValue: paymentActionValue,
+    reversalMenuValue: reversalActionValue,
+  };
+}
+
+// true kalau cookie+menu (sesi tersimpan) masih benar-benar diterima Runsnet HARI INI: memuat daftar
+// invoice pakai kunci itu betul-betul menampilkan daftar invoice (dicek lewat penanda 'InvoiceCode' di
+// isinya), bukan cuma HTTP 200 (halaman lain pun bisa 200). Ini menangkap DUA jenis basi sekaligus:
+// cookie yang sudah tidak valid, ATAU kunci menu yang sudah berganti sejak terakhir disimpan.
+async function isMenuMapStillValid(cookie, menu) {
+  if (!menu?.menuKeyParam || !menu?.invoiceListMenuValue) return false;
+  const url = new URL(`${getBaseUrl()}/view/index.php`);
+  url.searchParams.set(menu.menuKeyParam, menu.invoiceListMenuValue);
+  const response = await fetch(url, { method: 'GET', headers: { Cookie: cookie }, redirect: 'manual' });
+  if (response.status !== 200) return false;
+  const html = await response.text();
+  return html.includes('InvoiceCode');
+}
+
+// Titik masuk utama: cookie login + kunci menu yang TERBUKTI berlaku saat ini, dari cache (tabel
+// runsnet_session) kalau masih segar (< 1 jam DAN masih valid dites nyata), kalau tidak login +
+// temukan ulang. Menggantikan ensureSession/ensureValidSession lama (kunci menu dulu dikira tetap,
+// sekarang ditemukan ulang bersama sesi karena terbukti berubah — lihat komentar di atas).
+export async function getRunsnetSession(supabaseAdmin, { force = false } = {}) {
+  const { data } = await supabaseAdmin.from('runsnet_session').select('cookie, menu_map, updated_at').eq('id', 1).maybeSingle();
   const ageMs = data?.updated_at ? Date.now() - new Date(data.updated_at).getTime() : Infinity;
   const ONE_HOUR = 60 * 60 * 1000;
-  if (!force && data?.cookie && ageMs < ONE_HOUR) return data.cookie;
+
+  if (!force && data?.cookie && data?.menu_map && ageMs < ONE_HOUR && (await isMenuMapStillValid(data.cookie, data.menu_map))) {
+    return { cookie: data.cookie, menu: data.menu_map };
+  }
 
   const cookie = await loginToRunsnet();
-  await supabaseAdmin.from('runsnet_session').upsert({ id: 1, cookie, updated_at: new Date().toISOString() });
-  return cookie;
-}
-
-// true kalau cookie sesi masih diterima Runsnet: memuat halaman daftar invoice tidak dialihkan ke login.php.
-// Sesi bisa habis sendiri atau tergeser kalau akun yang sama login di tempat lain, jadi dicek tepat sebelum membayar.
-export async function isSessionValid(cookie) {
-  const url = new URL(`${getBaseUrl()}/view/index.php`);
-  url.searchParams.set(CONFIG.menuKeyParam, CONFIG.invoiceListMenuValue);
-  const response = await fetch(url, { method: 'GET', headers: { Cookie: cookie }, redirect: 'manual' });
-  return response.status === 200;
-}
-
-// Sesi yang pasti valid: pakai sesi tersimpan kalau masih diterima Runsnet, kalau tidak login ulang.
-export async function ensureValidSession(supabaseAdmin) {
-  const cookie = await ensureSession(supabaseAdmin);
-  if (await isSessionValid(cookie)) return cookie;
-  return ensureSession(supabaseAdmin, { force: true });
+  const menu = await discoverMenuMap(cookie);
+  await supabaseAdmin.from('runsnet_session').upsert({ id: 1, cookie, menu_map: menu, updated_at: new Date().toISOString() });
+  return { cookie, menu };
 }
 
 // Kolom filter tanggal endpoint pencarian (format MM/DD/YYYY, sesuai input date-range Runsnet).
@@ -148,24 +174,21 @@ function formatMmDdYyyy(date) {
 
 // Satu permintaan pencarian ke endpoint daftar invoice Runsnet (DataTables server-side). status: kode dari filter
 // halaman Runsnet sendiri — P = PENDING, A = PAID, C = CANCEL. Hanya membaca. Mengembalikan JSON mentahnya.
-async function postInvoiceSearch(cookie, { status, search = '', length = 10, from, to }) {
-  const fields = unconfiguredFields(['menuKeyParam', 'invoiceListMenuValue', 'searchPath', 'mitraTarget']);
-  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
-
+async function postInvoiceSearch({ cookie, menu }, { status, search = '', length = 10, from, to }) {
   const now = new Date();
   const dateFrom = formatMmDdYyyy(from || new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()));
   const dateTo = formatMmDdYyyy(to || new Date(now.getFullYear(), now.getMonth(), now.getDate() + 90));
 
   const listUrl = new URL(`${getBaseUrl()}/view/index.php`);
-  listUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.invoiceListMenuValue);
+  listUrl.searchParams.set(menu.menuKeyParam, menu.invoiceListMenuValue);
 
-  const searchUrl = new URL(`${getBaseUrl()}/view/${CONFIG.searchPath}`);
+  const searchUrl = new URL(`${getBaseUrl()}/view/${SEARCH_PATH}`);
   searchUrl.searchParams.set('data1', dateFrom);
   searchUrl.searchParams.set('data2', dateTo);
   searchUrl.searchParams.set('data3', status);
   searchUrl.searchParams.set('data4', '');
   searchUrl.searchParams.set('data5', '');
-  searchUrl.searchParams.set('target', CONFIG.mitraTarget);
+  searchUrl.searchParams.set('target', MITRA_TARGET);
 
   // Kolom tabel sesuai urutan <thead> Runsnet: checkbox, InvoiceCode, CustID, CustNama,
   // Periode, Tempo, Tagihan, SisaTagihan, Agent, Broadcast, File, Action.
@@ -199,8 +222,8 @@ async function postInvoiceSearch(cookie, { status, search = '', length = 10, fro
 // Mencari invoice di Runsnet berdasarkan query (PPPoE ID / custid / nama / kode invoice). Mengembalikan
 // { id: <kode invoice> } atau null jika tidak ketemu (atau hasilnya lebih dari satu). Default hanya invoice
 // PENDING ('P'); status 'A' = PAID dipakai untuk membuktikan pembayaran sudah tercatat.
-export async function searchInvoice(cookie, query, status = 'P') {
-  const json = await postInvoiceSearch(cookie, { status, search: query, length: 10 });
+export async function searchInvoice(session, query, status = 'P') {
+  const json = await postInvoiceSearch(session, { status, search: query, length: 10 });
   return parseInvoiceListResponse(json);
 }
 
@@ -209,7 +232,7 @@ const STATUS_LABELS = { A: 'PAID', P: 'PENDING', C: 'CANCEL' };
 // Status NYATA di Runsnet untuk sekumpulan kode invoice: { KODE: 'PAID' | 'PENDING' | 'CANCEL' | 'NOT_FOUND' }.
 // Mengambil daftar invoice per status untuk rentang tanggal sekitar sekarang (3 bulan ke belakang, 3 bulan ke
 // depan), lalu kode yang tidak ada di daftar dicari satu-satu di rentang lebar (maks. 10 kode).
-export async function fetchInvoiceStatuses(cookie, codes) {
+export async function fetchInvoiceStatuses(session, codes) {
   const wanted = [...new Set(codes.filter(Boolean))];
   const result = {};
   if (wanted.length === 0) return result;
@@ -220,7 +243,7 @@ export async function fetchInvoiceStatuses(cookie, codes) {
   const wantedSet = new Set(wanted);
 
   for (const [statusCode, label] of Object.entries(STATUS_LABELS)) {
-    const json = await postInvoiceSearch(cookie, { status: statusCode, length: 1000, from, to });
+    const json = await postInvoiceSearch(session, { status: statusCode, length: 1000, from, to });
     (json?.data || []).forEach((row) => {
       const code = stripHtml(row[1]);
       if (wantedSet.has(code)) result[code] = label;
@@ -230,7 +253,7 @@ export async function fetchInvoiceStatuses(cookie, codes) {
   const missing = wanted.filter((code) => !result[code]);
   for (const code of missing.slice(0, 10)) {
     for (const [statusCode, label] of Object.entries(STATUS_LABELS)) {
-      const found = parseInvoiceListResponse(await postInvoiceSearch(cookie, { status: statusCode, search: code, length: 10 }));
+      const found = parseInvoiceListResponse(await postInvoiceSearch(session, { status: statusCode, search: code, length: 10 }));
       if (found?.id === code) { result[code] = label; break; }
     }
   }
@@ -240,26 +263,23 @@ export async function fetchInvoiceStatuses(cookie, codes) {
 
 // Bukti pembayaran: true kalau Runsnet sendiri menunjukkan invoice ini berstatus PAID (pencarian status 'A'
 // dengan kode invoice sebagai kata kunci; kode invoice unik, jadi harus tepat satu hasil).
-export async function verifyInvoicePaid(cookie, invoiceCode) {
-  const found = await searchInvoice(cookie, invoiceCode, 'A');
+export async function verifyInvoicePaid(session, invoiceCode) {
+  const found = await searchInvoice(session, invoiceCode, 'A');
   return found?.id === invoiceCode;
 }
 
 // Daftar pembayaran milik satu invoice, dibaca dari halaman Payment Runsnet (hanya membaca):
 // [{ paymentCode, amount, payDate }]. Dipakai reversal untuk menemukan kode pembayaran (PAY...) dari kode invoice.
-export async function findPaymentsForInvoice(cookie, invoiceCode) {
-  const fields = unconfiguredFields(['menuKeyParam', 'paymentPageMenuValue', 'paymentListPath', 'mitraTarget']);
-  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
-
+export async function findPaymentsForInvoice({ cookie, menu }, invoiceCode) {
   const now = new Date();
   const pageUrl = new URL(`${getBaseUrl()}/view/index.php`);
-  pageUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.paymentPageMenuValue);
+  pageUrl.searchParams.set(menu.menuKeyParam, menu.paymentPageMenuValue);
 
-  const url = new URL(`${getBaseUrl()}/view/${CONFIG.paymentListPath}`);
+  const url = new URL(`${getBaseUrl()}/view/${PAYMENT_LIST_PATH}`);
   url.searchParams.set('data1', formatMmDdYyyy(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())));
   url.searchParams.set('data2', formatMmDdYyyy(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2)));
   url.searchParams.set('data4', '');
-  url.searchParams.set('target', CONFIG.mitraTarget);
+  url.searchParams.set('target', MITRA_TARGET);
 
   const columnNames = ['', 'PaymentCode', 'InvoiceCode', 'CustID', 'CustNama', 'Periode', 'PayDate', 'PayAmount', 'Methode', 'Agent', 'Operator', 'Action'];
   const body = new URLSearchParams({ draw: '1', start: '0', length: '20', 'search[value]': invoiceCode, 'search[regex]': 'false' });
@@ -289,18 +309,16 @@ export async function findPaymentsForInvoice(cookie, invoiceCode) {
 }
 
 // Membatalkan (reversal) SATU pembayaran Runsnet berdasarkan kode pembayarannya. PERINGATAN: GET dengan efek
-// samping nyata dan langsung (lihat catatan CONFIG.reversalMenuValue) — hanya dipanggil dari
-// api/_lib/paymentReversal.js setelah semua pengaman (superadmin, sinkron LIVE, tepat satu pembayaran).
-export async function reversePaymentByCode(cookie, paymentCode) {
-  const fields = unconfiguredFields(['menuKeyParam', 'reversalMenuValue', 'paymentPageMenuValue']);
-  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
+// samping nyata dan langsung — hanya dipanggil dari api/_lib/paymentReversal.js setelah semua pengaman
+// (superadmin, sinkron LIVE, tepat satu pembayaran).
+export async function reversePaymentByCode({ cookie, menu }, paymentCode) {
   if (!/^PAY\d+$/.test(paymentCode)) throw new Error(`Kode pembayaran tidak valid: ${paymentCode}`);
 
   const pageUrl = new URL(`${getBaseUrl()}/view/index.php`);
-  pageUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.paymentPageMenuValue);
+  pageUrl.searchParams.set(menu.menuKeyParam, menu.paymentPageMenuValue);
 
   const url = new URL(`${getBaseUrl()}/view/index.php`);
-  url.searchParams.set(CONFIG.menuKeyParam, CONFIG.reversalMenuValue);
+  url.searchParams.set(menu.menuKeyParam, menu.reversalMenuValue);
   url.searchParams.set('data1', paymentCode);
 
   const response = await fetch(url, {
@@ -313,22 +331,18 @@ export async function reversePaymentByCode(cookie, paymentCode) {
   return { paymentCode, response: verdict.reason };
 }
 
-// Menjalankan pembayaran tunai untuk satu invoice. PERINGATAN: ini GET dengan efek samping nyata
-// (langsung membayar, lihat catatan di CONFIG.paymentMenuValue) — hanya dipanggil dari webhook
-// yang sudah lolos cek saklar + anti-dobel + BUKAN mode uji coba.
-export async function payInvoiceCash(cookie, invoiceCode) {
-  const fields = unconfiguredFields(['menuKeyParam', 'paymentMenuValue']);
-  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
-
+// Menjalankan pembayaran tunai untuk satu invoice. PERINGATAN: ini GET dengan efek samping nyata (langsung
+// membayar) — hanya dipanggil dari alur yang sudah lolos cek saklar + anti-dobel + BUKAN mode uji coba.
+export async function payInvoiceCash({ cookie, menu }, invoiceCode) {
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const url = new URL(`${getBaseUrl()}/view/index.php`);
-  url.searchParams.set(CONFIG.menuKeyParam, CONFIG.paymentMenuValue);
+  url.searchParams.set(menu.menuKeyParam, menu.paymentMenuValue);
   url.searchParams.set('data1', invoiceCode);
   url.searchParams.set('data2', 'Pembayaran Tunai');
   url.searchParams.set('data3', today);
 
   const listUrl = new URL(`${getBaseUrl()}/view/index.php`);
-  listUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.invoiceListMenuValue);
+  listUrl.searchParams.set(menu.menuKeyParam, menu.invoiceListMenuValue);
 
   const response = await fetch(url, {
     method: 'GET',
@@ -346,24 +360,21 @@ const CUSTOMER_PAGE_SIZE = 100;
 
 // Mengambil SELURUH daftar pelanggan Runsnet (dipaginasi otomatis). Dipakai fitur "Sinkron
 // Pelanggan Runsnet" — hanya membaca, tidak mengubah apa pun di Runsnet.
-export async function fetchAllCustomers(cookie) {
-  const fields = unconfiguredFields(['menuKeyParam', 'customersMenuValue', 'customersPath', 'mitraTarget']);
-  if (fields.length > 0) throw new RunsnetNotConfiguredError(fields);
-
+export async function fetchAllCustomers({ cookie, menu }) {
   const listUrl = new URL(`${getBaseUrl()}/view/index.php`);
-  listUrl.searchParams.set(CONFIG.menuKeyParam, CONFIG.customersMenuValue);
+  listUrl.searchParams.set(menu.menuKeyParam, menu.customersMenuValue);
 
   const customers = [];
   let start = 0;
   let total = Infinity;
 
   while (start < total) {
-    const searchUrl = new URL(`${getBaseUrl()}/view/${CONFIG.customersPath}`);
+    const searchUrl = new URL(`${getBaseUrl()}/view/${CUSTOMERS_PATH}`);
     searchUrl.searchParams.set('data1', '');
     searchUrl.searchParams.set('data2', '');
     searchUrl.searchParams.set('data3', '');
     searchUrl.searchParams.set('data4', '');
-    searchUrl.searchParams.set('target', CONFIG.mitraTarget);
+    searchUrl.searchParams.set('target', MITRA_TARGET);
     searchUrl.searchParams.set('data6', '');
 
     const body = new URLSearchParams({ draw: '1', start: String(start), length: String(CUSTOMER_PAGE_SIZE), 'search[value]': '', 'search[regex]': 'false' });

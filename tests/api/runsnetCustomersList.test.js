@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../api/_lib/verifySuperadmin.js', () => ({ verifySuperadmin: vi.fn() }));
-vi.mock('../../api/_lib/runsnetClient.js', () => ({ ensureSession: vi.fn(), fetchAllCustomers: vi.fn() }));
+vi.mock('../../api/_lib/runsnetClient.js', () => ({ getRunsnetSession: vi.fn(), fetchAllCustomers: vi.fn() }));
 
 import { verifySuperadmin } from '../../api/_lib/verifySuperadmin.js';
-import { ensureSession, fetchAllCustomers } from '../../api/_lib/runsnetClient.js';
+import { getRunsnetSession, fetchAllCustomers } from '../../api/_lib/runsnetClient.js';
 import handler from '../../api/runsnet/customers-list.js';
 
 const makeRes = () => {
@@ -34,7 +34,7 @@ describe('POST /api/runsnet/customers-list', () => {
   it('returns the Runsnet customer list without writing anything', async () => {
     const adminClient = { from: vi.fn() };
     verifySuperadmin.mockResolvedValue({ adminClient });
-    ensureSession.mockResolvedValue('cookie123');
+    getRunsnetSession.mockResolvedValue({ cookie: 'cookie123', menu: {} });
     fetchAllCustomers.mockResolvedValue([{ custid: 'C1', name: 'Budi', package: 'X', type: 'Postpaid', status: 'aktif' }]);
 
     const res = makeRes();

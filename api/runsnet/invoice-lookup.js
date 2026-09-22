@@ -1,5 +1,5 @@
 import { verifyStaff } from '../_lib/verifySuperadmin.js';
-import { ensureSession, searchInvoice, isRunsnetConfigured } from '../_lib/runsnetClient.js';
+import { getRunsnetSession, searchInvoice, isRunsnetConfigured } from '../_lib/runsnetClient.js';
 import { buildInvoiceLookupLog } from '../../src/utils/runsnetSync.js';
 
 // Dipanggil dari Transaksi.jsx SAAT transaksi baru dibuat (sebelum disimpan), supaya nomor invoice
@@ -30,8 +30,8 @@ export default async function handler(req, res) {
 
   if (configured) {
     try {
-      const cookie = await ensureSession(adminClient);
-      invoice = await searchInvoice(cookie, query);
+      const session = await getRunsnetSession(adminClient);
+      invoice = await searchInvoice(session, query);
     } catch (err) {
       lookupError = err.message;
     }

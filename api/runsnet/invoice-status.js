@@ -1,5 +1,5 @@
 import { verifyStaff } from '../_lib/verifySuperadmin.js';
-import { ensureSession, fetchInvoiceStatuses, isRunsnetConfigured } from '../_lib/runsnetClient.js';
+import { getRunsnetSession, fetchInvoiceStatuses, isRunsnetConfigured } from '../_lib/runsnetClient.js';
 
 // Status NYATA invoice di Runsnet (PAID / PENDING / CANCEL / NOT_FOUND) untuk daftar kode invoice — dibaca
 // langsung dari Runsnet, bukan dari catatan KAsir. Hanya membaca. Dipakai halaman Riwayat.
@@ -26,8 +26,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const cookie = await ensureSession(adminClient);
-    const statuses = await fetchInvoiceStatuses(cookie, codes);
+    const session = await getRunsnetSession(adminClient);
+    const statuses = await fetchInvoiceStatuses(session, codes);
     res.status(200).json({ statuses, checkedAt: new Date().toISOString() });
   } catch (err) {
     res.status(200).json({ error: `Gagal membaca Runsnet: ${err.message}`, statuses: {} });

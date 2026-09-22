@@ -1,5 +1,5 @@
 import { shouldSyncTransaction, pickPaymentTarget } from '../../src/utils/runsnetSync.js';
-import { ensureValidSession, isSessionValid, ensureSession, searchInvoice, payInvoiceCash, verifyInvoicePaid, isRunsnetConfigured } from './runsnetClient.js';
+import { getRunsnetSession, searchInvoice, payInvoiceCash, verifyInvoicePaid, isRunsnetConfigured } from './runsnetClient.js';
 
 // Mengirim pembayaran satu transaksi KAsir ke Runsnet dan MEMBUKTIKAN hasilnya: status 'success' di log
 // hanya dicatat kalau Runsnet sendiri menunjukkan invoice itu berstatus PAID setelah dibayar. Dipanggil
@@ -39,7 +39,7 @@ export async function syncPayment(supabase, transaction) {
     return log('skipped_disabled', { search_query: label, message: 'Sinkron Runsnet dimatikan di Pengaturan, tidak ada yang dikirim.' });
   }
   if (!isRunsnetConfigured()) {
-    return log('skipped_not_configured', { search_query: label, message: 'Konfigurasi Runsnet belum lengkap (lihat api/_lib/runsnetClient.js).' });
+    return log('skipped_not_configured', { search_query: label, message: 'RUNSNET_USERNAME/RUNSNET_PASSWORD belum diisi di Environment Variables.' });
   }
   if (!label) {
     return log('failed', { message: 'Transaksi tidak punya nomor invoice Runsnet / PPPoE ID / ID pelanggan / nama untuk dicari.' });
@@ -49,30 +49,31 @@ export async function syncPayment(supabase, transaction) {
   }
 
   try {
-    let cookie = await ensureValidSession(supabase);
+    const session = await getRunsnetSession(supabase);
 
     // 1. Tentukan invoice PENDING yang akan dibayar.
     let invoice;
     if (target.code) {
-      if (await verifyInvoicePaid(cookie, target.code)) {
+      if (await verifyInvoicePaid(session, target.code)) {
         return log('success', { search_query: label, runsnet_ref: target.code, message: `Invoice ${target.code} sudah berstatus PAID di Runsnet (terverifikasi), tidak dibayar ulang.` });
       }
-      invoice = await searchInvoice(cookie, target.code, 'P');
+      invoice = await searchInvoice(session, target.code, 'P');
       if (!invoice || invoice.id !== target.code) {
         return log('failed', { search_query: label, message: `Invoice ${target.code} tidak berstatus PENDING maupun PAID di Runsnet (mungkin CANCEL). Periksa manual.` });
       }
     } else {
-      invoice = await searchInvoice(cookie, target.query, 'P');
+      invoice = await searchInvoice(session, target.query, 'P');
       if (!invoice) {
         return log('failed', { search_query: label, message: `Tidak ada satu pun invoice PENDING yang cocok dengan "${target.query}" di Runsnet (nol atau lebih dari satu hasil).` });
       }
     }
 
-    // 2. Bayar (efek nyata di Runsnet), lalu 3. buktikan lewat status PAID. Sesi dicek lagi tepat sebelum bayar.
-    if (!(await isSessionValid(cookie))) cookie = await ensureSession(supabase, { force: true });
+    // 2. Bayar (efek nyata di Runsnet), lalu 3. buktikan lewat status PAID. Sesi+kunci menu disegarkan lagi
+    // tepat sebelum bayar (murah kalau masih valid, login+temukan ulang kalau sudah basi sejak langkah 1).
+    const freshSession = await getRunsnetSession(supabase);
     let payResult;
     try {
-      payResult = await payInvoiceCash(cookie, invoice.id);
+      payResult = await payInvoiceCash(freshSession, invoice.id);
     } catch (payError) {
       return log('failed', {
         search_query: label,
@@ -80,7 +81,7 @@ export async function syncPayment(supabase, transaction) {
         message: `Langkah 2 dari 3 (kirim perintah bayar) gagal: ${payError.message}`,
       });
     }
-    const paid = await verifyInvoicePaid(cookie, invoice.id);
+    const paid = await verifyInvoicePaid(freshSession, invoice.id);
     if (!paid) {
       return log('failed', {
         search_query: label,

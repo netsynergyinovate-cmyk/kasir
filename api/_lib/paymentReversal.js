@@ -1,8 +1,5 @@
 import { pickPaymentTarget } from '../../src/utils/runsnetSync.js';
-import {
-  ensureValidSession, isSessionValid, ensureSession, fetchInvoiceStatuses,
-  findPaymentsForInvoice, reversePaymentByCode, isRunsnetConfigured,
-} from './runsnetClient.js';
+import { getRunsnetSession, fetchInvoiceStatuses, findPaymentsForInvoice, reversePaymentByCode, isRunsnetConfigured } from './runsnetClient.js';
 
 // Membatalkan (reversal) pembayaran sebuah transaksi di Runsnet SEBELUM transaksinya dihapus dari KAsir.
 // Aturan pengaman: hanya jalan kalau sinkron LIVE (bukan mati/uji coba), invoice benar-benar PAID di Runsnet,
@@ -39,36 +36,36 @@ export async function reversePayment(supabase, transaction) {
     .eq('id', 1)
     .maybeSingle();
   if (!settings?.runsnet_sync_enabled) return log('skipped_disabled', 'Sinkron Runsnet dimatikan, reversal TIDAK dijalankan di Runsnet.');
-  if (!isRunsnetConfigured()) return log('skipped_not_configured', 'Konfigurasi Runsnet belum lengkap, reversal tidak dijalankan.');
+  if (!isRunsnetConfigured()) return log('skipped_not_configured', 'RUNSNET_USERNAME/RUNSNET_PASSWORD belum diisi, reversal tidak dijalankan.');
   if (settings.runsnet_dry_run) return log('dry_run', 'MODE UJI COBA: reversal TIDAK dijalankan di Runsnet.');
 
   try {
-    let cookie = await ensureValidSession(supabase);
+    const session = await getRunsnetSession(supabase);
 
     // 1. Status nyata di Runsnet.
-    const before = (await fetchInvoiceStatuses(cookie, [code]))[code];
+    const before = (await fetchInvoiceStatuses(session, [code]))[code];
     if (before !== 'PAID') {
       return log('success', `Invoice ${code} berstatus ${before} di Runsnet (bukan PAID), tidak ada pembayaran yang perlu di-reversal.`);
     }
 
     // 2. Temukan kode pembayarannya — harus tepat satu.
-    const payments = await findPaymentsForInvoice(cookie, code);
+    const payments = await findPaymentsForInvoice(session, code);
     if (payments.length !== 1) {
       return log('failed', `Langkah 1 dari 3 gagal: ditemukan ${payments.length} pembayaran untuk ${code}. Reversal otomatis hanya untuk tepat satu pembayaran — lakukan manual di menu Payment Runsnet.`);
     }
     const [payment] = payments;
 
-    // 3. Reversal (efek nyata), sesi dicek lagi tepat sebelumnya.
-    if (!(await isSessionValid(cookie))) cookie = await ensureSession(supabase, { force: true });
+    // 3. Reversal (efek nyata), sesi+kunci menu disegarkan lagi tepat sebelumnya.
+    const freshSession = await getRunsnetSession(supabase);
     let result;
     try {
-      result = await reversePaymentByCode(cookie, payment.paymentCode);
+      result = await reversePaymentByCode(freshSession, payment.paymentCode);
     } catch (reverseError) {
       return log('failed', `Langkah 2 dari 3 (kirim perintah reversal ${payment.paymentCode}) gagal: ${reverseError.message}`);
     }
 
     // 4. Bukti: invoice harus tidak PAID lagi.
-    const after = (await fetchInvoiceStatuses(cookie, [code]))[code];
+    const after = (await fetchInvoiceStatuses(freshSession, [code]))[code];
     if (after === 'PAID') {
       return log('failed', `Langkah 3 dari 3 gagal: perintah reversal ${payment.paymentCode} dijawab Runsnet ${result.response}, tetapi invoice ${code} masih PAID. Periksa manual di menu Payment Runsnet.`);
     }

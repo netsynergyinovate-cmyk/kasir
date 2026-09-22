@@ -1,5 +1,5 @@
 import { verifySuperadmin } from '../_lib/verifySuperadmin.js';
-import { ensureSession, fetchAllCustomers } from '../_lib/runsnetClient.js';
+import { getRunsnetSession, fetchAllCustomers } from '../_lib/runsnetClient.js';
 import { buildCustomerUpsert } from '../../src/utils/runsnetCustomers.js';
 
 // Mengimpor HANYA pelanggan Runsnet yang dipilih (dicentang) superadmin — bukan seluruh daftar,
@@ -24,8 +24,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const cookie = await ensureSession(adminClient);
-    const runsnetCustomers = await fetchAllCustomers(cookie);
+    const session = await getRunsnetSession(adminClient);
+    const runsnetCustomers = await fetchAllCustomers(session);
     const selected = new Set(custids);
     const toImport = runsnetCustomers.filter((c) => selected.has(c.custid));
 
