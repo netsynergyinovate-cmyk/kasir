@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus, Wallet, CalendarDays, BookOpen, ChevronDown, Receipt, CheckCircle, AlertCircle, Trophy, Clock, Smartphone, MapPin, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { formatRupiah } from '../utils/format';
-import { getGreeting, compareMonths, cashierPerformance, paymentSummary, formatRelativeTime, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue } from '../utils/dashboardStats';
+import { formatRupiah, formatRupiahCompact } from '../utils/format';
+import { getGreeting, compareMonths, cashierPerformance, paymentSummary, formatRelativeTime, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, weeklyRevenue } from '../utils/dashboardStats';
 import Dashboard from './Dashboard';
 
 const MONTHS = [
@@ -30,9 +30,10 @@ const TrendBadge = ({ change }) => {
 };
 
 const DashboardSuperadmin = (props) => {
-  const { transactions = [], customers = [], session } = props;
+  const { transactions = [], customers = [], session, companyInfo = {} } = props;
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
+  const [roleByName, setRoleByName] = useState(new Map());
   const [dayMode, setDayMode] = useState('today');
   const [customDate, setCustomDate] = useState('');
   const [showLedger, setShowLedger] = useState(false);
@@ -49,6 +50,16 @@ const DashboardSuperadmin = (props) => {
         if (!error && data) setAccounts(data);
         setAccountsLoading(false);
       });
+
+    // Daftar lengkap (tidak dibatasi 6) hanya untuk mencocokkan nama kasir -> role, dipakai
+    // membedakan "Jasa Admin" (komisi) dari transaksi milik superadmin di daftar Performa Kasir.
+    supabase
+      .from('admin_profiles')
+      .select('full_name, role')
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        setRoleByName(new Map(data.map((p) => [p.full_name, p.role])));
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -63,6 +74,9 @@ const DashboardSuperadmin = (props) => {
   const methods = methodBreakdown(transactions, selectedDay);
   const ledger = dailyTransactions(transactions, selectedDay);
   const displayName = session?.profile?.full_name || 'Super Administrator';
+
+  const last7Days = weeklyRevenue(transactions, now, 7);
+  const maxWeekRevenue = Math.max(...last7Days.map((d) => d.revenue), 1);
 
   const comparison = compareMonths(transactions, now);
   const cashiers = cashierPerformance(transactions, now.getFullYear(), now.getMonth());
@@ -171,6 +185,33 @@ const DashboardSuperadmin = (props) => {
           )}
         </div>
 
+        {/* Omset 7 hari terakhir */}
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-3">
+            <CalendarDays size={12} /> Omset 7 Hari Terakhir
+          </p>
+          <div className="flex items-end justify-between gap-1.5 h-24">
+            {last7Days.map((day) => {
+              const isToday = day.date.toDateString() === now.toDateString();
+              const heightPercent = Math.max(6, Math.round((day.revenue / maxWeekRevenue) * 100));
+              return (
+                <div key={day.date.toISOString()} className="flex-1 flex flex-col items-center justify-end h-full gap-1">
+                  <span className="text-[9px] font-bold text-gray-500 leading-none">{day.revenue > 0 ? formatRupiahCompact(day.revenue) : ''}</span>
+                  <div
+                    className={`w-full rounded-md ${isToday ? 'bg-indigo-600' : 'bg-indigo-200'}`}
+                    style={{ height: `${heightPercent}%` }}
+                    title={`${formatRupiah(day.revenue)} · ${day.count} trx`}
+                  />
+                  <span className={`text-[9px] font-bold ${isToday ? 'text-indigo-600' : 'text-gray-400'}`}>{day.date.getDate()}/{day.date.getMonth() + 1}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-gray-500 mt-3 text-center">
+            Total 7 hari: <span className="font-black text-gray-800">{formatRupiah(last7Days.reduce((sum, d) => sum + d.revenue, 0))}</span>
+          </p>
+        </div>
+
         {/* KPI: bulan ini vs bulan lalu */}
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
@@ -210,7 +251,7 @@ const DashboardSuperadmin = (props) => {
           </div>
         </div>
 
-        {/* Performa per kasir */}
+        {/* Performa per kasir + komisi yang harus dibayar ke tiap admin */}
         <div>
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 flex items-center gap-1.5">
             <Trophy size={12} /> Performa Kasir · {MONTHS[now.getMonth()]}
@@ -219,23 +260,35 @@ const DashboardSuperadmin = (props) => {
             {cashiers.length === 0 ? (
               <p className="text-xs text-gray-400 italic text-center py-2">Belum ada transaksi bulan ini.</p>
             ) : (
-              cashiers.map((cashier, index) => (
-                <div key={cashier.name}>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-bold text-gray-800 truncate">
-                      <span className="text-gray-400 mr-1.5">#{index + 1}</span>{cashier.name}
+              cashiers.map((cashier, index) => {
+                const role = roleByName.get(cashier.name);
+                const commission = cashier.count * (companyInfo.adminFee || 10000);
+                return (
+                  <div key={cashier.name}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-gray-800 truncate">
+                        <span className="text-gray-400 mr-1.5">#{index + 1}</span>{cashier.name}
+                        {role === 'superadmin' && <span className="ml-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">Super Admin</span>}
+                      </p>
+                      <p className="text-xs font-black text-gray-900 shrink-0">{formatRupiah(cashier.revenue)}</p>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
+                        style={{ width: `${topRevenue > 0 ? Math.max(4, Math.round((cashier.revenue / topRevenue) * 100)) : 0}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1 flex items-center justify-between">
+                      <span>{cashier.count} transaksi</span>
+                      {role === 'superadmin' ? (
+                        <span className="text-gray-400 italic">Tidak dapat komisi</span>
+                      ) : (
+                        <span className="font-bold text-emerald-600">Komisi: {formatRupiah(commission)}</span>
+                      )}
                     </p>
-                    <p className="text-xs font-black text-gray-900 shrink-0">{formatRupiah(cashier.revenue)}</p>
                   </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
-                      style={{ width: `${topRevenue > 0 ? Math.max(4, Math.round((cashier.revenue / topRevenue) * 100)) : 0}%` }}
-                    />
-                  </div>
-                  <p className="text-[11px] text-gray-500 mt-1">{cashier.count} transaksi</p>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

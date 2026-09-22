@@ -106,6 +106,17 @@ export function dailyStats(transactions, date) {
   return periodStats(transactions, (trx) => sameDay(trx, date));
 }
 
+// Omset per hari untuk `days` hari terakhir (termasuk `endDate`), urut dari yang paling lama ke
+// paling baru — dipakai untuk daftar "Omset 7 Hari Terakhir" di Dashboard.
+export function weeklyRevenue(transactions, endDate, days = 7) {
+  const result = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() - i);
+    result.push({ date, ...dailyStats(transactions, date) });
+  }
+  return result;
+}
+
 export function compareDays(transactions, date) {
   const previousDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1);
   const current = dailyStats(transactions, date);

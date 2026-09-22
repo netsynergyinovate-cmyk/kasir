@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction } from '../dashboardStats';
+import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction, weeklyRevenue } from '../dashboardStats';
 
 describe('getGreeting', () => {
   it('returns the Indonesian greeting for each part of the day', () => {
@@ -150,6 +150,24 @@ describe('compareDays', () => {
     const result = compareDays(list, new Date(2026, 8, 1));
     expect(result.previous.revenue).toBe(40000);
     expect(result.revenueChange).toBe(-50);
+  });
+});
+
+describe('weeklyRevenue', () => {
+  it('returns one entry per day for the last N days, oldest first, ending at endDate', () => {
+    const list = [
+      trx('2026-09-19T10:00:00', 100000),
+      trx('2026-09-21T10:00:00', 50000),
+      trx('2026-09-21T12:00:00', 25000),
+    ];
+    const result = weeklyRevenue(list, new Date(2026, 8, 21), 3);
+    expect(result.map((r) => r.date.getDate())).toEqual([19, 20, 21]);
+    expect(result.map((r) => r.revenue)).toEqual([100000, 0, 75000]);
+    expect(result.map((r) => r.count)).toEqual([1, 0, 2]);
+  });
+
+  it('defaults to 7 days', () => {
+    expect(weeklyRevenue([], new Date(2026, 8, 21))).toHaveLength(7);
   });
 });
 
