@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber, pickPaymentTarget, describePayResponse, parsePaymentRows } from '../runsnetSync';
+import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber, pickPaymentTarget, describePayResponse, parsePaymentRows, buildStatusCheckLog } from '../runsnetSync';
 
 const trx = (over) => ({
   id: 't1', status: 'LUNAS', type: 'retail', payment_method: 'CASH',
@@ -233,5 +233,18 @@ describe('parsePaymentRows', () => {
   it('drops rows whose payment code is not PAY + digits, since it goes into the reversal URL', () => {
     const bad = row('x&data1=evil', 'INVRT202609001239');
     expect(parsePaymentRows({ data: [bad] }, 'INVRT202609001239')).toEqual([]);
+  });
+});
+
+describe('buildStatusCheckLog', () => {
+  it('reports PAID/PENDING/CANCEL as success, with a plain-Indonesian message naming the invoice', () => {
+    expect(buildStatusCheckLog('INVRT1', 'PAID')).toMatchObject({ status: 'success', runsnet_ref: 'INVRT1' });
+    expect(buildStatusCheckLog('INVRT1', 'PAID').message).toContain('INVRT1');
+    expect(buildStatusCheckLog('INVRT1', 'PENDING').status).toBe('success');
+    expect(buildStatusCheckLog('INVRT1', 'CANCEL').status).toBe('success');
+  });
+
+  it('reports NOT_FOUND as failed, since the check itself did not find anything useful', () => {
+    expect(buildStatusCheckLog('INVRT1', 'NOT_FOUND').status).toBe('failed');
   });
 });

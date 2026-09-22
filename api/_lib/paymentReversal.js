@@ -1,5 +1,7 @@
 import { pickPaymentTarget } from '../../src/utils/runsnetSync.js';
-import { getRunsnetSession, fetchInvoiceStatuses, findPaymentsForInvoice, reversePaymentByCode, isRunsnetConfigured } from './runsnetClient.js';
+import { getRunsnetSession, fetchInvoiceStatuses, findPaymentsForInvoice, reversePaymentByCode, searchInvoice, isRunsnetConfigured } from './runsnetClient.js';
+
+const STATUS_CODE = { PAID: 'A', PENDING: 'P', CANCEL: 'C' };
 
 // Membatalkan (reversal) pembayaran sebuah transaksi di Runsnet SEBELUM transaksinya dihapus dari KAsir.
 // Aturan pengaman: hanya jalan kalau sinkron LIVE (bukan mati/uji coba), invoice benar-benar PAID di Runsnet,
@@ -45,8 +47,13 @@ export async function reversePayment(supabase, transaction) {
   try {
     const session = await getRunsnetSession(supabase);
 
-    // 1. Status nyata di Runsnet.
+    // 1. Status nyata di Runsnet. Nama diisi di sini juga (bukan cuma di langkah 2) supaya cabang "bukan
+    // PAID, tidak perlu direversal" pun tetap dapat nama dari Runsnet kalau belum ada dari transaksi KAsir.
     const before = (await fetchInvoiceStatuses(session, [code]))[code];
+    if (!who && STATUS_CODE[before]) {
+      const found = await searchInvoice(session, code, STATUS_CODE[before]);
+      if (found?.custName) who = found.custName;
+    }
     if (before !== 'PAID') {
       return log('success', `Invoice ${code} berstatus ${before} di Runsnet (bukan PAID), tidak ada pembayaran yang perlu di-reversal.`);
     }

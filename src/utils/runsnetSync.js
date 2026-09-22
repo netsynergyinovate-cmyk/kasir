@@ -67,6 +67,7 @@ const STAGE_TEXT = {
   invoice_lookup: { text: 'Cek nomor invoice', className: 'bg-indigo-100 text-indigo-700' },
   payment: { text: 'Kirim pembayaran', className: 'bg-blue-100 text-blue-700' },
   reversal: { text: 'Reversal pembayaran', className: 'bg-rose-100 text-rose-700' },
+  check: { text: 'Cek status', className: 'bg-slate-100 text-slate-600' },
 };
 
 // Label + warna lencana untuk tahap sebuah baris log: 'invoice_lookup' (dijalankan saat transaksi
@@ -130,4 +131,25 @@ export function parsePaymentRows(json, invoiceCode) {
       custName: stripHtml(row[4]) || null,
     }))
     .filter((payment) => /^PAY\d+$/.test(payment.paymentCode || ''));
+}
+
+const CHECK_STATUS_MESSAGE = {
+  PAID: 'PAID di Runsnet.',
+  PENDING: 'Masih PENDING (belum lunas) di Runsnet.',
+  CANCEL: 'CANCEL di Runsnet.',
+  NOT_FOUND: 'Tidak ditemukan di Runsnet.',
+};
+
+// Baris log stage 'check' untuk satu kode invoice yang statusnya baru dibaca dari Runsnet (tombol "Cek
+// ulang"/"Cek status PAID" di Riwayat, atau pengecekan otomatis saat halaman Riwayat dibuka) — supaya alur
+// kerja pengecekan itu sendiri terlihat di log Runsnet, bukan cuma pembayaran/reversal.
+// transactionId dipakai sebagai kunci upsert supaya hasil cek TERBARU menimpa yang lama (bukan menumpuk
+// baris baru tiap kali di-refresh); id disepakati `check:<kode>` di pemanggilnya (lihat invoice-status.js).
+export function buildStatusCheckLog(code, status) {
+  return {
+    runsnet_ref: code,
+    search_query: code,
+    status: status === 'NOT_FOUND' ? 'failed' : 'success',
+    message: `Status Runsnet untuk ${code}: ${CHECK_STATUS_MESSAGE[status] || status}`,
+  };
 }

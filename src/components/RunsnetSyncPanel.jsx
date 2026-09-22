@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Zap, Wifi, Loader2, CheckCircle2, XCircle, Search, Send, Undo2, Minus } from 'lucide-react';
+import { RefreshCw, Zap, Wifi, Loader2, CheckCircle2, XCircle, Search, Send, Undo2, Minus, Eye } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { describeSyncStatus } from '../utils/runsnetSync';
 import { formatRupiah } from '../utils/format';
@@ -25,6 +25,7 @@ const STAGE_META = {
   invoice_lookup: { label: 'Cek Nomor Invoice', icon: Search },
   payment: { label: 'Kirim Pembayaran', icon: Send },
   reversal: { label: 'Reversal (Batal)', icon: Undo2 },
+  check: { label: 'Cek Status', icon: Eye },
 };
 
 // Warna & ikon bulatan tahap berdasarkan status barisnya.
