@@ -1,12 +1,41 @@
-import { useState, useEffect } from 'react';
-import { RefreshCw, Zap, Wifi, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { RefreshCw, Zap, Wifi, Loader2, CheckCircle2, XCircle, Search, Send, Undo2, Minus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { describeSyncStatus, describeLogStage } from '../utils/runsnetSync';
+import { describeSyncStatus } from '../utils/runsnetSync';
 import { formatRupiah } from '../utils/format';
 import ToggleSwitch from './ToggleSwitch';
 
 const formatTime = (iso) =>
   new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+// Relatif ("5 menit lalu") supaya cepat dibaca; jatuh balik ke jam untuk yang lebih lama dari sehari.
+const formatRelative = (iso) => {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.round(diffMs / 60000);
+  if (min < 1) return 'baru saja';
+  if (min < 60) return `${min} menit lalu`;
+  const hour = Math.round(min / 60);
+  if (hour < 24) return `${hour} jam lalu`;
+  return formatTime(iso);
+};
+
+// Urutan tetap tahap sinkron satu transaksi: cari nomor invoice -> kirim pembayaran -> (kalau dihapus) reversal.
+// Dipakai untuk menyusun kartu per-transaksi jadi alur yang jelas, bukan daftar baris lepas tercampur urutan waktu.
+const STAGE_META = {
+  invoice_lookup: { label: 'Cek Nomor Invoice', icon: Search },
+  payment: { label: 'Kirim Pembayaran', icon: Send },
+  reversal: { label: 'Reversal (Batal)', icon: Undo2 },
+};
+const STAGE_ORDER = ['invoice_lookup', 'payment', 'reversal'];
+
+// Warna & ikon bulatan tahap berdasarkan status barisnya.
+const STEP_LOOK = {
+  success: { dot: 'bg-emerald-500 text-white', icon: CheckCircle2 },
+  failed: { dot: 'bg-red-500 text-white', icon: XCircle },
+  dry_run: { dot: 'bg-amber-400 text-white', icon: Minus },
+  skipped_disabled: { dot: 'bg-gray-300 text-white', icon: Minus },
+  skipped_not_configured: { dot: 'bg-gray-300 text-white', icon: Minus },
+};
 
 // Panel superadmin: saklar sinkronisasi otomatis KAsir -> Runsnet + mode uji coba, dan log percobaan
 // terakhir. Toggle menulis langsung ke company_settings; keputusan sinkron sesungguhnya dijalankan
@@ -137,15 +166,30 @@ const RunsnetSyncPanel = ({ session }) => {
     setPinging(false);
   };
 
+  // Satu kartu per TRANSAKSI (bukan per baris log), berisi tahap-tahapnya sebagai alur — supaya "sudah sampai mana"
+  // satu transaksi langsung terlihat (mis. Cek Invoice ✓ -> Kirim Pembayaran ✓ PAID -> Reversal belum pernah
+  // dijalankan), tanpa harus mencocokkan baris-baris lepas yang urutannya tercampur waktu.
+  const groups = useMemo(() => {
+    const map = new Map();
+    logs.forEach((row) => {
+      const stage = row.stage || 'payment';
+      if (!map.has(row.transaction_id)) map.set(row.transaction_id, { transactionId: row.transaction_id, byStage: {}, latest: row.created_at });
+      const g = map.get(row.transaction_id);
+      g.byStage[stage] = row;
+      if (row.created_at > g.latest) g.latest = row.created_at;
+    });
+    return [...map.values()].sort((a, b) => (a.latest < b.latest ? 1 : -1));
+  }, [logs]);
+
+  const reversedIds = new Set(logs.filter((r) => r.stage === 'reversal' && r.status === 'success').map((r) => r.transaction_id));
+
   const FILTERS = [
     { key: 'all', label: 'Semua', match: () => true },
-    { key: 'payment', label: 'Pembayaran', match: (r) => (r.stage || 'payment') === 'payment' },
-    { key: 'lookup', label: 'Cek invoice', match: (r) => r.stage === 'invoice_lookup' },
-    { key: 'reversal', label: 'Reversal', match: (r) => r.stage === 'reversal' },
-    { key: 'failed', label: 'Gagal', match: (r) => r.status === 'failed' },
+    { key: 'failed', label: 'Bermasalah', match: (g) => Object.values(g.byStage).some((r) => r.status === 'failed') },
+    { key: 'paid', label: 'Sudah PAID', match: (g) => g.byStage.payment?.status === 'success' },
+    { key: 'reversal', label: 'Reversal', match: (g) => Boolean(g.byStage.reversal) },
   ];
-  const reversedIds = new Set(logs.filter((r) => r.stage === 'reversal' && r.status === 'success').map((r) => r.transaction_id));
-  const visibleLogs = logs.filter((FILTERS.find((f) => f.key === filter) || FILTERS[0]).match);
+  const visibleGroups = groups.filter((FILTERS.find((f) => f.key === filter) || FILTERS[0]).match);
 
   return (
     <div>
@@ -217,7 +261,7 @@ const RunsnetSyncPanel = ({ session }) => {
 
           <div className="flex gap-1.5 overflow-x-auto pb-0.5">
             {FILTERS.map((f) => {
-              const count = logs.filter(f.match).length;
+              const count = groups.filter(f.match).length;
               return (
                 <button
                   key={f.key}
@@ -233,65 +277,100 @@ const RunsnetSyncPanel = ({ session }) => {
 
           {isLoading ? (
             <p className="text-xs text-gray-400 italic text-center py-3">Memuat log...</p>
-          ) : visibleLogs.length === 0 ? (
-            <p className="text-xs text-gray-400 italic text-center py-3">{logs.length === 0 ? 'Belum ada percobaan sinkron.' : 'Tidak ada catatan untuk filter ini.'}</p>
+          ) : visibleGroups.length === 0 ? (
+            <p className="text-xs text-gray-400 italic text-center py-3">{groups.length === 0 ? 'Belum ada percobaan sinkron.' : 'Tidak ada catatan untuk filter ini.'}</p>
           ) : (
-            <div className="space-y-2.5">
-              {visibleLogs.map((row) => {
-                const status = describeSyncStatus(row.status);
-                const stage = describeLogStage(row.stage || 'payment');
-                const tx = txById[row.transaction_id];
-                const name = tx?.customer_name || tx?.instansi_name || row.search_query || row.transaction_id;
-                const isPayment = (row.stage || 'payment') === 'payment';
-                const noteTone = row.status === 'failed' ? 'bg-red-50 text-red-800 border-red-100' : row.status === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-gray-50 text-gray-600 border-gray-100';
-                const noteLabel = row.status === 'failed' ? 'Penyebab' : row.status === 'success' ? 'Bukti' : 'Keterangan';
+            <div className="space-y-3">
+              {visibleGroups.map((g) => {
+                const tx = txById[g.transactionId];
+                const anyRow = g.byStage.payment || g.byStage.invoice_lookup || g.byStage.reversal;
+                const name = tx?.customer_name || tx?.instansi_name || anyRow?.search_query || g.transactionId;
+                const paymentDone = g.byStage.payment?.status === 'success';
+                const needsReversalHint = paymentDone && !g.byStage.reversal;
+                const overallBad = Object.values(g.byStage).some((r) => r.status === 'failed');
+
                 return (
-                  <div key={row.id} className="p-3 rounded-xl border border-gray-100 bg-white shadow-sm space-y-2">
+                  <div key={g.transactionId} className={`p-3.5 rounded-xl border bg-white shadow-sm space-y-3 ${overallBad ? 'border-red-200' : 'border-gray-100'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-gray-900 leading-tight truncate">{name}</p>
-                        <p className="text-[10px] font-mono text-gray-400 truncate">{row.runsnet_ref || row.transaction_id}</p>
+                        <p className="text-[10px] font-mono text-gray-400 truncate">{g.byStage.payment?.runsnet_ref || g.byStage.invoice_lookup?.runsnet_ref || g.transactionId}</p>
                       </div>
                       <div className="text-right shrink-0">
                         {tx?.price != null && <p className="text-xs font-black text-blue-700">{formatRupiah(tx.price)}</p>}
-                        <p className="text-[10px] text-gray-400">{formatTime(row.created_at)}</p>
+                        <p className="text-[10px] text-gray-400">{formatRelative(g.latest)}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${stage.className}`}>{stage.text}</span>
-                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${status.className}`}>{status.text}</span>
-                    </div>
-
-                    {row.message && (
-                      <p className={`text-[11px] leading-snug rounded-lg border px-2.5 py-2 ${noteTone}`}>
-                        <b>{noteLabel}:</b> {row.message}
+                    {!tx && paymentDone && !reversedIds.has(g.transactionId) && (
+                      <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1.5">
+                        Transaksi ini sudah tidak ada di Riwayat KAsir, tapi pembayarannya masih tercatat PAID di Runsnet.
                       </p>
                     )}
 
-                    {isPayment && row.status === 'success' && !tx && !reversedIds.has(row.transaction_id) && (
-                      <button
-                        type="button"
-                        onClick={() => reverseOrphan(row)}
-                        disabled={retryingId === row.id}
-                        className="w-full py-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
-                      >
-                        {retryingId === row.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                        {retryingId === row.id ? 'Membatalkan...' : 'Transaksi sudah dihapus — batalkan pembayaran di Runsnet'}
-                      </button>
-                    )}
+                    <div className="space-y-0">
+                      {STAGE_ORDER.filter((stage) => g.byStage[stage]).map((stageKey, idx, arr) => {
+                        const row = g.byStage[stageKey];
+                        const meta = STAGE_META[stageKey];
+                        const look = STEP_LOOK[row.status] || { dot: 'bg-blue-500 text-white', icon: meta.icon };
+                        const StepIcon = look.icon;
+                        const status = describeSyncStatus(row.status);
+                        const isLast = idx === arr.length - 1;
+                        const noteTone = row.status === 'failed' ? 'bg-red-50 text-red-800 border-red-100' : row.status === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-gray-50 text-gray-600 border-gray-100';
+                        const noteLabel = row.status === 'failed' ? 'Penyebab' : row.status === 'success' ? 'Bukti' : 'Keterangan';
+                        return (
+                          <div key={stageKey} className="flex gap-2.5">
+                            <div className="flex flex-col items-center shrink-0">
+                              <span className={`w-6 h-6 rounded-full flex items-center justify-center ${look.dot}`}><StepIcon size={13} /></span>
+                              {!isLast && <span className="w-[2px] flex-1 bg-gray-200 my-0.5" style={{ minHeight: 14 }} />}
+                            </div>
+                            <div className="flex-1 min-w-0 pb-3">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[11px] font-black text-gray-800">{meta.label}</span>
+                                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${status.className}`}>{status.text}</span>
+                                <span className="text-[9px] text-gray-400">{formatTime(row.created_at)}</span>
+                              </div>
+                              {row.message && (
+                                <p className={`mt-1 text-[11px] leading-snug rounded-lg border px-2 py-1.5 ${noteTone}`}>
+                                  <b>{noteLabel}:</b> {row.message}
+                                </p>
+                              )}
+                              {stageKey === 'payment' && row.status === 'success' && !tx && !reversedIds.has(g.transactionId) && (
+                                <button
+                                  type="button"
+                                  onClick={() => reverseOrphan(row)}
+                                  disabled={retryingId === row.id}
+                                  className="mt-1.5 w-full py-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
+                                >
+                                  {retryingId === row.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                                  {retryingId === row.id ? 'Membatalkan...' : 'Batalkan pembayaran di Runsnet'}
+                                </button>
+                              )}
+                              {stageKey === 'payment' && row.status !== 'success' && (
+                                <button
+                                  type="button"
+                                  onClick={() => retryRow(row)}
+                                  disabled={retryingId === row.id}
+                                  className="mt-1.5 w-full py-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
+                                >
+                                  {retryingId === row.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                                  {retryingId === row.id ? 'Mengirim...' : 'Kirim ulang ke Runsnet'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
 
-                    {isPayment && row.status !== 'success' && (
-                      <button
-                        type="button"
-                        onClick={() => retryRow(row)}
-                        disabled={retryingId === row.id}
-                        className="w-full py-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
-                      >
-                        {retryingId === row.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                        {retryingId === row.id ? 'Mengirim...' : 'Kirim ulang ke Runsnet'}
-                      </button>
-                    )}
+                      {needsReversalHint && tx && (
+                        <div className="flex gap-2.5">
+                          <div className="flex flex-col items-center shrink-0">
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-100 text-gray-400"><Undo2 size={12} /></span>
+                          </div>
+                          <p className="flex-1 text-[11px] text-gray-400 italic pt-1">Reversal belum pernah dijalankan untuk transaksi ini.</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
