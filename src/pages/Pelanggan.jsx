@@ -36,9 +36,9 @@ const Pelanggan = ({ customers = [], packages = [], role, session, onRunsnetImpo
     const ip = (c.ip_address || c.ipAddress || '').toLowerCase();
 
     const matchesSearch = (
-      c.name.toLowerCase().includes(term) || 
+      (c.name || '').toLowerCase().includes(term) ||
       (c.nickname && c.nickname.toLowerCase().includes(term)) ||
-      c.address.toLowerCase().includes(term) ||
+      (c.address || '').toLowerCase().includes(term) ||
       pppoe.includes(term) ||
       phone.includes(term) ||
       ip.includes(term)

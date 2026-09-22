@@ -332,9 +332,9 @@ export async function fetchCustomerByPppoe(pppoeId, url, apiKey) {
   
   const result = await fetchCustomersFromEbilling(url, apiKey);
   if (result.success && result.customers.length > 0) {
-    const found = result.customers.find(c => 
-      c.pppoe_id.toLowerCase() === pppoeId.toLowerCase() ||
-      c.name.toLowerCase().includes(pppoeId.toLowerCase())
+    const found = result.customers.find(c =>
+      (c.pppoe_id || '').toLowerCase() === pppoeId.toLowerCase() ||
+      (c.name || '').toLowerCase().includes(pppoeId.toLowerCase())
     );
     if (found) {
       return {

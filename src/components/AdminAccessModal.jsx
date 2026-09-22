@@ -45,7 +45,7 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
   };
 
   const visibleCustomers = customers.filter((c) =>
-    !customerSearch.trim() || c.name.toLowerCase().includes(customerSearch.trim().toLowerCase()) || c.nickname?.toLowerCase().includes(customerSearch.trim().toLowerCase())
+    !customerSearch.trim() || (c.name || '').toLowerCase().includes(customerSearch.trim().toLowerCase()) || c.nickname?.toLowerCase().includes(customerSearch.trim().toLowerCase())
   );
 
   const handleSave = async () => {

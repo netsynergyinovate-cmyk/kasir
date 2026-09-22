@@ -12,7 +12,7 @@ const GlobalSearch = ({ isOpen, onClose, customers = [], transactions = [], setR
 
   const matchedCustomers = q
     ? customers.filter(c => {
-        const nameMatch = c.name.toLowerCase().includes(q);
+        const nameMatch = (c.name || '').toLowerCase().includes(q);
         const nickMatch = c.nickname && c.nickname.toLowerCase().includes(q);
         const addrMatch = c.address && c.address.toLowerCase().includes(q);
         const pppoeMatch = (c.pppoe_id || c.pppoeId || '').toLowerCase().includes(q);

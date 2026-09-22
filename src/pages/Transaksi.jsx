@@ -92,16 +92,17 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
       const pppoe = (c.pppoe_id || c.pppoeId || '').toLowerCase();
       const custIdStr = (c.custid || c.customer_id || c.id || '').toLowerCase();
       return (
-        c.name.toLowerCase().includes(term) ||
+        (c.name || '').toLowerCase().includes(term) ||
         (c.nickname && c.nickname.toLowerCase().includes(term)) ||
-        c.address.toLowerCase().includes(term) ||
+        (c.address || '').toLowerCase().includes(term) ||
         pppoe.includes(term) ||
         custIdStr.includes(term)
       );
     })
     // Diurutkan nama A-Z — memudahkan kasir menggulir mencari pelanggan saat lupa namanya
-    // (kotak kosong menampilkan semua pelanggan, bukan cuma hasil ketikan).
-    .sort((a, b) => a.name.localeCompare(b.name));
+    // (kotak kosong menampilkan semua pelanggan, bukan cuma hasil ketikan). Pelanggan tanpa nama
+    // (data lama/rusak) tetap muncul, diurutkan paling akhir, bukan bikin halaman blank.
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   useEffect(() => {
     if (selectedCust) {
