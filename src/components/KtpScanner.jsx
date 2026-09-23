@@ -64,7 +64,13 @@ const KtpScanner = ({ onApply, onClose }) => {
   const canvasRef = useRef(null);
   const intervalRef = useRef(null);
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    // React StrictMode (dev) sengaja jalanin efek 2x pas mount (setup->cleanup->setup) buat nangkep
+    // bug kayak ini — setup WAJIB nyetel balik ke true, bukan cuma andelin nilai awal useRef(true),
+    // soalnya cleanup dari invoke pertama bakal nyetel false duluan sebelum invoke kedua ini jalan.
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current) {
