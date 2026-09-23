@@ -259,7 +259,7 @@ const KtpScanner = ({ onApply, onClose }) => {
                       </div>
                       <div
                         className="absolute border border-sky-300/90 rounded-sm flex items-center px-1"
-                        style={{ left: '3%', top: '26%', width: '58%', height: '7%' }}
+                        style={{ left: '3%', top: '29%', width: '58%', height: '7%' }}
                       >
                         <span className="text-sky-200 text-[8px] font-bold drop-shadow">Nama</span>
                       </div>
