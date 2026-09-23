@@ -245,12 +245,22 @@ const KtpScanner = ({ onApply, onClose }) => {
                 <div className="relative w-full aspect-[4/3] bg-black rounded-xl overflow-hidden">
                   <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-6">
-                    <div className="relative w-full aspect-[85.6/53.98] max-h-full border-2 border-dashed border-white/80 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]">
-                      {/* Perkiraan posisi baris NIK & Nama di layout e-KTP standar, buat bantu user pas-in kartu. */}
-                      <div className="absolute left-[3%] top-[18%] w-[60%] h-[9%] border border-yellow-300/90 rounded-sm flex items-center px-1">
+                    <div
+                      className="relative w-full border-2 border-dashed border-white/80 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"
+                      style={{ aspectRatio: '85.6 / 53.98', maxHeight: '100%' }}
+                    >
+                      {/* Perkiraan posisi baris NIK & Nama di layout e-KTP standar, buat bantu user pas-in kartu.
+                          Style inline (bukan kelas arbitrary Tailwind) supaya persentasenya dijamin kepakai. */}
+                      <div
+                        className="absolute border border-yellow-300/90 rounded-sm flex items-center px-1"
+                        style={{ left: '3%', top: '17%', width: '58%', height: '9%' }}
+                      >
                         <span className="text-yellow-200 text-[8px] font-bold drop-shadow">NIK</span>
                       </div>
-                      <div className="absolute left-[3%] top-[28%] w-[60%] h-[8%] border border-sky-300/90 rounded-sm flex items-center px-1">
+                      <div
+                        className="absolute border border-sky-300/90 rounded-sm flex items-center px-1"
+                        style={{ left: '3%', top: '26%', width: '58%', height: '7%' }}
+                      >
                         <span className="text-sky-200 text-[8px] font-bold drop-shadow">Nama</span>
                       </div>
                     </div>
