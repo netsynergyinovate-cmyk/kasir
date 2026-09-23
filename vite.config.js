@@ -13,6 +13,13 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'hero.png'],
+      workbox: {
+        // Model/WASM OCR (Tesseract + PaddleOCR) diambil ON-DEMAND cuma pas fitur Scan KTP dipakai —
+        // gak perlu (dan gede banget, bikin build PWA gagal karena ngelewatin limit 2MB default) buat
+        // di-precache buat semua orang pas app pertama dibuka. Pattern *.wasm ikut nyapu file WASM yang
+        // ke-bundle otomatis sama onnxruntime-web ke dist/assets/ (bukan cuma yang di public/ kita).
+        globIgnores: ['**/tesseract/**', '**/paddle-ocr/**', '**/*.wasm', '**/*.ort'],
+      },
       manifest: {
         name: 'KAsir ISP Billing',
         short_name: 'KAsir',

@@ -5,9 +5,9 @@ import { analyzeFrameQuality, extractNikAndNama, findNikLineBbox } from '../util
 const QUALITY_CHECK_INTERVAL_MS = 300;
 const SCAN_CANVAS_WIDTH = 320; // downscale buat loop cek kualitas real-time biar cepat/murah per-frame
 const CAPTURE_MAX_WIDTH = 1280; // resolusi gambar hasil jepret/upload yang sebenarnya dipakai buat OCR
-// tesseract.js ngunduh model bahasa (~10-15MB) dari CDN pas pertama dipakai — kalau internet lambat/
-// diblokir, tanpa batas waktu ini bakal kelihatan "macet" selamanya tanpa pesan apa pun.
-const OCR_TIMEOUT_MS = 45000;
+// Dua mesin OCR bisa jalan berurutan (PaddleOCR lalu fallback Tesseract) pas pertama kali dipakai di
+// sesi ini — kasih waktu longgar biar gak dianggap "macet" kepagian.
+const OCR_TIMEOUT_MS = 90000;
 
 const OCR_STATUS_LABELS = {
   'loading tesseract core': 'Menyiapkan OCR...',
@@ -18,21 +18,37 @@ const OCR_STATUS_LABELS = {
 };
 
 // Tahapan besar proses scan, ditandai LANGSUNG dari kode kita sendiri (bukan cuma nunggu callback
-// logger dari tesseract.js) — jadi tetap kelihatan bergerak walau logger internalnya gak pernah
-// ngirim update (kayak yang kejadian pas macet), dan user bisa lihat persis nyangkutnya di tahap mana.
+// logger dari mesin OCR) — jadi tetap kelihatan bergerak walau logger internalnya gak pernah ngirim
+// update, dan user bisa lihat persis nyangkutnya di tahap mana.
 const OCR_STEPS = [
   { key: 'loading-module', label: 'Memuat modul OCR' },
-  { key: 'starting-worker', label: 'Menyiapkan mesin OCR & model bahasa' },
   { key: 'recognizing', label: 'Membaca teks dari KTP' },
   { key: 'refining-nik', label: 'Membaca ulang NIK secara khusus' },
 ];
 
 // NIK e-KTP dicetak pakai font OCR-A Extended (didesain khusus buat mesin baca, tapi BEDA bentuk dari
 // font biasa) — model Tesseract umum sering ketuker huruf/angka di situ (1 dibaca L, 4 dibaca %, dst),
-// walau baris lain (Nama dst, font Arial biasa) kebaca lancar. Kalau pass pertama gagal dapat NIK 16
-// digit, baris paling padat angka di-crop pakai `rectangle` bawaan Tesseract lalu dibaca ULANG dengan
-// tessedit_char_whitelist dikunci ke digit doang — menghilangkan kemungkinan ketuker huruf sama sekali.
+// walau baris lain (Nama dst, font Arial biasa) kebaca lancar. Kalau baik PaddleOCR maupun pass teks
+// biasa gagal dapat NIK 16 digit bersih, baris paling padat angka di-crop pakai `rectangle` bawaan
+// Tesseract lalu dibaca ULANG dengan tessedit_char_whitelist dikunci ke digit doang — menghilangkan
+// kemungkinan ketuker huruf sama sekali (walau tetap gak menjamin digitnya 100% benar).
 const NIK_CROP_PADDING_RATIO = 0.4; // baris NIK biasanya pendek & tebal; kasih margin lumayan biar gak kepotong
+
+// PaddleOCR (PP-OCRv5) dijalankan LEBIH DULU — model modern, dilatih data jauh lebih beragam dari
+// Tesseract, harapannya lebih tahan sama font OCR-A. Tesseract (dengan trik NIK digit-only di atas)
+// jadi cadangan kalau PaddleOCR gagal dapat NIK/Nama. Semua model/WASM dilokalkan di public/, gak ada
+// yang gantung ke CDN eksternal (HuggingFace/jsdelivr) — sama seperti Tesseract.
+const PADDLE_MODEL_PATHS = {
+  detection: '/paddle-ocr/det.ort',
+  recognition: '/paddle-ocr/rec.ort',
+  charactersDictionary: '/paddle-ocr/dict.txt',
+};
+const PADDLE_ORT_WASM_PATH = '/paddle-ocr/ort/';
+
+async function dataUrlToArrayBuffer(dataUrl) {
+  const res = await fetch(dataUrl);
+  return res.arrayBuffer();
+}
 
 const QUALITY_MESSAGES = {
   'too-bright': 'Terlalu terang — kurangi cahaya atau jauhkan dari sumber cahaya langsung.',
@@ -208,54 +224,94 @@ const KtpScanner = ({ onApply, onClose }) => {
     setOcrError(null);
     setOcrProgress(null);
     setOcrStep('loading-module');
-    let worker = null;
+    let tesseractWorker = null;
+    let paddleService = null;
     try {
-      const Tesseract = await import('tesseract.js');
-      if (!mountedRef.current) return;
-      setOcrStep('starting-worker');
       const pipeline = (async () => {
-        // Worker/model bahasa dijadikan lokal (public/tesseract/) — bukan default CDN jsdelivr.
-        // 'ind+eng': KTP isinya teks Indonesia (Nama, alamat, status, dll) — model gabungan lebih
-        // akurat daripada 'eng' doang, sambil tetap kuat baca angka NIK & tanggal format Latin.
-        worker = await Tesseract.createWorker('ind+eng', 1, {
-          workerPath: '/tesseract/worker.min.js',
-          corePath: '/tesseract/tesseract-core-lstm.wasm.js',
-          langPath: '/tesseract',
-          logger: (m) => {
-            if (!mountedRef.current) return;
-            if (m.status === 'recognizing text') setOcrStep((s) => (s === 'refining-nik' ? s : 'recognizing'));
-            if (typeof m.progress === 'number') {
-              setOcrProgress({ label: OCR_STATUS_LABELS[m.status] || 'Memproses...', percent: Math.round(m.progress * 100) });
-            }
-          },
-        });
-        // { blocks: true } dibutuhkan biar hasilnya bawa bbox per baris (dipakai buat crop NIK di
-        // bawah) — tesseract.js defaultnya cuma balikin teks polos.
-        const { data } = await worker.recognize(imageDataUrl, {}, { blocks: true });
-        console.log('[KtpScanner] Teks hasil OCR (pass 1):', data.text);
-        const { nik: nikFromText, nama } = extractNikAndNama(data.text);
-        let nik = nikFromText;
+        let nik = null;
+        let nama = null;
 
-        if (!nik) {
-          const bbox = findNikLineBbox(data.blocks);
-          if (bbox) {
-            setOcrStep('refining-nik');
-            const width = bbox.x1 - bbox.x0;
-            const height = bbox.y1 - bbox.y0;
-            const padX = width * NIK_CROP_PADDING_RATIO;
-            const padY = height * NIK_CROP_PADDING_RATIO;
-            await worker.setParameters({ tessedit_char_whitelist: '0123456789' });
-            const { data: nikData } = await worker.recognize(imageDataUrl, {
-              rectangle: {
-                left: Math.max(0, Math.round(bbox.x0 - padX)),
-                top: Math.max(0, Math.round(bbox.y0 - padY)),
-                width: Math.round(width + padX * 2),
-                height: Math.round(height + padY * 2),
-              },
-            });
-            console.log('[KtpScanner] Hasil OCR ulang khusus NIK (pass 2, digit-only):', JSON.stringify(nikData.text));
-            const digitsOnly = nikData.text.replace(/[^0-9]/g, '');
-            if (digitsOnly.length === 16) nik = digitsOnly;
+        // Pass 1: PaddleOCR (PP-OCRv5) di seluruh gambar.
+        try {
+          const [ort, { PaddleOcrService }, imageBuffer] = await Promise.all([
+            import('onnxruntime-web'),
+            import('ppu-paddle-ocr/web'),
+            dataUrlToArrayBuffer(imageDataUrl),
+          ]);
+          if (!mountedRef.current) return { nik, nama };
+          // Harus disetel SEBELUM initialize() — kalau kosong, paketnya default ke WASM ONNX Runtime
+          // dari CDN jsdelivr. File WASM-nya udah dilokalkan di public/paddle-ocr/ort/.
+          ort.env.wasm.wasmPaths = PADDLE_ORT_WASM_PATH;
+          setOcrStep('recognizing');
+          paddleService = new PaddleOcrService({
+            model: PADDLE_MODEL_PATHS,
+            processing: { engine: 'canvas-native' },
+            session: { executionProviders: ['wasm'] },
+          });
+          await paddleService.initialize();
+          const result = await paddleService.recognize(imageBuffer);
+          console.log('[KtpScanner] Teks hasil OCR (PaddleOCR):', result.text);
+          const extracted = extractNikAndNama(result.text);
+          nik = extracted.nik;
+          nama = extracted.nama;
+        } catch (paddleErr) {
+          console.error('[KtpScanner] PaddleOCR gagal, lanjut ke Tesseract sebagai cadangan:', paddleErr);
+        } finally {
+          if (paddleService) {
+            await paddleService.destroy().catch(() => {});
+            paddleService = null;
+          }
+        }
+
+        // Pass 2 (cadangan): kalau PaddleOCR error total atau gagal dapat NIK/Nama bersih, coba
+        // Tesseract — yang punya trik OCR ulang khusus NIK digit-only (lihat komentar NIK_CROP_PADDING_RATIO).
+        if (!mountedRef.current) return { nik, nama };
+        if (!nik || !nama) {
+          const Tesseract = await import('tesseract.js');
+          if (!mountedRef.current) return { nik, nama };
+          setOcrStep('recognizing');
+          // Worker/model bahasa dijadikan lokal (public/tesseract/) — bukan default CDN jsdelivr.
+          // 'ind+eng': KTP isinya teks Indonesia (Nama, alamat, status, dll).
+          tesseractWorker = await Tesseract.createWorker('ind+eng', 1, {
+            workerPath: '/tesseract/worker.min.js',
+            corePath: '/tesseract/tesseract-core-lstm.wasm.js',
+            langPath: '/tesseract',
+            logger: (m) => {
+              if (!mountedRef.current) return;
+              if (m.status === 'recognizing text') setOcrStep((s) => (s === 'refining-nik' ? s : 'recognizing'));
+              if (typeof m.progress === 'number') {
+                setOcrProgress({ label: OCR_STATUS_LABELS[m.status] || 'Memproses...', percent: Math.round(m.progress * 100) });
+              }
+            },
+          });
+          // { blocks: true } dibutuhkan biar hasilnya bawa bbox per baris (dipakai buat crop NIK).
+          const { data } = await tesseractWorker.recognize(imageDataUrl, {}, { blocks: true });
+          console.log('[KtpScanner] Teks hasil OCR (Tesseract, cadangan):', data.text);
+          const fallback = extractNikAndNama(data.text);
+          if (!nik) nik = fallback.nik;
+          if (!nama) nama = fallback.nama;
+
+          if (!nik) {
+            const bbox = findNikLineBbox(data.blocks);
+            if (bbox) {
+              setOcrStep('refining-nik');
+              const width = bbox.x1 - bbox.x0;
+              const height = bbox.y1 - bbox.y0;
+              const padX = width * NIK_CROP_PADDING_RATIO;
+              const padY = height * NIK_CROP_PADDING_RATIO;
+              await tesseractWorker.setParameters({ tessedit_char_whitelist: '0123456789' });
+              const { data: nikData } = await tesseractWorker.recognize(imageDataUrl, {
+                rectangle: {
+                  left: Math.max(0, Math.round(bbox.x0 - padX)),
+                  top: Math.max(0, Math.round(bbox.y0 - padY)),
+                  width: Math.round(width + padX * 2),
+                  height: Math.round(height + padY * 2),
+                },
+              });
+              console.log('[KtpScanner] Hasil OCR ulang khusus NIK (digit-only):', JSON.stringify(nikData.text));
+              const digitsOnly = nikData.text.replace(/[^0-9]/g, '');
+              if (digitsOnly.length === 16) nik = digitsOnly;
+            }
           }
         }
 
@@ -263,7 +319,7 @@ const KtpScanner = ({ onApply, onClose }) => {
       })();
 
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Waktu OCR habis — kemungkinan koneksi internet lambat/terblokir saat mengunduh model bahasa. Coba lagi di jaringan yang lebih baik, atau isi manual.')), OCR_TIMEOUT_MS);
+        setTimeout(() => reject(new Error('Waktu OCR habis — kemungkinan koneksi internet lambat/terblokir saat mengunduh model OCR. Coba lagi di jaringan yang lebih baik, atau isi manual.')), OCR_TIMEOUT_MS);
       });
       const { nik, nama } = await Promise.race([pipeline, timeoutPromise]);
       if (!mountedRef.current) return;
@@ -276,7 +332,8 @@ const KtpScanner = ({ onApply, onClose }) => {
       setOcrError(`OCR gagal jalan (${err.message}). Isi NIK/Nama manual di form.`);
       setOcrStatus('error');
     } finally {
-      if (worker) worker.terminate().catch(() => {});
+      if (tesseractWorker) tesseractWorker.terminate().catch(() => {});
+      if (paddleService) paddleService.destroy().catch(() => {});
     }
   }, []);
 
