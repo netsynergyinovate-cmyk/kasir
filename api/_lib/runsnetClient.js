@@ -1,6 +1,7 @@
 import process from 'node:process';
 import { parseInvoiceListResponse, stripHtml, describePayResponse, parsePaymentRows } from '../../src/utils/runsnetSync.js';
 import { parsePelangganRow } from '../../src/utils/runsnetCustomers.js';
+import { parseOptionListHtml } from '../../src/utils/runsnetCustomerForm.js';
 
 // Dibaca lewat fungsi (bukan konstanta top-level) supaya skrip lokal yang memuat .env.local
 // setelah statement import tetap melihat nilainya.
@@ -20,6 +21,8 @@ const getBaseUrl = () => process.env.RUNSNET_BASE_URL || 'https://app.runsnet.id
 const SEARCH_PATH = 'model/previewc/query/invoice.php';
 const PAYMENT_LIST_PATH = 'model/previewc/query/payment.php';
 const CUSTOMERS_PATH = 'model/previewc/query/pelanggan.php';
+const BRANCH_OPTIONS_PATH = 'model/previewc/fungsi/pelanggan_branch.php';
+const PROFILE_PRICE_PATH = 'model/previewc/fungsi/pelanggan_profile.php';
 const MITRA_TARGET = 'ID00000000024';
 
 async function loginToRunsnet() {
@@ -120,6 +123,13 @@ export async function discoverMenuMap(cookie) {
     throw new Error('Tidak menemukan tombol Bayar/Reversal di halaman Runsnet. Struktur halaman Runsnet mungkin berubah.');
   }
 
+  // Tombol "+ Tambah Data" di halaman Pelanggan membuka form pelanggan baru lewat nilai kunci menu
+  // LAIN (bukan customersMenuValue) — dibaca dari link <a href="?<kunciMenu>=<nilai>">...Tambah
+  // Data</a> di HTML halaman Pelanggan itu sendiri.
+  const pelangganHtml = await fetchMenuPage(byLabel.Pelanggan);
+  const addCustomerRe = new RegExp(`href="\\?${menuKeyParam}=([A-Za-z0-9+/=]+)"[^>]*>\\s*<b>\\s*<i class="fa fa-plus-square"><\\/i> Tambah Data`);
+  const addCustomerMatch = pelangganHtml.match(addCustomerRe);
+
   return {
     menuKeyParam,
     invoiceListMenuValue: byLabel.Invoice,
@@ -127,6 +137,7 @@ export async function discoverMenuMap(cookie) {
     customersMenuValue: byLabel.Pelanggan,
     paymentMenuValue: paymentActionValue,
     reversalMenuValue: reversalActionValue,
+    addCustomerMenuValue: addCustomerMatch ? addCustomerMatch[1] : null,
   };
 }
 
@@ -409,4 +420,132 @@ export async function fetchAllCustomers({ cookie, menu }) {
   }
 
   return customers;
+}
+
+// Cari pelanggan lewat kotak pencarian nama di daftar Pelanggan Runsnet (server-side DataTables
+// search, satu halaman saja — bukan seperti fetchAllCustomers yang menyedot semua). Dipakai buat
+// menebak Customer ID pelanggan yang baru saja didaftarkan (submitNewCustomer tidak mengembalikan
+// Customer ID sama sekali, cuma konfirmasi redirect). Nama bisa kembar, makanya caller wajib
+// menangani kemungkinan 0 atau lebih dari 1 hasil, bukan asumsi selalu tepat 1.
+export async function findCustomersByName({ cookie, menu }, name) {
+  const listUrl = new URL(`${getBaseUrl()}/view/index.php`);
+  listUrl.searchParams.set(menu.menuKeyParam, menu.customersMenuValue);
+
+  const searchUrl = new URL(`${getBaseUrl()}/view/${CUSTOMERS_PATH}`);
+  searchUrl.searchParams.set('data1', '');
+  searchUrl.searchParams.set('data2', '');
+  searchUrl.searchParams.set('data3', '');
+  searchUrl.searchParams.set('data4', '');
+  searchUrl.searchParams.set('target', MITRA_TARGET);
+  searchUrl.searchParams.set('data6', '');
+
+  const body = new URLSearchParams({ draw: '1', start: '0', length: '20', 'search[value]': name, 'search[regex]': 'false' });
+  CUSTOMER_COLUMNS.forEach((colName, i) => {
+    body.set(`columns[${i}][data]`, String(i));
+    body.set(`columns[${i}][name]`, colName);
+    body.set(`columns[${i}][searchable]`, 'true');
+    body.set(`columns[${i}][orderable]`, i === 0 || i === 11 ? 'false' : 'true');
+    body.set(`columns[${i}][search][value]`, '');
+    body.set(`columns[${i}][search][regex]`, 'false');
+  });
+  body.set('order[0][column]', '1');
+  body.set('order[0][dir]', 'asc');
+
+  const response = await fetch(searchUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', Referer: listUrl.toString(), Cookie: cookie },
+    body,
+  });
+  if (!response.ok) throw new Error(`Mencari pelanggan Runsnet gagal: HTTP ${response.status}`);
+
+  const json = await response.json();
+  const rows = json.data || [];
+  return rows.map(parsePelangganRow).filter(Boolean);
+}
+
+// Cluster & Paket tersedia untuk satu cabang (form Tambah Pelanggan mengisi dua dropdown ini lewat
+// AJAX begitu Branch dipilih — dibaca langsung dari endpoint yang sama, bukan hardcode). jenis =
+// pac_jenis ('pppoe' dst).
+export async function fetchCustomerFormOptions({ cookie, menu }, branchCode, jenis = 'pppoe') {
+  const pageUrl = new URL(`${getBaseUrl()}/view/index.php`);
+  pageUrl.searchParams.set(menu.menuKeyParam, menu.addCustomerMenuValue);
+
+  const url = new URL(`${getBaseUrl()}/view/${BRANCH_OPTIONS_PATH}`);
+  url.searchParams.set('data1', branchCode);
+  url.searchParams.set('data2', MITRA_TARGET);
+  url.searchParams.set('data3', jenis);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest', Referer: pageUrl.toString(), Cookie: cookie },
+  });
+  if (!response.ok) throw new Error(`Mengambil daftar cluster/paket Runsnet gagal: HTTP ${response.status}`);
+  const json = await response.json();
+  return {
+    clusters: parseOptionListHtml(json?.data?.data_a),
+    profiles: parseOptionListHtml(json?.data?.data_b),
+  };
+}
+
+// Harga bulanan resmi satu paket (dipakai form Tambah Pelanggan buat auto-isi Biaya Bulanan begitu
+// Profile dipilih, sama seperti perilaku form aslinya).
+export async function fetchProfilePrice({ cookie, menu }, profileValue) {
+  const pageUrl = new URL(`${getBaseUrl()}/view/index.php`);
+  pageUrl.searchParams.set(menu.menuKeyParam, menu.addCustomerMenuValue);
+
+  const url = new URL(`${getBaseUrl()}/view/${PROFILE_PRICE_PATH}`);
+  url.searchParams.set('data1', profileValue);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest', Referer: pageUrl.toString(), Cookie: cookie },
+  });
+  if (!response.ok) throw new Error(`Mengambil harga paket Runsnet gagal: HTTP ${response.status}`);
+  const json = await response.json();
+  const raw = json?.data?.data_a;
+  // Runsnet kadang balikin harga sebagai string berformat ("Rp 300.000", "300,000"), bukan angka murni —
+  // buang semua karakter selain digit dulu supaya tidak diam-diam jatuh ke 0.
+  const digitsOnly = String(raw ?? '').replace(/[^0-9]/g, '');
+  return digitsOnly ? Number(digitsOnly) : 0;
+}
+
+// Mendaftarkan pelanggan baru langsung ke Runsnet (POST form "Tambah Pelanggan" asli). PERINGATAN:
+// efek samping nyata — membuat baris pelanggan sungguhan di Runsnet, tidak ada "mode uji coba".
+// payload harus sudah berbentuk field pac_* asli (lihat buildCustomerPayload di
+// src/utils/runsnetCustomerForm.js).
+//
+// Dua hal terbukti lewat tes nyata (2026-09-22), berbeda dari aksi bayar/reversal:
+// 1. Tombol submit asli <button type="submit" name="simpan" id="simpan">Simpan Data</button> WAJIB
+//    ikut terkirim sebagai field "simpan" — kalau tidak, Runsnet diam-diam menganggap ini bukan
+//    submit (merender ulang halaman kosong, sama persis seperti GET biasa, tanpa data tersimpan).
+// 2. Tanda sukses BUKAN HTTP redirect (302), melainkan tag <meta http-equiv='refresh' ...> di
+//    dalam HTML (status tetap 200) yang mengarah balik ke halaman daftar Pelanggan.
+export async function submitNewCustomer({ cookie, menu }, payload) {
+  const url = new URL(`${getBaseUrl()}/view/index.php`);
+  url.searchParams.set(menu.menuKeyParam, menu.addCustomerMenuValue);
+
+  const body = new URLSearchParams({ ...payload, simpan: '' });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Referer: url.toString(),
+      Cookie: cookie,
+    },
+    body,
+    redirect: 'manual',
+  });
+
+  if (response.status >= 300 && response.status < 400 && /login\.php/i.test(response.headers.get('location') || '')) {
+    throw new Error(`Sesi login Runsnet tidak valid (HTTP ${response.status}); pelanggan TIDAK dikirim.`);
+  }
+  if (response.status !== 200) {
+    throw new Error(`Runsnet membalas HTTP ${response.status} yang tidak dikenali. Cek manual di daftar Pelanggan Runsnet sebelum coba lagi.`);
+  }
+
+  const html = await response.text();
+  if (/<meta\s+http-equiv=['"]refresh['"][^>]*>/i.test(html)) {
+    return { response: 'Pelanggan tersimpan (Runsnet mengarahkan balik ke daftar Pelanggan).' };
+  }
+  throw new Error('Runsnet tidak mengonfirmasi pelanggan baru tersimpan (form ditampilkan ulang tanpa tanda sukses — kemungkinan ada field yang ditolak). Cek manual di daftar Pelanggan Runsnet sebelum coba lagi.');
 }

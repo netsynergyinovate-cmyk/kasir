@@ -18,6 +18,7 @@ import Instansi from './pages/Instansi';
 import History from './pages/History';
 import Aktivitas from './pages/Aktivitas';
 import AddCustomerModal from './components/AddCustomerModal';
+import TambahPelangganRunsnet from './pages/TambahPelangganRunsnet';
 import ReceiptThermal from './components/ReceiptThermal';
 import ReceiptA4 from './components/ReceiptA4';
 import GlobalSearch from './components/GlobalSearch';
@@ -47,7 +48,8 @@ const INIT_COMPANY = {
   apiMonitoringKey: localStorage.getItem('api_monitoring_key') || '',
   apiMonitoringEnabled: localStorage.getItem('api_monitoring_enabled') === 'true',
   watbizToken: '',
-  watbizEnabled: false
+  watbizEnabled: false,
+  idleLockExemptSuperadmin: false
 };
 
 export default function App() {
@@ -226,7 +228,8 @@ export default function App() {
     localStorage.removeItem('device_unlocked');
     setIsLocked(true);
   };
-  const idleLockEnabled = Boolean(session) && !isLoading && Boolean(companyInfo.appPin) && !isLocked;
+  const isSuperExemptFromIdleLock = session?.profile?.role === 'superadmin' && companyInfo.idleLockExemptSuperadmin;
+  const idleLockEnabled = Boolean(session) && !isLoading && Boolean(companyInfo.appPin) && !isLocked && !isSuperExemptFromIdleLock;
   const idleRemaining = useIdleLock({ enabled: idleLockEnabled, onLock: lockApp });
 
   // Determine lock state based on session, DB pin, and local unlock flag
@@ -332,7 +335,8 @@ export default function App() {
             apiMonitoringKey: finalKey,
             apiMonitoringEnabled: finalEnabled,
             watbizToken: settingsData.watbiz_token || '',
-            watbizEnabled: settingsData.watbiz_enabled || false
+            watbizEnabled: settingsData.watbiz_enabled || false,
+            idleLockExemptSuperadmin: settingsData.idle_lock_exempt_superadmin || false
           });
         }
         console.log('Data berhasil dimuat.');
@@ -746,7 +750,8 @@ export default function App() {
         api_monitoring_key: keyToSave,
         api_monitoring_enabled: mergedSettings.apiMonitoringEnabled ?? false,
         watbiz_token: mergedSettings.watbizToken || '',
-        watbiz_enabled: mergedSettings.watbizEnabled ?? false
+        watbiz_enabled: mergedSettings.watbizEnabled ?? false,
+        idle_lock_exempt_superadmin: mergedSettings.idleLockExemptSuperadmin ?? false
       };
       const { error } = await supabase.from('company_settings').upsert(payload);
       if (error) throw error;
@@ -970,7 +975,7 @@ export default function App() {
                 session={session}
                 onRunsnetImported={refetchCustomers}
                 visitStatusById={visitStatusById}
-                setShowAddCustomer={setShowAddCustomer} 
+                setShowAddCustomer={setShowAddCustomer}
                 onDeleteCustomer={handleDeleteCustomerDB}
                 onUpdateCustomer={handleUpdateCustomerDB}
                 onSyncEbilling={handleSyncCustomersFromEbilling}
@@ -1020,6 +1025,9 @@ export default function App() {
             <Route path="/instansi" element={
                <Instansi />
             } />
+            <Route path="/pelanggan-runsnet-baru" element={
+              <TambahPelangganRunsnet session={session} />
+            } />
             <Route path="/aktivitas" element={
               <Aktivitas
                 transactions={transactions.map(t => ({ ...t, customerName: t.customer_name, instansiName: t.instansi_name, cashierName: t.cashier_name }))}
@@ -1028,7 +1036,9 @@ export default function App() {
           </Routes>
         </main>
 
-        <Navigation role={session?.profile?.role} allowedPaths={session?.profile?.allowed_paths} />
+        {location.pathname !== '/pelanggan-runsnet-baru' && (
+          <Navigation role={session?.profile?.role} allowedPaths={session?.profile?.allowed_paths} />
+        )}
       </div>
 
       <RunsnetSyncToast result={runsnetResult} onDone={() => setRunsnetResult(null)} />
@@ -1041,6 +1051,7 @@ export default function App() {
         onClose={() => setShowAddCustomer(false)}
         onAdd={handleAddCustomer}
       />
+
 
       <GlobalSearch
         isOpen={isSearchOpen}

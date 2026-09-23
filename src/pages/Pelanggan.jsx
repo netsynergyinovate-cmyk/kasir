@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { 
-  Search, PlusCircle, Wifi, Trash2, Pencil, MapPin, LayoutGrid, List, 
+import {
+  Search, PlusCircle, Wifi, Trash2, Pencil, MapPin, LayoutGrid, List,
   Calendar, RefreshCw, Key, Phone, Network, ShieldCheck, CheckCircle2,
-  ExternalLink, Info, X 
+  ExternalLink, Info, X
 } from 'lucide-react';
 import EditCustomerModal from '../components/EditCustomerModal';
 import RunsnetCustomerPicker from '../components/RunsnetCustomerPicker';

@@ -465,6 +465,28 @@ const Settings = ({
             </div>
           </div>
         </div>
+
+        {/* Section: Keamanan */}
+        <div>
+          <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Keamanan</h2>
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-gray-800">Kunci Otomatis 15 Menit — Kecualikan Superadmin</p>
+                <p className="text-xs text-gray-400 mt-0.5">Aktifkan sementara saat sedang develop/testing supaya akun superadmin tidak ikut terkunci. Akun admin tetap terkunci seperti biasa.</p>
+              </div>
+              <ToggleSwitch
+                label="Kecualikan superadmin dari kunci otomatis"
+                checked={localCompany.idleLockExemptSuperadmin || false}
+                onChange={(checked) => {
+                  const updated = { ...localCompany, idleLockExemptSuperadmin: checked };
+                  setLocalCompany(updated);
+                  setCompanyInfo(updated);
+                }}
+              />
+            </div>
+          </div>
+        </div>
         </>
         )}
 
