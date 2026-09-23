@@ -245,10 +245,18 @@ const KtpScanner = ({ onApply, onClose }) => {
                 <div className="relative w-full aspect-[4/3] bg-black rounded-xl overflow-hidden">
                   <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-6">
-                    <div className="w-full aspect-[85.6/53.98] max-h-full border-2 border-dashed border-white/80 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+                    <div className="relative w-full aspect-[85.6/53.98] max-h-full border-2 border-dashed border-white/80 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]">
+                      {/* Perkiraan posisi baris NIK & Nama di layout e-KTP standar, buat bantu user pas-in kartu. */}
+                      <div className="absolute left-[3%] top-[15%] w-[58%] h-[11%] border border-yellow-300/90 rounded-sm flex items-center px-1">
+                        <span className="text-yellow-200 text-[8px] font-bold drop-shadow">NIK</span>
+                      </div>
+                      <div className="absolute left-[3%] top-[28%] w-[58%] h-[10%] border border-sky-300/90 rounded-sm flex items-center px-1">
+                        <span className="text-sky-200 text-[8px] font-bold drop-shadow">Nama</span>
+                      </div>
+                    </div>
                   </div>
                   <p className="absolute bottom-2 left-0 right-0 text-center text-white text-[11px] font-bold drop-shadow pointer-events-none">
-                    Posisikan KTP di dalam kotak (rata dengan Nama &amp; NIK)
+                    Posisikan KTP di dalam kotak — sejajarkan baris NIK &amp; Nama dengan kotak kuning/biru
                   </p>
                 </div>
                 {qualityWarnings.length > 0 && warningList}
