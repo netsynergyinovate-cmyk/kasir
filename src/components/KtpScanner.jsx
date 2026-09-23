@@ -5,6 +5,17 @@ import { analyzeFrameQuality, extractNikAndNama } from '../utils/ktpScan';
 const QUALITY_CHECK_INTERVAL_MS = 300;
 const SCAN_CANVAS_WIDTH = 320; // downscale buat loop cek kualitas real-time biar cepat/murah per-frame
 const CAPTURE_MAX_WIDTH = 1280; // resolusi gambar hasil jepret/upload yang sebenarnya dipakai buat OCR
+// tesseract.js ngunduh model bahasa (~10-15MB) dari CDN pas pertama dipakai — kalau internet lambat/
+// diblokir, tanpa batas waktu ini bakal kelihatan "macet" selamanya tanpa pesan apa pun.
+const OCR_TIMEOUT_MS = 45000;
+
+const OCR_STATUS_LABELS = {
+  'loading tesseract core': 'Menyiapkan OCR...',
+  'initializing tesseract': 'Menyiapkan OCR...',
+  'loading language traineddata': 'Mengunduh model bahasa...',
+  'initializing api': 'Menyiapkan OCR...',
+  'recognizing text': 'Membaca teks KTP...',
+};
 
 const QUALITY_MESSAGES = {
   'too-bright': 'Terlalu terang — kurangi cahaya atau jauhkan dari sumber cahaya langsung.',
@@ -33,6 +44,7 @@ const KtpScanner = ({ onApply, onClose }) => {
   const [capturedImage, setCapturedImage] = useState(null); // data URL
   const [ocrStatus, setOcrStatus] = useState('idle'); // idle | running | done | error
   const [ocrError, setOcrError] = useState(null);
+  const [ocrProgress, setOcrProgress] = useState(null); // { label, percent } | null
   const [reviewNik, setReviewNik] = useState('');
   const [reviewNama, setReviewNama] = useState('');
   const [uploadError, setUploadError] = useState(null);
@@ -170,9 +182,19 @@ const KtpScanner = ({ onApply, onClose }) => {
   const runOcr = useCallback(async (imageDataUrl) => {
     setOcrStatus('running');
     setOcrError(null);
+    setOcrProgress(null);
     try {
       const Tesseract = await import('tesseract.js');
-      const { data: { text } } = await Tesseract.recognize(imageDataUrl, 'eng');
+      const recognizePromise = Tesseract.recognize(imageDataUrl, 'eng', {
+        logger: (m) => {
+          if (!mountedRef.current || typeof m.progress !== 'number') return;
+          setOcrProgress({ label: OCR_STATUS_LABELS[m.status] || 'Memproses...', percent: Math.round(m.progress * 100) });
+        },
+      });
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Waktu OCR habis — kemungkinan koneksi internet lambat/terblokir saat mengunduh model bahasa. Coba lagi di jaringan yang lebih baik, atau isi manual.')), OCR_TIMEOUT_MS);
+      });
+      const { data: { text } } = await Promise.race([recognizePromise, timeoutPromise]);
       if (!mountedRef.current) return;
       const { nik, nama } = extractNikAndNama(text);
       setReviewNik(nik || '');
@@ -194,6 +216,7 @@ const KtpScanner = ({ onApply, onClose }) => {
     setCapturedImage(null);
     setOcrStatus('idle');
     setOcrError(null);
+    setOcrProgress(null);
     setReviewNik('');
     setReviewNama('');
     setQualityWarnings([]);
@@ -276,7 +299,11 @@ const KtpScanner = ({ onApply, onClose }) => {
               </div>
             ) : (
               <div className="space-y-2">
-                <input type="file" accept="image/*" onChange={handleFileChange} className="w-full text-xs" />
+                <label className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 cursor-pointer active:scale-95 transition-all">
+                  <Upload size={16} />
+                  Pilih Foto KTP
+                  <input type="file" accept="image/*" onChange={handleFileChange} className="sr-only" />
+                </label>
                 {uploadError && <p className="text-xs font-bold text-red-600">{uploadError}</p>}
                 {qualityWarnings.length > 0 && warningList}
               </div>
@@ -290,7 +317,10 @@ const KtpScanner = ({ onApply, onClose }) => {
             {qualityWarnings.length > 0 && warningList}
 
             {ocrStatus === 'running' && (
-              <p className="text-xs font-bold text-gray-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Membaca KTP...</p>
+              <p className="text-xs font-bold text-gray-500 flex items-center gap-2">
+                <Loader2 size={16} className="animate-spin" />
+                {ocrProgress ? `${ocrProgress.label} ${ocrProgress.percent}%` : 'Membaca KTP...'}
+              </p>
             )}
             {ocrStatus === 'error' && (
               <p className="text-xs font-bold text-red-600">{ocrError}</p>
