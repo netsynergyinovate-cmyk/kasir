@@ -88,4 +88,14 @@ describe('extractNikAndNama', () => {
     expect(extractNikAndNama('')).toEqual({ nik: null, nama: null });
     expect(extractNikAndNama(null)).toEqual({ nik: null, nama: null });
   });
+
+  it('recovers a NIK split by stray OCR spaces via the labeled-line fallback', () => {
+    const text = 'NIK : 3174 0961 1290 0001\nNama : DEBBY ANGGRAINI';
+    expect(extractNikAndNama(text)).toEqual({ nik: '3174096112900001', nama: 'DEBBY ANGGRAINI' });
+  });
+
+  it('does not guess a NIK from the labeled line when the digit count is wrong', () => {
+    const text = 'NIK : 317 0961 1290 0001\nNama : DEBBY ANGGRAINI';
+    expect(extractNikAndNama(text).nik).toBeNull();
+  });
 });

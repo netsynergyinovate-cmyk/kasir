@@ -61,30 +61,44 @@ export function analyzeFrameQuality({ data, width, height }) {
 // kena — hanya deretan persis 16 digit yang terisolasi (diapit non-digit atau ujung teks) yang match.
 const NIK_REGEX = /(?<!\d)(\d{16})(?!\d)/;
 
-// Label "Nama" di KTP diikuti nilainya di baris yang sama (kadang ada ":" kadang tidak) atau, kalau
-// OCR memecah baris label dan nilai jadi dua, di baris berikutnya. Regex longgar (case-insensitive,
-// spasi bebas) karena OCR gratisan sering salah kapitalisasi/spasi.
+// Label baris — dipakai buat cari baris "NIK ..." / "Nama ..." begitu regex utuh di atas gagal (OCR
+// sering nyelipin spasi/noise di tengah nomor). Longgar (case-insensitive) karena OCR gratisan sering
+// salah kapitalisasi.
+const NIK_LABEL_REGEX = /nik\s*[:-]?\s*(.*)/i;
 const NAMA_LABEL_REGEX = /nama\s*[:-]?\s*(.*)/i;
 
-// Nebak NIK & Nama dari teks mentah hasil OCR satu foto KTP. NIK: cari 16 digit terisolasi (andal,
-// gak ada nomor lain di KTP yang persis 16 digit). Nama: cari baris berlabel "nama", ambil sisa baris
-// itu atau baris berikutnya kalau kosong. TIDAK dijamin selalu benar — caller WAJIB nampilin hasil ini
-// sebagai draft yang bisa diedit, bukan langsung dipakai.
-export function extractNikAndNama(ocrText) {
-  const text = String(ocrText || '');
-  const nikMatch = text.match(NIK_REGEX);
-  const nik = nikMatch ? nikMatch[1] : null;
-
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  let nama = null;
+function findLabeledLine(lines, labelRegex) {
   for (let i = 0; i < lines.length; i += 1) {
-    const match = lines[i].match(NAMA_LABEL_REGEX);
+    const match = lines[i].match(labelRegex);
     if (match) {
       const sameLine = match[1].trim();
-      nama = sameLine || (lines[i + 1] ? lines[i + 1].trim() : null);
-      break;
+      return sameLine || (lines[i + 1] ? lines[i + 1].trim() : '');
     }
   }
+  return null;
+}
+
+// Nebak NIK & Nama dari teks mentah hasil OCR satu foto KTP. TIDAK dijamin selalu benar — caller
+// WAJIB nampilin hasil ini sebagai draft yang bisa diedit, bukan langsung dipakai.
+export function extractNikAndNama(ocrText) {
+  const text = String(ocrText || '');
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  // NIK: coba dulu 16 digit terisolasi di mana pun di teks (andal kalau OCR-nya bersih). Kalau gagal
+  // — biasanya karena OCR nyelipin spasi di tengah nomor ("3174 0961 1290 0001") yang mecah deretan
+  // digitnya — cari baris berlabel "NIK", buang semua karakter selain angka di sisa baris itu; kalau
+  // hasilnya persis 16 digit, cukup yakin itu NIK aslinya (baris itu emang khusus buat NIK di KTP).
+  const directNikMatch = text.match(NIK_REGEX);
+  let nik = directNikMatch ? directNikMatch[1] : null;
+  if (!nik) {
+    const nikLine = findLabeledLine(lines, NIK_LABEL_REGEX);
+    if (nikLine) {
+      const digitsOnly = nikLine.replace(/[^0-9]/g, '');
+      if (digitsOnly.length === 16) nik = digitsOnly;
+    }
+  }
+
+  const nama = findLabeledLine(lines, NAMA_LABEL_REGEX) || null;
 
   return { nik, nama };
 }
