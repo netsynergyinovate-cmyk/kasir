@@ -209,7 +209,9 @@ const KtpScanner = ({ onApply, onClose }) => {
       // Worker/model bahasa dijadikan lokal (public/tesseract/) — bukan default CDN jsdelivr.
       // Kalau internet lapangan lambat/CDN eksternal diblokir, OCR sebelumnya nge-hang diam-diam
       // tanpa error karena macet nunggu 3 file itu dari luar; sekarang semua disajikan dari server sendiri.
-      const recognizePromise = Tesseract.recognize(imageDataUrl, 'eng', {
+      // 'ind+eng': KTP isinya teks Indonesia (Nama, alamat, status, dll) — model gabungan lebih akurat
+      // daripada 'eng' doang buat itu, sambil tetap kuat baca angka NIK & tanggal format Latin.
+      const recognizePromise = Tesseract.recognize(imageDataUrl, 'ind+eng', {
         workerPath: '/tesseract/worker.min.js',
         corePath: '/tesseract/tesseract-core-lstm.wasm.js',
         langPath: '/tesseract',
