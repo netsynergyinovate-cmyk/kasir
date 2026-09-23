@@ -122,6 +122,14 @@ describe('validateStepFields', () => {
     expect(validateStepFields(1, { nama: 'Budi', kontak: '0812' })).toEqual([]);
   });
 
+  it('step 1 rejects a nik that is present but not exactly 16 digits, and accepts one that is', () => {
+    expect(validateStepFields(1, { nama: 'Budi', kontak: '0812', nik: '12345' })).toEqual([
+      'NIK harus 16 digit kalau diisi (cek hasil scan KTP, sering salah baca).',
+    ]);
+    expect(validateStepFields(1, { nama: 'Budi', kontak: '0812', nik: '1234567890123456' })).toEqual([]);
+    expect(validateStepFields(1, { nama: 'Budi', kontak: '0812' })).toEqual([]); // nik optional, absent is fine
+  });
+
   it('step 2 requires branchCode and alamat', () => {
     expect(validateStepFields(2, {})).toEqual([
       'Cabang (Branch) wajib dipilih.',

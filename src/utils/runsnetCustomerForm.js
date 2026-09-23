@@ -59,6 +59,7 @@ export function validateStepFields(step, form) {
   if (step === 1) {
     if (!form.nama?.trim()) errors.push('Nama pelanggan wajib diisi.');
     if (!form.kontak?.trim()) errors.push('Nomor kontak wajib diisi.');
+    if (form.nik?.trim() && form.nik.trim().length !== 16) errors.push('NIK harus 16 digit kalau diisi (cek hasil scan KTP, sering salah baca).');
   } else if (step === 2) {
     if (!form.branchCode) errors.push('Cabang (Branch) wajib dipilih.');
     if (!form.alamat?.trim()) errors.push('Alamat wajib diisi.');

@@ -3,7 +3,8 @@ import { Camera, Upload, X, Loader2, AlertTriangle, Check } from 'lucide-react';
 import { analyzeFrameQuality, extractNikAndNama } from '../utils/ktpScan';
 
 const QUALITY_CHECK_INTERVAL_MS = 300;
-const SCAN_CANVAS_WIDTH = 320; // downscale sebelum analisis kualitas & OCR biar cepat di HP
+const SCAN_CANVAS_WIDTH = 320; // downscale buat loop cek kualitas real-time biar cepat/murah per-frame
+const CAPTURE_MAX_WIDTH = 1280; // resolusi gambar hasil jepret/upload yang sebenarnya dipakai buat OCR
 
 const QUALITY_MESSAGES = {
   'too-bright': 'Terlalu terang — kurangi cahaya atau jauhkan dari sumber cahaya langsung.',
@@ -34,11 +35,14 @@ const KtpScanner = ({ onApply, onClose }) => {
   const [ocrError, setOcrError] = useState(null);
   const [reviewNik, setReviewNik] = useState('');
   const [reviewNama, setReviewNama] = useState('');
+  const [uploadError, setUploadError] = useState(null);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const canvasRef = useRef(null);
   const intervalRef = useRef(null);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current) {
@@ -102,28 +106,53 @@ const KtpScanner = ({ onApply, onClose }) => {
   }, [tab, capturedImage, stopCamera]);
 
   const handleCapture = () => {
+    const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!canvas || canvas.width === 0) return;
-    setCapturedImage(canvas.toDataURL('image/jpeg', 0.85));
+    if (!video || !canvas || video.videoWidth === 0) return;
     stopCamera();
+    const scale = Math.min(CAPTURE_MAX_WIDTH / video.videoWidth, 1);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    setQualityWarnings(warningsFromQuality(analyzeFrameQuality(imageData)));
+    setCapturedImage(canvas.toDataURL('image/jpeg', 0.9));
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadError(null);
     const reader = new FileReader();
+    reader.onerror = () => setUploadError('Gagal membaca file. Coba file lain.');
     reader.onload = () => {
       const img = new Image();
+      img.onerror = () => setUploadError('File bukan gambar yang valid atau rusak. Coba file lain.');
       img.onload = () => {
         const canvas = canvasRef.current;
-        const scale = SCAN_CANVAS_WIDTH / img.width;
-        canvas.width = SCAN_CANVAS_WIDTH;
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        setQualityWarnings(warningsFromQuality(analyzeFrameQuality(imageData)));
-        setCapturedImage(canvas.toDataURL('image/jpeg', 0.85));
+        if (!canvas || !img.width || !img.height) {
+          setUploadError('Gambar tidak valid. Coba file lain.');
+          return;
+        }
+        try {
+          const qualityScale = SCAN_CANVAS_WIDTH / img.width;
+          canvas.width = SCAN_CANVAS_WIDTH;
+          canvas.height = Math.round(img.height * qualityScale);
+          const qctx = canvas.getContext('2d');
+          qctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const qualityImageData = qctx.getImageData(0, 0, canvas.width, canvas.height);
+          setQualityWarnings(warningsFromQuality(analyzeFrameQuality(qualityImageData)));
+
+          const captureScale = Math.min(CAPTURE_MAX_WIDTH / img.width, 1);
+          canvas.width = Math.round(img.width * captureScale);
+          canvas.height = Math.round(img.height * captureScale);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          setCapturedImage(canvas.toDataURL('image/jpeg', 0.9));
+        } catch (err) {
+          setUploadError(`Gagal memproses gambar (${err.message}). Coba file lain.`);
+        }
       };
       img.src = reader.result;
     };
@@ -136,11 +165,13 @@ const KtpScanner = ({ onApply, onClose }) => {
     try {
       const Tesseract = await import('tesseract.js');
       const { data: { text } } = await Tesseract.recognize(imageDataUrl, 'eng');
+      if (!mountedRef.current) return;
       const { nik, nama } = extractNikAndNama(text);
       setReviewNik(nik || '');
       setReviewNama(nama || '');
       setOcrStatus('done');
     } catch (err) {
+      if (!mountedRef.current) return;
       setOcrError(`OCR gagal jalan (${err.message}). Isi NIK/Nama manual di form.`);
       setOcrStatus('error');
     }
@@ -158,6 +189,7 @@ const KtpScanner = ({ onApply, onClose }) => {
     setReviewNik('');
     setReviewNama('');
     setQualityWarnings([]);
+    setUploadError(null);
   };
 
   const handleClose = () => {
@@ -213,6 +245,7 @@ const KtpScanner = ({ onApply, onClose }) => {
             ) : (
               <div className="space-y-2">
                 <input type="file" accept="image/*" onChange={handleFileChange} className="w-full text-xs" />
+                {uploadError && <p className="text-xs font-bold text-red-600">{uploadError}</p>}
                 {qualityWarnings.length > 0 && warningList}
               </div>
             )}

@@ -211,6 +211,7 @@ const TambahPelangganRunsnet = ({ session }) => {
 
   const handleKtpApply = ({ nik, nama }) => {
     setForm((f) => ({ ...f, nik, nama }));
+    setTouched((t) => ({ ...t, nama: true }));
   };
 
   const stepErrors = validateStepFields(step, form);
