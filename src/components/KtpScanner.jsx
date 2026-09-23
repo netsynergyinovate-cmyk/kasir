@@ -185,7 +185,13 @@ const KtpScanner = ({ onApply, onClose }) => {
     setOcrProgress(null);
     try {
       const Tesseract = await import('tesseract.js');
+      // Worker/model bahasa dijadikan lokal (public/tesseract/) — bukan default CDN jsdelivr.
+      // Kalau internet lapangan lambat/CDN eksternal diblokir, OCR sebelumnya nge-hang diam-diam
+      // tanpa error karena macet nunggu 3 file itu dari luar; sekarang semua disajikan dari server sendiri.
       const recognizePromise = Tesseract.recognize(imageDataUrl, 'eng', {
+        workerPath: '/tesseract/worker.min.js',
+        corePath: '/tesseract/tesseract-core-lstm.wasm.js',
+        langPath: '/tesseract',
         logger: (m) => {
           if (!mountedRef.current || typeof m.progress !== 'number') return;
           setOcrProgress({ label: OCR_STATUS_LABELS[m.status] || 'Memproses...', percent: Math.round(m.progress * 100) });
