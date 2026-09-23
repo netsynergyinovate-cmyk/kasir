@@ -109,15 +109,23 @@ const KtpScanner = ({ onApply, onClose }) => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.videoWidth === 0) return;
-    stopCamera();
-    const scale = Math.min(CAPTURE_MAX_WIDTH / video.videoWidth, 1);
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
+
+    const qualityScale = SCAN_CANVAS_WIDTH / video.videoWidth;
+    canvas.width = SCAN_CANVAS_WIDTH;
+    canvas.height = Math.round(video.videoHeight * qualityScale);
+    const qctx = canvas.getContext('2d');
+    qctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const qualityImageData = qctx.getImageData(0, 0, canvas.width, canvas.height);
+    setQualityWarnings(warningsFromQuality(analyzeFrameQuality(qualityImageData)));
+
+    const captureScale = Math.min(CAPTURE_MAX_WIDTH / video.videoWidth, 1);
+    canvas.width = Math.round(video.videoWidth * captureScale);
+    canvas.height = Math.round(video.videoHeight * captureScale);
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    setQualityWarnings(warningsFromQuality(analyzeFrameQuality(imageData)));
     setCapturedImage(canvas.toDataURL('image/jpeg', 0.9));
+
+    stopCamera();
   };
 
   const handleFileChange = (e) => {
@@ -236,10 +244,16 @@ const KtpScanner = ({ onApply, onClose }) => {
                 {cameraError && <p className="text-xs font-bold text-red-600">{cameraError}</p>}
                 <div className="relative w-full aspect-[4/3] bg-black rounded-xl overflow-hidden">
                   <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-6">
+                    <div className="w-full aspect-[85.6/53.98] max-h-full border-2 border-dashed border-white/80 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+                  </div>
+                  <p className="absolute bottom-2 left-0 right-0 text-center text-white text-[11px] font-bold drop-shadow pointer-events-none">
+                    Posisikan KTP di dalam kotak (rata dengan Nama &amp; NIK)
+                  </p>
                 </div>
                 {qualityWarnings.length > 0 && warningList}
                 <button type="button" onClick={handleCapture} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2">
-                  <Camera size={18} /> Jepret
+                  <Camera size={18} /> Ambil Gambar
                 </button>
               </div>
             ) : (
