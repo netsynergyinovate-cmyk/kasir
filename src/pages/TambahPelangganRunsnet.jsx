@@ -88,10 +88,10 @@ const TambahPelangganRunsnet = ({ session }) => {
       setLoadingOptions(true);
       try {
         const { data: { session: authSession } } = await supabase.auth.getSession();
-        const res = await fetch('/api/runsnet/customer-form-options', {
+        const res = await fetch('/api/runsnet/customer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token}` },
-          body: JSON.stringify({ branchCode: form.branchCode, jenis: form.jenis }),
+          body: JSON.stringify({ action: 'form-options', branchCode: form.branchCode, jenis: form.jenis }),
         });
         const json = await res.json();
         if (cancelled) return;
@@ -119,10 +119,10 @@ const TambahPelangganRunsnet = ({ session }) => {
     setLoadingPrice(true);
     try {
       const { data: { session: authSession } } = await supabase.auth.getSession();
-      const res = await fetch('/api/runsnet/customer-profile-price', {
+      const res = await fetch('/api/runsnet/customer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token}` },
-        body: JSON.stringify({ profileValue: value }),
+        body: JSON.stringify({ action: 'profile-price', profileValue: value }),
       });
       const json = await res.json();
       if (res.ok) {
@@ -155,7 +155,7 @@ const TambahPelangganRunsnet = ({ session }) => {
     setSubmitting(true);
     setResult(null);
     try {
-      const res = await fetch('/api/runsnet/add-customer', { method: 'POST', headers: authHeaders(), body: JSON.stringify(form) });
+      const res = await fetch('/api/runsnet/customer', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ action: 'add-customer', ...form }) });
       const json = await res.json();
       if (res.ok && json.success) {
         const typedUsername = form.username?.trim();
@@ -164,10 +164,10 @@ const TambahPelangganRunsnet = ({ session }) => {
         let matchCount = 0;
         try {
           const { data: { session: authSession } } = await supabase.auth.getSession();
-          const findRes = await fetch('/api/runsnet/find-customer', {
+          const findRes = await fetch('/api/runsnet/customer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token}` },
-            body: JSON.stringify({ name: form.nama }),
+            body: JSON.stringify({ action: 'find-customer', name: form.nama }),
           });
           const findJson = await findRes.json();
           if (findRes.ok && findJson.success) {
