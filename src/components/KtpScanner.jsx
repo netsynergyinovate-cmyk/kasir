@@ -17,6 +17,15 @@ const OCR_STATUS_LABELS = {
   'recognizing text': 'Membaca teks KTP...',
 };
 
+// Tahapan besar proses scan, ditandai LANGSUNG dari kode kita sendiri (bukan cuma nunggu callback
+// logger dari tesseract.js) — jadi tetap kelihatan bergerak walau logger internalnya gak pernah
+// ngirim update (kayak yang kejadian pas macet), dan user bisa lihat persis nyangkutnya di tahap mana.
+const OCR_STEPS = [
+  { key: 'loading-module', label: 'Memuat modul OCR' },
+  { key: 'starting-worker', label: 'Menyiapkan mesin OCR & model bahasa' },
+  { key: 'recognizing', label: 'Membaca teks dari KTP' },
+];
+
 const QUALITY_MESSAGES = {
   'too-bright': 'Terlalu terang — kurangi cahaya atau jauhkan dari sumber cahaya langsung.',
   'too-dark': 'Terlalu gelap — cari tempat lebih terang.',
@@ -45,6 +54,7 @@ const KtpScanner = ({ onApply, onClose }) => {
   const [ocrStatus, setOcrStatus] = useState('idle'); // idle | running | done | error
   const [ocrError, setOcrError] = useState(null);
   const [ocrProgress, setOcrProgress] = useState(null); // { label, percent } | null
+  const [ocrStep, setOcrStep] = useState(null); // salah satu key di OCR_STEPS | null
   const [reviewNik, setReviewNik] = useState('');
   const [reviewNama, setReviewNama] = useState('');
   const [uploadError, setUploadError] = useState(null);
@@ -183,10 +193,13 @@ const KtpScanner = ({ onApply, onClose }) => {
     setOcrStatus('running');
     setOcrError(null);
     setOcrProgress(null);
+    setOcrStep('loading-module');
     console.log('[KtpScanner] runOcr: mulai, imageDataUrl length =', imageDataUrl.length);
     try {
       const Tesseract = await import('tesseract.js');
       console.log('[KtpScanner] runOcr: modul tesseract.js kemuat', Tesseract);
+      if (!mountedRef.current) return;
+      setOcrStep('starting-worker');
       // Worker/model bahasa dijadikan lokal (public/tesseract/) — bukan default CDN jsdelivr.
       // Kalau internet lapangan lambat/CDN eksternal diblokir, OCR sebelumnya nge-hang diam-diam
       // tanpa error karena macet nunggu 3 file itu dari luar; sekarang semua disajikan dari server sendiri.
@@ -196,8 +209,11 @@ const KtpScanner = ({ onApply, onClose }) => {
         langPath: '/tesseract',
         logger: (m) => {
           console.log('[KtpScanner] tesseract logger:', m);
-          if (!mountedRef.current || typeof m.progress !== 'number') return;
-          setOcrProgress({ label: OCR_STATUS_LABELS[m.status] || 'Memproses...', percent: Math.round(m.progress * 100) });
+          if (!mountedRef.current) return;
+          if (m.status === 'recognizing text') setOcrStep('recognizing');
+          if (typeof m.progress === 'number') {
+            setOcrProgress({ label: OCR_STATUS_LABELS[m.status] || 'Memproses...', percent: Math.round(m.progress * 100) });
+          }
         },
       });
       console.log('[KtpScanner] runOcr: Tesseract.recognize() dipanggil, nunggu hasil...');
@@ -232,6 +248,7 @@ const KtpScanner = ({ onApply, onClose }) => {
     setOcrStatus('idle');
     setOcrError(null);
     setOcrProgress(null);
+    setOcrStep(null);
     setReviewNik('');
     setReviewNama('');
     setQualityWarnings([]);
@@ -332,10 +349,31 @@ const KtpScanner = ({ onApply, onClose }) => {
             {qualityWarnings.length > 0 && warningList}
 
             {ocrStatus === 'running' && (
-              <p className="text-xs font-bold text-gray-500 flex items-center gap-2">
-                <Loader2 size={16} className="animate-spin" />
-                {ocrProgress ? `${ocrProgress.label} ${ocrProgress.percent}%` : 'Membaca KTP...'}
-              </p>
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-1.5">
+                {OCR_STEPS.map((step, i) => {
+                  const currentIndex = OCR_STEPS.findIndex((s) => s.key === ocrStep);
+                  const isDone = currentIndex > i;
+                  const isCurrent = currentIndex === i;
+                  return (
+                    <p
+                      key={step.key}
+                      className={`text-xs font-bold flex items-center gap-2 ${
+                        isCurrent ? 'text-gray-800' : isDone ? 'text-emerald-600' : 'text-gray-300'
+                      }`}
+                    >
+                      {isDone ? (
+                        <Check size={14} className="shrink-0" />
+                      ) : isCurrent ? (
+                        <Loader2 size={14} className="animate-spin shrink-0" />
+                      ) : (
+                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 shrink-0 inline-block" />
+                      )}
+                      {step.label}
+                      {isCurrent && ocrProgress && ` — ${ocrProgress.percent}%`}
+                    </p>
+                  );
+                })}
+              </div>
             )}
             {ocrStatus === 'error' && (
               <p className="text-xs font-bold text-red-600">{ocrError}</p>
