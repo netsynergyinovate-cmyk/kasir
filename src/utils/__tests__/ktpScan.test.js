@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { analyzeFrameQuality, extractNikAndNama } from '../ktpScan';
+import { analyzeFrameQuality, extractNikAndNama, findNikLineBbox } from '../ktpScan';
+
+// Bikin struktur Page.blocks[].paragraphs[].lines[] mirip hasil Tesseract, dari daftar {text, bbox}.
+function makeBlocks(lineSpecs) {
+  return [{ paragraphs: [{ lines: lineSpecs.map(({ text, bbox }) => ({ text, bbox })) }] }];
+}
 
 // Bikin objek mirip ImageData (row-major RGBA) dari fungsi warna per-piksel, biar test gak nulis
 // array angka manual.
@@ -97,5 +102,39 @@ describe('extractNikAndNama', () => {
   it('does not guess a NIK from the labeled line when the digit count is wrong', () => {
     const text = 'NIK : 317 0961 1290 0001\nNama : DEBBY ANGGRAINI';
     expect(extractNikAndNama(text).nik).toBeNull();
+  });
+});
+
+describe('findNikLineBbox', () => {
+  it('picks the line with the most digits (the NIK line), ignoring low-digit lines like dates', () => {
+    const blocks = makeBlocks([
+      { text: 'PROVINSI DKI JAKARTA', bbox: { x0: 0, y0: 0, x1: 100, y1: 10 } },
+      { text: 'NIK : L27L040201890007', bbox: { x0: 5, y0: 20, x1: 150, y1: 35 } },
+      { text: 'Tempat/Tgl Lahir: JAKARTA, 17-06-1992', bbox: { x0: 5, y0: 40, x1: 200, y1: 55 } },
+      { text: 'RT/RW: 003/006', bbox: { x0: 5, y0: 60, x1: 90, y1: 75 } },
+    ]);
+    expect(findNikLineBbox(blocks)).toEqual({ x0: 5, y0: 20, x1: 150, y1: 35 });
+  });
+
+  it('does not require the "NIK" label text to be readable — finds it by digit density alone', () => {
+    // Simulasi kasus nyata: label "NIK" kebaca "NE" (huruf K ketuker), tapi baris tetap paling padat angka.
+    const blocks = makeBlocks([
+      { text: 'NE ——H37305570L920005 = ——', bbox: { x0: 5, y0: 20, x1: 150, y1: 35 } },
+      { text: 'Nama {ELSA LISMAWATI E', bbox: { x0: 5, y0: 40, x1: 150, y1: 55 } },
+    ]);
+    expect(findNikLineBbox(blocks)).toEqual({ x0: 5, y0: 20, x1: 150, y1: 35 });
+  });
+
+  it('returns null when no line has enough digits', () => {
+    const blocks = makeBlocks([
+      { text: 'PROVINSI DKI JAKARTA', bbox: { x0: 0, y0: 0, x1: 100, y1: 10 } },
+      { text: 'RT/RW: 003/006', bbox: { x0: 5, y0: 20, x1: 90, y1: 35 } },
+    ]);
+    expect(findNikLineBbox(blocks)).toBeNull();
+  });
+
+  it('returns null for empty/missing blocks without throwing', () => {
+    expect(findNikLineBbox([])).toBeNull();
+    expect(findNikLineBbox(null)).toBeNull();
   });
 });

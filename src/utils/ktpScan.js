@@ -102,3 +102,28 @@ export function extractNikAndNama(ocrText) {
 
   return { nik, nama };
 }
+
+// Minimal jumlah digit di satu baris biar dianggap kandidat baris NIK — cukup tinggi buat gak
+// kepancing baris tanggal lahir/RT-RW (yang paling banyak ~8 digit), tapi cukup rendah buat tetep
+// nangkep NIK yang beberapa karakternya kebaca salah jadi huruf (NIK asli 16 digit, jarang keliru
+// lebih dari 3-4 karakter dalam satu baris).
+const NIK_LINE_MIN_DIGITS = 10;
+
+// Cari baris paling padat angka dari hasil OCR pass pertama (data.blocks Tesseract, sudah termasuk
+// bbox per baris) — dipakai buat OCR ulang KHUSUS baris itu dengan whitelist digit-only, karena NIK
+// di e-KTP pakai font OCR-A yang model Tesseract umum sering ketuker sama huruf. Gak gantung ke teks
+// label "NIK" kebaca bener atau nggak (kadang itu sendiri kebaca "NE" dll) — cuma liat baris mana yang
+// paling banyak angkanya, dan NIK adalah satu-satunya baris di KTP yang isinya angka semua.
+export function findNikLineBbox(blocks) {
+  const lines = (blocks || []).flatMap((b) => (b.paragraphs || []).flatMap((p) => p.lines || []));
+  let best = null;
+  let bestDigitCount = 0;
+  for (const line of lines) {
+    const digitCount = (line.text.match(/\d/g) || []).length;
+    if (digitCount >= NIK_LINE_MIN_DIGITS && digitCount > bestDigitCount) {
+      bestDigitCount = digitCount;
+      best = line;
+    }
+  }
+  return best ? best.bbox : null;
+}
