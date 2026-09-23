@@ -183,8 +183,10 @@ const KtpScanner = ({ onApply, onClose }) => {
     setOcrStatus('running');
     setOcrError(null);
     setOcrProgress(null);
+    console.log('[KtpScanner] runOcr: mulai, imageDataUrl length =', imageDataUrl.length);
     try {
       const Tesseract = await import('tesseract.js');
+      console.log('[KtpScanner] runOcr: modul tesseract.js kemuat', Tesseract);
       // Worker/model bahasa dijadikan lokal (public/tesseract/) — bukan default CDN jsdelivr.
       // Kalau internet lapangan lambat/CDN eksternal diblokir, OCR sebelumnya nge-hang diam-diam
       // tanpa error karena macet nunggu 3 file itu dari luar; sekarang semua disajikan dari server sendiri.
@@ -193,20 +195,27 @@ const KtpScanner = ({ onApply, onClose }) => {
         corePath: '/tesseract/tesseract-core-lstm.wasm.js',
         langPath: '/tesseract',
         logger: (m) => {
+          console.log('[KtpScanner] tesseract logger:', m);
           if (!mountedRef.current || typeof m.progress !== 'number') return;
           setOcrProgress({ label: OCR_STATUS_LABELS[m.status] || 'Memproses...', percent: Math.round(m.progress * 100) });
         },
       });
+      console.log('[KtpScanner] runOcr: Tesseract.recognize() dipanggil, nunggu hasil...');
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Waktu OCR habis — kemungkinan koneksi internet lambat/terblokir saat mengunduh model bahasa. Coba lagi di jaringan yang lebih baik, atau isi manual.')), OCR_TIMEOUT_MS);
+        setTimeout(() => {
+          console.log('[KtpScanner] runOcr: TIMEOUT kepicu setelah', OCR_TIMEOUT_MS, 'ms');
+          reject(new Error('Waktu OCR habis — kemungkinan koneksi internet lambat/terblokir saat mengunduh model bahasa. Coba lagi di jaringan yang lebih baik, atau isi manual.'));
+        }, OCR_TIMEOUT_MS);
       });
       const { data: { text } } = await Promise.race([recognizePromise, timeoutPromise]);
+      console.log('[KtpScanner] runOcr: SELESAI, teks hasil OCR:', text);
       if (!mountedRef.current) return;
       const { nik, nama } = extractNikAndNama(text);
       setReviewNik(nik || '');
       setReviewNama(nama || '');
       setOcrStatus('done');
     } catch (err) {
+      console.error('[KtpScanner] runOcr: ERROR ketangkep:', err);
       if (!mountedRef.current) return;
       setOcrError(`OCR gagal jalan (${err.message}). Isi NIK/Nama manual di form.`);
       setOcrStatus('error');
