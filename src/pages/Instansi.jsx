@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Building2, FileText, Receipt, Layers, Plus, Trash2, Pencil, Eye, Search, X,
   Wallet, ListChecks, AlertCircle, TrendingUp,
@@ -43,7 +44,23 @@ const StatCard = ({ icon: Icon, label, value, tone, onClick, active }) => (
 );
 
 const Instansi = () => {
-  const [tab, setTab] = useState('clients');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(() => {
+    return searchParams.get('tab') || localStorage.getItem('kasir_instansi_tab') || 'clients';
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('kasir_instansi_tab', tab); } catch {}
+    setSearchParams((prev) => {
+      const currentVal = prev.get('tab') || '';
+      const targetVal = tab && tab !== 'clients' ? tab : '';
+      if (currentVal === targetVal) return prev;
+      const next = new URLSearchParams(prev);
+      if (!targetVal) next.delete('tab');
+      else next.set('tab', targetVal);
+      return next;
+    }, { replace: true });
+  }, [tab]);
   const [clients, setClients] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [profile, setProfile] = useState(mapProfile(null));

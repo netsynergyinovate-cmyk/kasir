@@ -19,8 +19,9 @@ export const ADMIN_DEFAULT_PATH = '/pos';
 // belum diatur superadmin (pakai daftar bawaan). Superadmin selalu boleh semua path, tidak terpengaruh.
 export function isPathAllowedForRole(role, pathname, allowedPaths = null) {
   if (role === 'superadmin') return true;
+  const cleanPath = (pathname || '').split('?')[0].split('#')[0];
   const list = Array.isArray(allowedPaths) ? allowedPaths : ADMIN_ALLOWED_PATHS;
-  return list.includes(pathname);
+  return list.includes(cleanPath);
 }
 
 // Menu (dari CONFIGURABLE_ADMIN_MENUS) yang tampil di navigasi untuk role+allowedPaths ini.

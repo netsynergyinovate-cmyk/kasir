@@ -1,10 +1,27 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Calendar, Filter, Server, CheckCircle2, Zap } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { getEbillingLogs } from '../utils/billingApi';
 
 const Aktivitas = ({ transactions = [] }) => {
-  const [activeTab, setActiveTab] = useState('kasir'); // 'kasir' | 'ebilling'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    return searchParams.get('tab') || localStorage.getItem('kasir_aktivitas_tab') || 'kasir';
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('kasir_aktivitas_tab', activeTab); } catch {}
+    setSearchParams((prev) => {
+      const currentVal = prev.get('tab') || '';
+      const targetVal = activeTab && activeTab !== 'kasir' ? activeTab : '';
+      if (currentVal === targetVal) return prev;
+      const next = new URLSearchParams(prev);
+      if (!targetVal) next.delete('tab');
+      else next.set('tab', targetVal);
+      return next;
+    }, { replace: true });
+  }, [activeTab]);
   const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());

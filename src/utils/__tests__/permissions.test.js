@@ -32,6 +32,12 @@ describe('isPathAllowedForRole', () => {
     expect(isPathAllowedForRole('admin', '/instansi')).toBe(false);
   });
 
+  it('allows paths with query parameters and hash anchors when base path is allowed', () => {
+    expect(isPathAllowedForRole('admin', '/customers?tab=isolir')).toBe(true);
+    expect(isPathAllowedForRole('admin', '/history?tab=kasbon&month=5#top')).toBe(true);
+    expect(isPathAllowedForRole('admin', '/instansi?tab=clients')).toBe(false);
+  });
+
   it('exposes /pos as the admin default landing path', () => {
     expect(ADMIN_DEFAULT_PATH).toBe('/pos');
   });

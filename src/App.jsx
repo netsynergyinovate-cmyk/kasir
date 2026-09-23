@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, Building2, Search, LogOut, Lock } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
@@ -250,22 +250,28 @@ export default function App() {
     }
   }, [session, location.pathname, navigate]);
 
-  // Ingat halaman yang sedang dibuka, supaya membuka ulang aplikasi (ikon PWA selalu mulai dari '/', bukan
-  // halaman terakhir) bisa kembali ke sana, bukan selalu ke Beranda.
-  useEffect(() => {
-    saveLastPath(location.pathname);
-  }, [location.pathname]);
+  const restoredPathRef = useRef(false);
 
-  // Dipulihkan HANYA saat aplikasi baru saja "mendarat" di '/' setelah login/buka-kunci — itu tandanya
-  // start_url PWA yang membuka, bukan pilihan sadar membuka Beranda dari menu.
+  // Ingat halaman & rute query yang sedang dibuka, supaya saat aplikasi di-refresh atau dibuka
+  // ulang, pengguna kembali ke posisi & tab yang sama persis.
   useEffect(() => {
-    if (!session || !authChecked || isLoading || isLocked || location.pathname !== '/') return;
-    const last = getLastPath();
-    if (last && last !== '/' && isPathAllowedForRole(session.profile?.role, last, session.profile?.allowed_paths)) {
-      navigate(last, { replace: true });
+    if (!session || !authChecked || isLoading || isLocked) return;
+
+    // Pemulihan rute terakhir HANYA saat aplikasi pertama kali selesai loading dan berada di '/'
+    // (misal saat PWA baru dibuka dari start_url '/')
+    if (!restoredPathRef.current) {
+      restoredPathRef.current = true;
+      const last = getLastPath();
+      if (location.pathname === '/' && last && last !== '/' && isPathAllowedForRole(session.profile?.role, last, session.profile?.allowed_paths)) {
+        navigate(last, { replace: true });
+        return;
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, authChecked, isLoading, isLocked]);
+
+    // Simpan rute lengkap (termasuk query tab, misal: /customers?tab=isolir)
+    const fullPath = `${location.pathname}${location.search}${location.hash}`;
+    saveLastPath(fullPath);
+  }, [session, authChecked, isLoading, isLocked, location.pathname, location.search, location.hash, navigate]);
 
   useEffect(() => {
     if (!session) {
@@ -558,6 +564,43 @@ export default function App() {
 
       // Automasi pengiriman data ke Billing Monitoring System
       sendPaymentToBillingSystem(newTrx, companyInfo);
+
+      // Automasi pengiriman Invoice WhatsApp ke Pelanggan via Watbiz
+      if (companyInfo.watbizEnabled && companyInfo.watbizToken) {
+        const targetCust = customers.find(c => 
+          (custId && (c.id === custId || c.custid === custId)) || 
+          (c.name && newTrx.customerName && c.name.trim().toLowerCase() === newTrx.customerName.trim().toLowerCase())
+        );
+        const custPhone = targetCust?.phone || newTrx.customerPhone || newTrx.phone;
+        if (custPhone) {
+          fetch('/api/watbiz', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token || ''}`
+            },
+            body: JSON.stringify({
+              action: 'send-invoice',
+              transaction: newTrx,
+              customer: targetCust || { name: newTrx.customerName, phone: custPhone },
+              companyInfo,
+              senderName: session?.profile?.full_name || 'Admin Kasir'
+            })
+          })
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.ok) {
+              console.log('✅ Invoice WhatsApp terkirim ke', custPhone);
+              showNotification('Invoice WA Terkirim', `Invoice terkirim ke ${targetCust?.name || newTrx.customerName}`);
+            } else {
+              console.warn('Gagal kirim invoice WA:', data.error || data);
+            }
+          })
+          .catch((err) => {
+            console.warn('Koneksi kirim WA invoice error:', err.message);
+          });
+        }
+      }
     } catch (e) {
       console.error('DB Insert Error:', e.message);
       const existingLocal = JSON.parse(localStorage.getItem('kasir_local_transactions') || '[]');
@@ -625,6 +668,34 @@ export default function App() {
     }
     setCustomers(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
     return true;
+  };
+
+  // Simpan urutan rute secara batch (banyak pelanggan sekaligus)
+  const handleBatchUpdateCustomerRoutes = async (updates) => {
+    const patchMap = new Map();
+    updates.forEach(u => {
+      const patch = u.patch || { route_order: u.route_order };
+      patchMap.set(u.id, patch);
+    });
+
+    setCustomers(prev => prev.map(c => {
+      if (patchMap.has(c.id)) {
+        return { ...c, ...patchMap.get(c.id) };
+      }
+      return c;
+    }));
+
+    try {
+      const promises = updates.map(u => {
+        const patch = u.patch || { route_order: u.route_order };
+        return supabase.from('customers').update(patch).eq('id', u.id);
+      });
+      await Promise.all(promises);
+      return true;
+    } catch (err) {
+      console.error('Batch route update error:', err);
+      return false;
+    }
   };
 
   // Memuat ulang daftar pelanggan dari Supabase — dipanggil setelah impor pelanggan terpilih dari
@@ -807,6 +878,10 @@ export default function App() {
     }
   };
 
+  const handleUpdateTransactionInvoice = (id, newInvoiceNumber) => {
+    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, invoiceNumber: newInvoiceNumber, invoice_number: newInvoiceNumber } : t)));
+  };
+
   const handleDeleteCustomerDB = async (id) => {
     try {
       const { error } = await supabase
@@ -965,12 +1040,16 @@ export default function App() {
                 setReceiptToView={setReceiptToView} 
                 setInstansiReceiptToView={setInstansiReceiptToView} 
                 onDeleteTransaction={handleDeleteTransactionDB}
+                onUpdateTransactionInvoice={handleUpdateTransactionInvoice}
               />
             } />
             <Route path="/customers" element={
               <Pelanggan
                 customers={customers}
                 packages={packages}
+                transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name, packageName: t.package_name, serviceName: t.service_name, amountPaid: t.amount_paid, cashierName: t.cashier_name}))}
+                companyInfo={companyInfo}
+                setReceiptToView={setReceiptToView}
                 role={session?.profile?.role}
                 session={session}
                 onRunsnetImported={refetchCustomers}
@@ -990,6 +1069,7 @@ export default function App() {
                 onAddVisit={handleAddVisit}
                 adminLocations={adminLocations}
                 onUpdateCustomerRoute={handleUpdateCustomerRoute}
+                onBatchUpdateCustomerRoutes={handleBatchUpdateCustomerRoutes}
               />
             } />
             <Route path="/settings" element={
@@ -1065,6 +1145,11 @@ export default function App() {
       <ReceiptThermal 
         key={receiptToView?.id}
         transaction={receiptToView} 
+        customer={customers.find(c => 
+          (receiptToView?.customerId && (c.id === receiptToView.customerId || c.custid === receiptToView.customerId)) || 
+          (receiptToView?.customerName && c.name?.trim().toLowerCase() === receiptToView.customerName?.trim().toLowerCase())
+        )}
+        session={session}
         isDraft={Boolean(receiptToView) && receiptToView.id === draftReceiptId}
         onCommit={async () => { const ok = await commitTransaction(receiptToView); setDraftReceiptId(null); return ok; }}
         companyInfo={companyInfo}

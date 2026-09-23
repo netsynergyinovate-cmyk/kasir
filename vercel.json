@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/watbiz/(.*)",
+      "destination": "/api/watbiz"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+

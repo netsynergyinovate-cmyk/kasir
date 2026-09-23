@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
 
 // Leaflet butuh browser sungguhan; peta tidak diuji di sini (efeknya tidak jalan di renderToString).
 vi.mock('../../components/RouteMap', () => ({ default: () => <div data-testid="route-map" /> }));
@@ -28,7 +31,9 @@ const transactions = [
 ];
 
 const render = (role, extra = {}) => renderToString(
-  <Rute customers={customers} transactions={transactions} visits={visits} role={role} onAddVisit={() => {}} onUpdateCustomerRoute={() => {}} defaultFilter="semua" {...extra} />
+  <MemoryRouter>
+    <Rute customers={customers} transactions={transactions} visits={visits} role={role} onAddVisit={() => {}} onUpdateCustomerRoute={() => {}} defaultFilter="semua" {...extra} />
+  </MemoryRouter>
 ).replace(/<!-- -->/g, '');
 
 describe('Rute Kunjungan page', () => {
@@ -64,7 +69,9 @@ describe('Rute Kunjungan page', () => {
 
 describe('Rute Kunjungan page without a route yet', () => {
   const emptyHtml = (role, list) => renderToString(
-    <Rute customers={list} transactions={[]} visits={[]} role={role} onAddVisit={() => {}} onUpdateCustomerRoute={() => {}} />
+    <MemoryRouter>
+      <Rute customers={list} transactions={[]} visits={[]} role={role} onAddVisit={() => {}} onUpdateCustomerRoute={() => {}} />
+    </MemoryRouter>
   ).replace(/<!-- -->/g, '');
 
   it('guides the superadmin to build the route when the route is empty', () => {
@@ -130,3 +137,71 @@ describe('Rute Kunjungan page admin tracking (superadmin)', () => {
     expect(render('superadmin')).toContain('Belum ada admin yang membagikan lokasi');
   });
 });
+
+describe('Rute Kunjungan puzzle and number reordering', () => {
+  it('allows superadmin to open edit mode, use puzzle controls, and pick order numbers', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    const onBatchUpdate = vi.fn();
+    const onUpdate = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <Rute
+            customers={customers}
+            transactions={transactions}
+            visits={visits}
+            role="superadmin"
+            onAddVisit={() => {}}
+            onUpdateCustomerRoute={onUpdate}
+            onBatchUpdateCustomerRoutes={onBatchUpdate}
+            defaultFilter="semua"
+          />
+        </MemoryRouter>
+      );
+    });
+
+    // Find "Atur Rute" button
+    const editBtn = Array.from(container.querySelectorAll('button')).find((b) => b.textContent.includes('Atur Rute'));
+    expect(editBtn).toBeDefined();
+
+    // Click "Atur Rute"
+    await act(async () => {
+      editBtn.click();
+    });
+
+    // Should display the Puzzle Mode banner
+    expect(container.textContent).toContain('Mode Susun Urutan Rute (Puzzle)');
+    expect(container.textContent).toContain('Belum Masuk Rute');
+    expect(container.textContent).toContain('Sisipkan...');
+
+    // Should find buttons for direct number or Pindah
+    const pindahBtns = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent.includes('Pindah'));
+    expect(pindahBtns.length).toBeGreaterThan(0);
+
+    // Click "Pindah" on first customer to test Tap-to-Place mode
+    await act(async () => {
+      pindahBtns[0].click();
+    });
+
+    expect(container.textContent).toContain('Sedang memindahkan:');
+    expect(container.textContent).toContain('Letakkan');
+
+    // Find and click the number badge to open Number Picker Modal
+    const noBtn = Array.from(container.querySelectorAll('button')).find((b) => b.title && b.title.includes('nomor'));
+    if (noBtn) {
+      await act(async () => {
+        noBtn.click();
+      });
+      expect(container.textContent).toContain('Atur Nomor Rute');
+      expect(container.textContent).toContain('Pilih Slot Nomor Urut:');
+    }
+
+    root.unmount();
+    container.remove();
+  });
+});
+

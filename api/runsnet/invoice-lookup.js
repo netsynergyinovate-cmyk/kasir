@@ -18,9 +18,10 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { query, localId } = req.body || {};
-  if (!query || !localId) {
-    res.status(400).json({ error: 'query dan localId wajib diisi.' });
+  const { query, localId, transactionId } = req.body || {};
+  const refId = localId || transactionId;
+  if (!query || !refId) {
+    res.status(400).json({ error: 'query dan localId/transactionId wajib diisi.' });
     return;
   }
 
@@ -31,9 +32,24 @@ export default async function handler(req, res) {
   if (configured) {
     try {
       const session = await getRunsnetSession(adminClient);
-      invoice = await searchInvoice(session, query);
+      // Pertama cari tagihan yang PENDING ('P')
+      invoice = await searchInvoice(session, query, 'P');
+      // Jika tidak ada di PENDING, cari apakah invoice sudah tercatat PAID ('A') di Runsnet
+      if (!invoice) {
+        invoice = await searchInvoice(session, query, 'A');
+      }
     } catch (err) {
       lookupError = err.message;
+    }
+  }
+
+  // Jika transactionId disertakan dan nomor invoice Runsnet ditemukan, update langsung ke tabel transactions
+  const targetId = transactionId || (localId && !localId.startsWith('INV-') ? localId : null);
+  if (targetId && invoice?.id) {
+    try {
+      await adminClient.from('transactions').update({ invoice_number: String(invoice.id) }).eq('id', targetId);
+    } catch (dbErr) {
+      console.warn('DB update invoice_number note:', dbErr);
     }
   }
 
@@ -42,9 +58,9 @@ export default async function handler(req, res) {
     : buildInvoiceLookupLog({ configured, invoice, query });
 
   await adminClient.from('runsnet_sync_log').upsert(
-    { transaction_id: localId, stage: 'invoice_lookup', search_query: query, customer_name: invoice?.custName || null, created_at: new Date().toISOString(), ...logEntry },
+    { transaction_id: refId, stage: 'invoice_lookup', search_query: query, customer_name: invoice?.custName || null, created_at: new Date().toISOString(), ...logEntry },
     { onConflict: 'transaction_id,stage' },
   );
 
-  res.status(200).json({ invoice, configured });
+  res.status(200).json({ invoice, configured, error: lookupError });
 }

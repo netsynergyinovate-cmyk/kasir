@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Wifi, Printer, Key, UserCheck, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { pickInvoiceNumber } from '../utils/runsnetSync';
@@ -71,6 +72,7 @@ const resolvePackageAndPrice = (cust, packagesList = []) => {
 };
 
 const Transaksi = ({ customers = [], transactions = [], packages = [], companyInfo, session, onComplete }) => {
+  const [searchParams] = useSearchParams();
   const defaultCashierName = session?.profile?.full_name || (session?.profile?.role === 'superadmin' ? 'Super Admin' : (companyInfo?.adminName || 'Admin Kasir'));
   const [selectedCust, setSelectedCust] = useState('');
   const [activePackage, setActivePackage] = useState(null);
@@ -81,6 +83,20 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCustomerData, setSelectedCustomerData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const custIdParam = searchParams.get('cust') || searchParams.get('customer_id');
+    const custNameParam = searchParams.get('customer') || searchParams.get('name');
+    if (customers && customers.length > 0) {
+      if (custIdParam) {
+        const found = customers.find(c => String(c.id) === String(custIdParam) || String(c.custid) === String(custIdParam));
+        if (found) setSelectedCust(found.id);
+      } else if (custNameParam) {
+        const found = customers.find(c => (c.name || '').toLowerCase() === custNameParam.toLowerCase());
+        if (found) setSelectedCust(found.id);
+      }
+    }
+  }, [searchParams, customers]);
 
   // Pelanggan yang sudah LUNAS bulan ini tidak perlu muncul lagi di daftar pembayaran.
   const unpaidCustomers = customers.filter(c => !isPaidThisMonth(c, transactions));
@@ -170,12 +186,14 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
     selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
 
     const targetCust = selectedCustomerData;
+    // PPPoE ID adalah pengenal unik utama di Runsnet, diikuti ID pelanggan Runsnet, lalu nama
+    const lookupQuery = targetCust.pppoe_id || targetCust.pppoeId || targetCust.custid || targetCust.customer_id || targetCust.name;
     const custIdValue = targetCust.custid || targetCust.customer_id || targetCust.pppoe_id || targetCust.pppoeId || targetCust.id;
     const localId = `INV-${Date.now()}`;
 
     setIsSubmitting(true);
     const invoice = session?.access_token
-      ? await lookupRunsnetInvoice({ query: custIdValue, localId, accessToken: session.access_token })
+      ? await lookupRunsnetInvoice({ query: lookupQuery, localId, accessToken: session.access_token })
       : null;
     setIsSubmitting(false);
 
@@ -190,6 +208,8 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
       pppoeId: targetCust.pppoe_id || targetCust.pppoeId || null,
       packageName: currentPkg.name,
       price: Number(currentPkg.price) || 0,
+      customerPhone: targetCust.phone || null,
+      phone: targetCust.phone || null,
       status: status,
       paymentMethod: formData.get('paymentMethod') || 'Cash',
       amountPaid: Number(bayar) || Number(currentPkg.price) || 0,

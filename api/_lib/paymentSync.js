@@ -64,6 +64,9 @@ export async function syncPayment(supabase, transaction) {
     let invoice;
     if (target.code) {
       if (await verifyInvoicePaid(session, target.code)) {
+        try {
+          await supabase.from('transactions').update({ invoice_number: String(target.code) }).eq('id', transaction.id);
+        } catch {}
         return log('success', { search_query: label, runsnet_ref: target.code, message: `Invoice ${target.code} sudah berstatus PAID di Runsnet (terverifikasi), tidak dibayar ulang.` });
       }
       invoice = await searchInvoice(session, target.code, 'P');
@@ -98,6 +101,14 @@ export async function syncPayment(supabase, transaction) {
         message: `Langkah 3 dari 3 (cek status PAID) gagal: perintah bayar untuk ${invoice.id} dijawab Runsnet ${payResult.response}, tetapi invoice belum berstatus PAID. Periksa manual di Runsnet sebelum mengirim ulang.`,
       });
     }
+
+    // Simpan nomor invoice resmi Runsnet ke tabel transactions
+    if (invoice?.id) {
+      try {
+        await supabase.from('transactions').update({ invoice_number: String(invoice.id) }).eq('id', transaction.id);
+      } catch {}
+    }
+
     return log('success', { search_query: label, runsnet_ref: String(invoice.id), message: `Invoice ${invoice.id} terbukti berstatus PAID di Runsnet.` });
   } catch (error) {
     return log('failed', { search_query: label, message: `Gagal menghubungi Runsnet: ${error.message}` });

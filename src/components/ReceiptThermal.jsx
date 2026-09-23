@@ -1,19 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
-import { Printer, Download, X, CheckCircle2, Loader2, Save } from 'lucide-react';
+import { Printer, Download, X, CheckCircle2, Loader2, Save, MessageCircle } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { getInvoiceNumber } from '../utils/format';
 import { buildReceiptLines } from '../utils/receiptLines';
 import { loadReceiptLogo } from '../utils/receiptLogo';
+import { formatPaymentInvoiceMessage } from '../utils/whatsappTemplates';
 
 const TOAST_MS = 4000;
 
 // isDraft: struk baru dari form Transaksi yang BELUM tersimpan. Transaksi baru tersimpan saat kasir
 // menekan Simpan/Cetak (onCommit). Struk yang dibuka dari Riwayat sudah tersimpan (isDraft false).
 // Pasang key={id transaksi} supaya state awal dihitung ulang tiap struk baru.
-const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, btDevice, savedDeviceName, ensurePrinter, isDraft = false }) => {
+const ReceiptThermal = ({ transaction, customer, companyInfo, session, onClose, onPrint, onCommit, btDevice, savedDeviceName, ensurePrinter, isDraft = false }) => {
   const [isPrinting, setIsConnecting] = useState(false);
   const [isSavingImage, setIsSavingImage] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
+  const [isSendingWa, setIsSendingWa] = useState(false);
   const [committed, setCommitted] = useState(!isDraft);
   const [toast, setToast] = useState(null);
   const [logoData, setLogoData] = useState(null);
@@ -40,7 +42,7 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
   // Printer dianggap siap kalau sudah pernah dipasangkan (walau sambungannya sedang putus); sambungan dibuat
   // ulang otomatis saat mencetak.
   const printerReady = Boolean(btDevice) || Boolean(savedDeviceName);
-  const busy = isPrinting || isSavingImage || isCommitting;
+  const busy = isPrinting || isSavingImage || isCommitting || isSendingWa;
 
   // Menyimpan transaksi ke database kalau masih draf. true = sudah tersimpan (baru atau sebelumnya).
   const ensureSaved = async () => {
@@ -79,6 +81,57 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
 
   const handleSystemPrint = async () => {
     if (await ensureSaved()) onPrint();
+  };
+
+  const openWhatsAppDirect = (phone) => {
+    const rawDigits = phone.replace(/[^0-9]/g, '');
+    const cleanNum = rawDigits.startsWith('0') ? '62' + rawDigits.slice(1) : rawDigits;
+    const msg = formatPaymentInvoiceMessage(transaction, customer, companyInfo);
+    window.open(`https://wa.me/${cleanNum}?text=${encodeURIComponent(msg)}`, '_blank');
+    setToast({ title: 'Membuka WhatsApp...', sub: `Mengirim invoice ke ${phone}` });
+  };
+
+  const handleSendWhatsAppInvoice = async () => {
+    if (!(await ensureSaved())) return;
+    const phone = customer?.phone || transaction?.customerPhone || transaction?.phone;
+    if (!phone) {
+      alert('Pelanggan tidak memiliki nomor WhatsApp yang terdaftar.');
+      return;
+    }
+
+    setIsSendingWa(true);
+    try {
+      if (companyInfo?.watbizEnabled && companyInfo?.watbizToken) {
+        const response = await fetch('/api/watbiz', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          },
+          body: JSON.stringify({
+            action: 'send-invoice',
+            transaction,
+            customer: customer || { name: transaction.customerName || transaction.customer_name, phone },
+            companyInfo,
+            senderName: session?.profile?.full_name || 'Admin Kasir'
+          })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok && result.ok) {
+          setToast({ title: 'Invoice WhatsApp Terkirim! ✅', sub: `Bukti resmi terkirim ke ${phone}` });
+        } else {
+          console.warn('Watbiz kirim invoice gagal, membuka web:', result.error);
+          openWhatsAppDirect(phone);
+        }
+      } else {
+        openWhatsAppDirect(phone);
+      }
+    } catch (err) {
+      console.warn('Gagal panggil Watbiz API:', err.message);
+      openWhatsAppDirect(phone);
+    } finally {
+      setIsSendingWa(false);
+    }
   };
 
   const handleSaveImage = async () => {
@@ -357,10 +410,21 @@ const ReceiptThermal = ({ transaction, companyInfo, onClose, onPrint, onCommit, 
               disabled={busy}
               className={`${committed ? 'w-full' : 'flex-[2]'} bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60`}
             >
-              {busy ? <Loader2 size={20} className="animate-spin" /> : (printerReady ? <Printer size={20} /> : <Save size={20} />)}
+              {busy && !isSendingWa ? <Loader2 size={20} className="animate-spin" /> : (printerReady ? <Printer size={20} /> : <Save size={20} />)}
               {isCommitting ? 'Menyimpan...' : isPrinting ? 'Mencetak...' : printerReady ? (committed ? 'Cetak Ulang' : 'Cetak & Simpan') : (committed ? 'Selesai' : 'Simpan')}
             </button>
           </div>
+
+          {/* Tombol Kirim Invoice WhatsApp */}
+          <button
+            onClick={handleSendWhatsAppInvoice}
+            disabled={busy}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-xs shadow-md shadow-emerald-950/20 disabled:opacity-60"
+          >
+            {isSendingWa ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
+            <span>{isSendingWa ? 'Mengirim WhatsApp...' : 'Kirim Invoice WhatsApp'}</span>
+          </button>
+
           <div className="grid grid-cols-2 gap-2.5">
             <button
               onClick={handleSaveImage}

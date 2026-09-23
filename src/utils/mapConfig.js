@@ -35,4 +35,11 @@ export const TILE_LAYERS = {
     maxZoom: MAP_MAX_ZOOM,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   },
+  googleHybrid: {
+    url: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    subdomains: ['0', '1', '2', '3'],
+    maxNativeZoom: 19,
+    maxZoom: MAP_MAX_ZOOM,
+    attribution: '&copy; Google Maps',
+  },
 };

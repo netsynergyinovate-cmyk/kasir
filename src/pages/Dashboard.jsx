@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown } from 'lucide-react';
+import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
+import { formatDueReminderMessage } from '../utils/whatsappTemplates';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
@@ -14,10 +15,19 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-  const [activePaymentTab, setActivePaymentTab] = useState('unpaid');
+  const [activePaymentTab, setActivePaymentTab] = useState(() => {
+    return localStorage.getItem('kasir_dashboard_pay_tab') || 'unpaid';
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('kasir_dashboard_pay_tab', activePaymentTab); } catch {}
+  }, [activePaymentTab]);
   const [unpaidExpanded, setUnpaidExpanded] = useState(false);
   const [paidExpanded, setPaidExpanded] = useState(false);
   const [reminderExpanded, setReminderExpanded] = useState(false);
+  const [sendingReminderId, setSendingReminderId] = useState(null);
+  const [isSendingBatch, setIsSendingBatch] = useState(false);
+  const [reminderFeedback, setReminderFeedback] = useState(null);
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -133,6 +143,98 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
     return { label: months[monthIndex].slice(0, 3), value: monthRevenue };
   });
 
+  const openWhatsAppReminderDirect = (cust, daysLeft) => {
+    const raw = (cust.phone || '').replace(/[^0-9]/g, '');
+    const cleanNum = raw.startsWith('0') ? '62' + raw.slice(1) : raw;
+    const msg = formatDueReminderMessage(cust, daysLeft, companyInfo);
+    window.open(`https://wa.me/${cleanNum}?text=${encodeURIComponent(msg)}`, '_blank');
+    setReminderFeedback({ type: 'info', message: `Membuka WhatsApp untuk mengirim pengingat ke ${cust.name}.` });
+  };
+
+  const handleSendSingleReminder = async (cust) => {
+    if (!cust.phone) {
+      alert(`Pelanggan ${cust.name} tidak memiliki nomor WhatsApp.`);
+      return;
+    }
+    const daysLeft = Math.max(0, -cust.dueDiff);
+    setSendingReminderId(cust.id);
+    setReminderFeedback(null);
+    try {
+      if (companyInfo.watbizEnabled && companyInfo.watbizToken) {
+        const res = await fetch('/api/watbiz', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          },
+          body: JSON.stringify({
+            action: 'send-reminder',
+            customer: cust,
+            daysLeft,
+            companyInfo,
+            senderName: session?.profile?.full_name || 'Admin Kasir'
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+          setReminderFeedback({ type: 'success', message: `Pengingat & peringatan isolir terkirim ke ${cust.name} (${cust.phone}).` });
+        } else {
+          openWhatsAppReminderDirect(cust, daysLeft);
+        }
+      } else {
+        openWhatsAppReminderDirect(cust, daysLeft);
+      }
+    } catch (err) {
+      console.warn('Gagal panggil Watbiz API:', err.message);
+      openWhatsAppReminderDirect(cust, daysLeft);
+    } finally {
+      setSendingReminderId(null);
+    }
+  };
+
+  const handleSendBatchReminders = async () => {
+    const targets = reminderList.filter(c => c.phone);
+    if (targets.length === 0) {
+      alert('Tidak ada pelanggan di daftar pengingat yang memiliki nomor WhatsApp.');
+      return;
+    }
+
+    if (!window.confirm(`Kirim pesan pengingat jatuh tempo & peringatan isolir ke ${targets.length} pelanggan secara masal via Watbiz?`)) {
+      return;
+    }
+
+    setIsSendingBatch(true);
+    setReminderFeedback(null);
+    try {
+      const res = await fetch('/api/watbiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          action: 'send-reminders',
+          customers: targets,
+          companyInfo,
+          senderName: session?.profile?.full_name || 'Admin Kasir'
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setReminderFeedback({
+          type: 'success',
+          message: `Selesai: ${data.success} pengingat isolir berhasil dikirim${data.failed > 0 ? `, ${data.failed} gagal` : ''} dari total ${data.total} pelanggan.`
+        });
+      } else {
+        setReminderFeedback({ type: 'error', message: data.error || 'Gagal mengirim pengingat masal via Watbiz.' });
+      }
+    } catch (err) {
+      setReminderFeedback({ type: 'error', message: 'Koneksi error: ' + err.message });
+    } finally {
+      setIsSendingBatch(false);
+    }
+  };
+
   return (
     <div className="dashboard-container p-4 space-y-6 pb-32 animate-in fade-in duration-300">
       
@@ -160,20 +262,71 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
       {/* Pengingat Tagihan (due-date reminders, always real-time) */}
       {reminderList.length > 0 && (
         <div>
-          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">⏰ Pengingat Tagihan</h2>
+          <div className="flex items-center justify-between mb-2 ml-1">
+            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+              <span>⏰ Pengingat Tagihan & Isolir</span>
+              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-full font-bold text-[9px]">
+                {reminderList.length}
+              </span>
+            </h2>
+            {reminderList.some(c => c.phone) && (
+              <button
+                type="button"
+                onClick={handleSendBatchReminders}
+                disabled={isSendingBatch}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1 rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+                title="Kirim pengingat tagihan dan peringatan isolir otomatis ke semua pelanggan ber-nomor WA"
+              >
+                <Send size={11} />
+                <span>{isSendingBatch ? 'Mengirim Masal...' : 'Kirim WA Masal (H-2 / H-1)'}</span>
+              </button>
+            )}
+          </div>
+
+          {reminderFeedback && (
+            <div className={`mb-3 p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200 ${
+              reminderFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+              reminderFeedback.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+              'bg-blue-50 text-blue-800 border border-blue-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
+                <span>{reminderFeedback.message}</span>
+              </div>
+              <button onClick={() => setReminderFeedback(null)} className="text-gray-400 hover:text-gray-600 text-[10px] ml-2 font-bold">✕</button>
+            </div>
+          )}
+
           <div className="bg-white p-5 super-rounded border border-gray-100 shadow-sm">
             <div className="space-y-2">
               {(reminderExpanded ? reminderList : reminderList.slice(0, 5)).map(cust => {
                 const badge = getReminderBadge(cust.dueDiff);
+                const isItemSending = sendingReminderId === cust.id;
                 return (
-                  <div key={cust.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50">
-                    <div>
-                      <p className="font-bold text-gray-800 text-xs leading-tight">{cust.name}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{cust.package}</p>
+                  <div key={cust.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100/60 transition-colors">
+                    <div className="min-w-0 pr-2">
+                      <p className="font-bold text-gray-800 text-xs leading-tight truncate">{cust.name}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+                        {cust.package} · Tgl {cust.due_date || '-'} {cust.phone ? `· ${cust.phone}` : '· (Tanpa WA)'}
+                      </p>
                     </div>
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${badge.className}`}>
-                      {badge.text}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${badge.className}`}>
+                        {badge.text}
+                      </span>
+                      {cust.phone && (
+                        <button
+                          type="button"
+                          onClick={() => handleSendSingleReminder(cust)}
+                          disabled={isItemSending || isSendingBatch}
+                          title="Kirim pesan pengingat jatuh tempo & peringatan isolir via WhatsApp"
+                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/60 rounded-lg text-[10px] font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          <MessageCircle size={12} className={isItemSending ? 'animate-spin' : ''} />
+                          <span>{isItemSending ? 'Mengirim...' : 'Kirim WA'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Building2, Wifi, Trash2, Bluetooth, BluetoothConnected,
   BluetoothOff, AlertCircle, Printer, User, LogOut, Image, ChevronRight,
   Key, Globe, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send,
-  Zap, Clock, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users, MessageCircle
+  Zap, Clock, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users, MessageCircle,
+  Copy, Check, Webhook
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { supabase } from '../lib/supabase';
@@ -31,12 +33,29 @@ const Settings = ({
   const [testApiResult, setTestApiResult] = useState(null);
   const [ebillingLogs, setEbillingLogs] = useState([]);
   const [livePingStatus, setLivePingStatus] = useState(null);
-  const [activeTab, setActiveTab] = useState('umum');
   const [showWatbizToken, setShowWatbizToken] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    return searchParams.get('tab') || localStorage.getItem('kasir_settings_tab') || 'umum';
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('kasir_settings_tab', activeTab); } catch {}
+    setSearchParams((prev) => {
+      const currentVal = prev.get('tab') || '';
+      const targetVal = activeTab && activeTab !== 'umum' ? activeTab : '';
+      if (currentVal === targetVal) return prev;
+      const next = new URLSearchParams(prev);
+      if (!targetVal) next.delete('tab');
+      else next.set('tab', targetVal);
+      return next;
+    }, { replace: true });
+  }, [activeTab]);
   const [watbizTestNumber, setWatbizTestNumber] = useState('');
   const [isTestingWatbiz, setIsTestingWatbiz] = useState(false);
   const [watbizTestResult, setWatbizTestResult] = useState(null);
   const [watbizLogs, setWatbizLogs] = useState([]);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
 
   const loadWatbizLogs = async () => {
     const { data } = await supabase.from('watbiz_logs').select('*').order('sent_at', { ascending: false }).limit(30);
@@ -90,10 +109,10 @@ const Settings = ({
     setWatbizTestResult(null);
     try {
       const { data: { session: authSession } } = await supabase.auth.getSession();
-      const response = await fetch('/api/watbiz/ping', {
+      const response = await fetch('/api/watbiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token}` },
-        body: JSON.stringify({ token: localCompany.watbizToken, to: watbizTestNumber.trim(), senderName: myFullName || null }),
+        body: JSON.stringify({ action: 'ping', token: localCompany.watbizToken, to: watbizTestNumber.trim(), senderName: myFullName || null }),
       });
       const result = await response.json();
       if (response.ok && result.ok) {
@@ -815,6 +834,66 @@ const Settings = ({
               )}
             </div>
 
+            {/* Webhook Integrasi Watbiz */}
+            <div className="pt-3 border-t border-gray-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1.5">
+                  <Webhook size={13} className="text-emerald-600" />
+                  <span>Webhook URL (Auto-Payment & Auto-Konfirmasi)</span>
+                </label>
+                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                  Aktif
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/watbiz`}
+                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-700 select-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/watbiz`;
+                    navigator.clipboard.writeText(url);
+                    setCopiedWebhook(true);
+                    setTimeout(() => setCopiedWebhook(false), 2000);
+                  }}
+                  className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0"
+                >
+                  {copiedWebhook ? <Check size={14} /> : <Copy size={14} />}
+                  <span>{copiedWebhook ? 'Tersalin' : 'Salin'}</span>
+                </button>
+              </div>
+              <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl p-3 text-[11px] text-emerald-900 space-y-1.5">
+                <p className="font-bold flex items-center gap-1 text-emerald-950">
+                  <span>💡 Otomasi Webhook Aktif:</span>
+                </p>
+                <p className="leading-relaxed text-emerald-800 text-[11px]">
+                  Pasang URL webhook di atas pada menu <strong>Webhook</strong> di dashboard Watbiz Anda:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10px] text-emerald-900 pt-1">
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="font-bold text-emerald-800 block">📸 Foto Bukti Transfer</span>
+                    Pelanggan kirim foto transfer ➔ Sistem otomatis memproses LUNAS tanpa menunggu admin.
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="font-bold text-emerald-800 block">💬 Konfirmasi Teks</span>
+                    Pelanggan ketik <em>"sudah bayar / lunas"</em> ➔ Bot otomatis verifikasi & kirim bukti.
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="font-bold text-emerald-800 block">⚡ Sinkron Runsnet</span>
+                    Otomatis sinkron ke server Runsnet sehingga isolir terbuka langsung.
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="font-bold text-emerald-800 block">⏰ Pengingat Isolir H-2 / H-1</span>
+                    Tagihan mendekati jatuh tempo otomatis diingatkan dengan peringatan isolir resmi.
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Riwayat Pesan WhatsApp */}
             <div className="pt-4 border-t border-gray-100 space-y-3">
               <div className="flex items-center justify-between">
@@ -839,25 +918,41 @@ const Settings = ({
 
               {watbizLogs.length > 0 ? (
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                  {watbizLogs.map((log) => (
-                    <div key={log.id} className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-emerald-700">{log.phone_number}</span>
-                        <span className="font-mono text-gray-400 text-[10px]">{new Date(log.sent_at).toLocaleString('id-ID')}</span>
+                  {watbizLogs.map((log) => {
+                    const kindBadge = {
+                      invoice: { text: 'Bukti Transaksi', bg: 'bg-blue-100 text-blue-700' },
+                      reminder: { text: 'Pengingat Tagihan', bg: 'bg-amber-100 text-amber-700' },
+                      auto_payment: { text: 'Auto-Payment Bot', bg: 'bg-purple-100 text-purple-700' },
+                      inbound: { text: 'Pesan Masuk WA', bg: 'bg-cyan-100 text-cyan-700' },
+                      test: { text: 'Tes Koneksi', bg: 'bg-gray-100 text-gray-600' }
+                    }[log.kind] || { text: log.kind || 'WA', bg: 'bg-gray-100 text-gray-600' };
+
+                    return (
+                      <div key={log.id} className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-emerald-700">{log.phone_number}</span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${kindBadge.bg}`}>
+                              {kindBadge.text}
+                            </span>
+                          </div>
+                          <span className="font-mono text-gray-400 text-[10px]">{new Date(log.sent_at).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs gap-2">
+                          <span className="text-gray-600 font-medium truncate flex-1">{log.message}</span>
+                          <span className={`shrink-0 font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${log.status === 'success' || log.status === 'received' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            {log.status === 'success' || log.status === 'received' ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
+                            {log.status === 'received' ? 'Diterima' : log.status === 'success' ? 'Sukses' : 'Gagal'}
+                          </span>
+                        </div>
+                        {log.sender_name && (
+                          <p className="text-[10px] text-gray-400 italic border-t border-gray-100/60 pt-1 mt-1">
+                            Oleh {log.sender_name}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex items-center justify-between text-xs gap-2">
-                        <span className="text-gray-600 font-medium truncate flex-1">{log.message}</span>
-                        <span className={`shrink-0 font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${log.status === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                          {log.status === 'success' ? <CheckCircle2 size={10} /> : <XCircle size={10} />} {log.status === 'success' ? 'Sukses' : 'Gagal'}
-                        </span>
-                      </div>
-                      {(log.sender_name || log.kind) && (
-                        <p className="text-[10px] text-gray-400 italic border-t border-gray-100/60 pt-1 mt-1">
-                          {log.kind === 'test' ? 'Tes koneksi' : log.kind} {log.sender_name ? `• oleh ${log.sender_name}` : ''}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="p-4 bg-gray-50 rounded-xl text-center text-xs text-gray-400 italic">
