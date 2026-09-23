@@ -38,7 +38,7 @@ const emptyForm = {
   biayaBulanan: 0,
   biayaInstalasi: 0,
   tanggalSpk: new Date().toISOString().slice(0, 10),
-  tanggalIsolir: '20',
+  tanggalIsolir: new Date().toISOString().slice(0, 10),
 };
 
 // Registrasi pelanggan baru LANGSUNG ke Runsnet (form "Tambah Pelanggan" asli, bukan simpan lokal
@@ -203,7 +203,11 @@ const TambahPelangganRunsnet = ({ session }) => {
                     <button
                       key={opt}
                       type="button"
-                      onClick={() => setForm((f) => ({ ...f, jenisTagihan: opt }))}
+                      onClick={() => setForm((f) => ({
+                        ...f,
+                        jenisTagihan: opt,
+                        tanggalIsolir: opt === 'Postpaid' ? '20' : new Date().toISOString().slice(0, 10),
+                      }))}
                       className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all active:scale-95 ${
                         form.jenisTagihan === opt ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-500'
                       }`}
@@ -391,13 +395,6 @@ const TambahPelangganRunsnet = ({ session }) => {
             <p className="text-[10px] text-gray-400 -mt-2 ml-1">
               Kosong = otomatis ikut Customer ID yang di-generate Runsnet — nilai aslinya baru kelihatan di Runsnet setelah berhasil kirim (Runsnet tidak mengembalikannya lewat respons kirim).
             </p>
-
-            {result && (
-              <div className={`p-3.5 rounded-xl text-xs font-medium flex items-center gap-2 ${result.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-                {result.success ? <CheckCircle2 size={16} className="shrink-0" /> : <XCircle size={16} className="shrink-0" />}
-                <span>{result.message}</span>
-              </div>
-            )}
           </>
         )}
 
@@ -408,10 +405,17 @@ const TambahPelangganRunsnet = ({ session }) => {
         )}
       </div>
 
+      {result && (
+        <div className={`mt-4 p-3.5 rounded-xl text-xs font-medium flex items-center gap-2 ${result.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+          {result.success ? <CheckCircle2 size={16} className="shrink-0" /> : <XCircle size={16} className="shrink-0" />}
+          <span>{result.message}</span>
+        </div>
+      )}
+
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-[0_-6px_20px_rgba(15,23,42,0.05)] h-[72px] flex items-center gap-3 px-4 z-20">
         <button
           type="button"
-          onClick={() => (step > 1 ? setStep((s) => s - 1) : navigate('/customers'))}
+          onClick={() => { setResult(null); if (step > 1) { setStep((s) => s - 1); } else { navigate('/customers'); } }}
           className="shrink-0 p-3.5 bg-gray-100 text-gray-600 rounded-2xl active:scale-95 transition-all"
         >
           <ArrowLeft size={18} />
@@ -419,7 +423,7 @@ const TambahPelangganRunsnet = ({ session }) => {
         {step < 4 ? (
           <button
             type="button"
-            onClick={() => stepErrors.length === 0 && setStep((s) => s + 1)}
+            onClick={() => { if (stepErrors.length === 0) { setResult(null); setStep((s) => s + 1); } }}
             disabled={stepErrors.length > 0}
             className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_25px_rgba(5,150,105,0.35)] transition-all active:scale-95 flex items-center justify-center gap-2"
           >

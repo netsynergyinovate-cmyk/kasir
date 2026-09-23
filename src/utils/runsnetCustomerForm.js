@@ -50,22 +50,10 @@ export function buildCustomerPayload(form) {
   };
 }
 
-// Validasi minimal sebelum submit — field bertanda wajib di form Runsnet asli (nama, kontak, branch,
-// alamat, jenis tagihan, profile/paket). Mengembalikan daftar pesan error (kosong = valid).
-export function validateCustomerForm(form) {
-  const errors = [];
-  if (!form.nama?.trim()) errors.push('Nama pelanggan wajib diisi.');
-  if (!form.kontak?.trim()) errors.push('Nomor kontak wajib diisi.');
-  if (!form.branchCode) errors.push('Cabang (Branch) wajib dipilih.');
-  if (!form.alamat?.trim()) errors.push('Alamat wajib diisi.');
-  if (!form.profileValue) errors.push('Paket (Profile) wajib dipilih.');
-  if (!(Number(form.biayaBulanan) > 0)) errors.push('Biaya Bulanan wajib lebih dari Rp 0 (cek harga paket, jangan kirim dengan Rp 0).');
-  return errors;
-}
-
-// Validasi per-tahap untuk wizard "Tambah Pelanggan" — subset dari validateCustomerForm, dikelompokkan
-// sesuai step di UI (lihat TambahPelangganRunsnet.jsx). Kalau validateCustomerForm berubah, sesuaikan
-// juga di sini — sengaja dipisah (bukan derivasi otomatis) supaya pesan per-step gampang dibaca.
+// Validasi per-tahap untuk wizard "Tambah Pelanggan" — dikelompokkan sesuai step di UI (lihat
+// TambahPelangganRunsnet.jsx). validateCustomerForm (di bawah) DIDERIVASI dari fungsi ini (flatMap
+// step 1-3), jadi keduanya otomatis tetap sinkron — tidak ada lagi daftar duplikat yang perlu dijaga
+// manual.
 export function validateStepFields(step, form) {
   const errors = [];
   if (step === 1) {
@@ -79,6 +67,13 @@ export function validateStepFields(step, form) {
     if (!(Number(form.biayaBulanan) > 0)) errors.push('Biaya Bulanan wajib lebih dari Rp 0 (cek harga paket, jangan kirim dengan Rp 0).');
   }
   return errors;
+}
+
+// Validasi lengkap sebelum submit — field bertanda wajib di form Runsnet asli (nama, kontak, branch,
+// alamat, jenis tagihan, profile/paket). Diderivasi dari validateStepFields (step 1-3) supaya
+// keduanya tidak bisa drift. Mengembalikan daftar pesan error (kosong = valid).
+export function validateCustomerForm(form) {
+  return [1, 2, 3].flatMap((step) => validateStepFields(step, form));
 }
 
 // Cabang yang didukung fitur ini (fase 1: hanya Kab. Muko Muko, sesuai area operasional utama).
