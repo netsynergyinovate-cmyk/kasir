@@ -22,7 +22,7 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
   });
 
   useEffect(() => {
-    try { localStorage.setItem('kasir_dashboard_pay_tab', activePaymentTab); } catch {}
+    try { localStorage.setItem('kasir_dashboard_pay_tab', activePaymentTab); } catch { /* diabaikan: best-effort */ }
   }, [activePaymentTab]);
   const [unpaidExpanded, setUnpaidExpanded] = useState(false);
   const [paidExpanded, setPaidExpanded] = useState(false);

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Search, Calendar, Filter, FileText, Building2, ChevronRight, Trash2,
   RefreshCw, Camera, AlertTriangle, CheckCircle2, Clock, CreditCard,
-  User, Globe, Zap, Tag, Check, Layers, MessageCircle
+  User, Globe, Zap, Tag, Layers, MessageCircle
 } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
@@ -66,7 +66,7 @@ const History = ({
   };
 
   useEffect(() => {
-    try { localStorage.setItem('kasir_history_tab', statusTab); } catch {}
+    try { localStorage.setItem('kasir_history_tab', statusTab); } catch { /* diabaikan: best-effort */ }
     updateUrlParam('tab', statusTab, 'all');
   }, [statusTab]);
 

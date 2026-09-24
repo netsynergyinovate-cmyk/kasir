@@ -1,5 +1,4 @@
-import React from 'react';
-import { X, Printer } from 'lucide-react';
+import { Printer } from 'lucide-react';
 import { formatRupiah, formatDate, getInvoiceNumber } from '../utils/format';
 
 const ReceiptA4 = ({ transaction, companyInfo, onClose, onPrint }) => {

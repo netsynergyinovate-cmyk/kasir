@@ -59,7 +59,6 @@ export default function App() {
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
-  const [hasPin, setHasPin] = useState(false);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -95,7 +94,6 @@ export default function App() {
 
   const [btDevice, setBtDevice] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isAutoConnecting, setIsAutoConnecting] = useState(false);
   const [, setBtTick] = useState(0);
   const [savedDeviceName, setSavedDeviceName] = useState(localStorage.getItem('last_printer_name') || '');
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -320,10 +318,8 @@ export default function App() {
         if (pkgData) setPackages(pkgData);
         if (settingsData) {
           const storedKey = localStorage.getItem('api_monitoring_key') || '';
-          const storedEnabled = localStorage.getItem('api_monitoring_enabled') === 'true';
 
           const finalKey = (settingsData.api_monitoring_key && settingsData.api_monitoring_key.trim()) ? settingsData.api_monitoring_key : storedKey;
-          const finalEnabled = settingsData.api_monitoring_enabled ?? storedEnabled;
 
           if (finalKey) {
             localStorage.setItem('api_monitoring_key', finalKey);
@@ -1045,7 +1041,7 @@ export default function App() {
                   localStorage.removeItem('kasir_user');
                   try {
                     await supabase.auth.signOut();
-                  } catch (e) {}
+                  } catch { /* diabaikan: best-effort */ }
                   setSession(null);
                 }
               }} 

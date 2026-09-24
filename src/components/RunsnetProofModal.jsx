@@ -79,10 +79,10 @@ const RunsnetProofModal = ({ transaction, runsnetStatus, session, onClose, onRec
                 await supabase.from('watbiz_logs').update({ response_detail: JSON.stringify(d) }).eq('id', l.id);
                 break;
               }
-            } catch {}
+            } catch { /* diabaikan: best-effort */ }
           }
         }
-      } catch {}
+      } catch { /* diabaikan: best-effort */ }
 
       setDraft(null);
       setMessage({ ok: true, text: 'Bukti transfer asli tersimpan permanen di database.' });

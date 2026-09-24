@@ -50,7 +50,7 @@ const Instansi = () => {
   });
 
   useEffect(() => {
-    try { localStorage.setItem('kasir_instansi_tab', tab); } catch {}
+    try { localStorage.setItem('kasir_instansi_tab', tab); } catch { /* diabaikan: best-effort */ }
     setSearchParams((prev) => {
       const currentVal = prev.get('tab') || '';
       const targetVal = tab && tab !== 'clients' ? tab : '';

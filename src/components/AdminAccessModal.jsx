@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, CheckCircle2, ChevronDown, ChevronUp, CheckSquare, Square, Palette, Map } from 'lucide-react';
+import { X, Loader2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { CONFIGURABLE_ADMIN_MENUS, ADMIN_ALLOWED_PATHS, PERMISSION_MODULES, normalizeAdminAccess } from '../utils/permissions';
+import { CONFIGURABLE_ADMIN_MENUS, PERMISSION_MODULES, normalizeAdminAccess } from '../utils/permissions';
 import { MAP_ICON_TYPES, MAP_ICON_COLORS, getInitials, getDeterministicColor } from '../utils/adminMapIcons';
 
 // Superadmin mengatur, KHUSUS untuk satu admin ini: hak akses fitur granular, icon peta, dan

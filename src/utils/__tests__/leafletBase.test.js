@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import L from 'leaflet';
 import { createBaseLayers } from '../leafletBase';
-import { TILE_LAYERS } from '../mapConfig';
 
 describe('leafletBase layer creation', () => {
   it('generates valid tile URLs for satellite and street layers', () => {

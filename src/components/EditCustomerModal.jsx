@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Key, Phone, Network } from 'lucide-react';
 
 const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {

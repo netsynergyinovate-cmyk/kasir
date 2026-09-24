@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Maximize2, Minimize2, Layers, LocateFixed, Plus, Minus, Focus, MapPin } from 'lucide-react';
+import { Maximize2, Minimize2, LocateFixed, Plus, Minus, Focus, MapPin } from 'lucide-react';
 import { TONE_COLORS } from '../utils/visits';
 import { createBaseLayers } from '../utils/leafletBase';
 import { MAP_MAX_ZOOM } from '../utils/mapConfig';

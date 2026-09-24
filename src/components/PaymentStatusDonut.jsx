@@ -1,4 +1,3 @@
-import React from 'react';
 
 const PaymentStatusDonut = ({ paidCount, unpaidCount }) => {
   const total = paidCount + unpaidCount;

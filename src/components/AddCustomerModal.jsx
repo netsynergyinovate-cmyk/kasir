@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, Calendar, Wifi, RefreshCw, Key, Search, Phone, Network } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { fetchCustomerByPppoe } from '../utils/billingApi';

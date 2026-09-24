@@ -1,4 +1,3 @@
-import React from 'react';
 import { formatRupiahCompact } from '../utils/format';
 
 const RevenueBarChart = ({ data }) => {

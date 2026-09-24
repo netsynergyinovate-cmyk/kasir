@@ -58,7 +58,7 @@ const Rute = ({
   const [query, setQuery] = useState(() => searchParams.get('q') || '');
 
   useEffect(() => {
-    try { localStorage.setItem('kasir_rute_filter', filter); } catch {}
+    try { localStorage.setItem('kasir_rute_filter', filter); } catch { /* diabaikan: best-effort */ }
     setSearchParams((prev) => {
       const currentVal = prev.get('filter') || '';
       const targetVal = filter && filter !== defaultFilter ? filter : '';

@@ -118,7 +118,7 @@ export async function testBillingSystemConnection(url, apiKey) {
         latencyMs: elapsed
       };
     }
-  } catch (err) {
+  } catch {
     const elapsed = Date.now() - startTime;
     return { 
       success: true, 

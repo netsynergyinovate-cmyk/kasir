@@ -11,7 +11,7 @@ const Aktivitas = ({ transactions = [] }) => {
   });
 
   useEffect(() => {
-    try { localStorage.setItem('kasir_aktivitas_tab', activeTab); } catch {}
+    try { localStorage.setItem('kasir_aktivitas_tab', activeTab); } catch { /* diabaikan: best-effort */ }
     setSearchParams((prev) => {
       const currentVal = prev.get('tab') || '';
       const targetVal = activeTab && activeTab !== 'kasir' ? activeTab : '';

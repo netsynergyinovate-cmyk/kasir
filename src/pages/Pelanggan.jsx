@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Search, PlusCircle, Wifi, Trash2, Pencil, MapPin, LayoutGrid, List,
   Calendar, RefreshCw, Key, Phone, Network, ShieldCheck, CheckCircle2,
-  ExternalLink, Info, X, Copy, Check, MessageSquare, CreditCard, Navigation,
-  AlertCircle, ArrowUpDown, Filter, ChevronDown, User, Clock, FileText, Send
+  ExternalLink, Info, X, MessageSquare, CreditCard, Navigation,
+  AlertCircle, Filter, ChevronDown, User, Clock, Send
 } from 'lucide-react';
 import EditCustomerModal from '../components/EditCustomerModal';
 import RunsnetCustomerPicker from '../components/RunsnetCustomerPicker';
@@ -83,11 +83,8 @@ const Pelanggan = ({
   // WhatsApp Template Modal State
   const [waModalCust, setWaModalCust] = useState(null);
   const [waTemplateType, setWaTemplateType] = useState('reminder'); // 'reminder' | 'paid' | 'maintenance' | 'custom'
-  const [waCustomText, setWaCustomText] = useState('');
+  const [waCustomText] = useState('');
   const [isSendingWaApi, setIsSendingWaApi] = useState(false);
-
-  // Copy to clipboard notification feedback
-  const [copiedKey, setCopiedKey] = useState(null);
 
   // Helper pembaruan URL parameter tanpa menghapus parameter lain
   const updateUrlParam = (key, value, defaultValue = '') => {
@@ -108,13 +105,13 @@ const Pelanggan = ({
 
   // Sinkronisasi activeTab ke URL dan LocalStorage
   useEffect(() => {
-    try { localStorage.setItem('kasir_pelanggan_tab', activeTab); } catch {}
+    try { localStorage.setItem('kasir_pelanggan_tab', activeTab); } catch { /* diabaikan: best-effort */ }
     updateUrlParam('tab', activeTab, 'all');
   }, [activeTab]);
 
   // Sinkronisasi viewMode ke URL dan LocalStorage
   useEffect(() => {
-    try { localStorage.setItem('kasir_pelanggan_view', viewMode); } catch {}
+    try { localStorage.setItem('kasir_pelanggan_view', viewMode); } catch { /* diabaikan: best-effort */ }
     updateUrlParam('view', viewMode, 'grid');
   }, [viewMode]);
 
@@ -164,13 +161,6 @@ const Pelanggan = ({
   const handleSearchChange = (val) => {
     setSearchTerm(val);
     updateUrlParam('q', val.trim(), '');
-  };
-
-  const handleCopy = (text, key) => {
-    if (!text) return;
-    navigator.clipboard?.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 1800);
   };
 
   // Metrics KPI (6 Items: Total, Aktif, Isolir, Lunas, Belum Bayar, E-Billing)

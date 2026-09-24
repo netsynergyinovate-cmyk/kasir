@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Building2, Wifi, Trash2, Bluetooth, BluetoothConnected,
-  BluetoothOff, AlertCircle, AlertTriangle, Printer, User, LogOut, Image, ChevronRight,
-  Key, Globe, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send,
-  Zap, Clock, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users, MessageCircle,
-  Copy, Check, Webhook, ExternalLink, ZoomIn, X, ChevronDown, ChevronUp, FileText,
+  Building2, Trash2, 
+  AlertTriangle, Printer, User, LogOut, Image, 
+  Key, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send,
+  Zap, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users, MessageCircle,
+  Copy, Check, Webhook, ExternalLink, ZoomIn, X, ChevronDown, ChevronUp, 
   ImagePlus, Loader2
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
@@ -121,7 +121,7 @@ const Settings = ({
   });
 
   useEffect(() => {
-    try { localStorage.setItem('kasir_settings_tab', activeTab); } catch {}
+    try { localStorage.setItem('kasir_settings_tab', activeTab); } catch { /* diabaikan: best-effort */ }
     setSearchParams((prev) => {
       const currentVal = prev.get('tab') || '';
       const targetVal = activeTab && activeTab !== 'umum' ? activeTab : '';
@@ -262,7 +262,7 @@ const Settings = ({
       if (res.ok && data.ok) {
         setRegisteredWebhookUrl(data.webhookUrl || null);
       }
-    } catch {}
+    } catch { /* diabaikan: best-effort */ }
     setIsLoadingWebhookStatus(false);
   };
 
@@ -473,7 +473,7 @@ const Settings = ({
     const savedKey = localStorage.getItem('api_monitoring_key') || '';
     const keyToUse = companyInfo.apiMonitoringKey || savedKey;
 
-    setLocalCompany(prev => ({
+    setLocalCompany(() => ({
       ...companyInfo,
       apiMonitoringKey: keyToUse
     }));

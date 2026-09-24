@@ -5,7 +5,7 @@ import AdminAccessModal from './AdminAccessModal';
 import AdminCommissionModal from './AdminCommissionModal';
 import { normalizeAdminAccess } from '../utils/permissions';
 import { calculateAdminCommissions } from '../utils/commissions';
-import { MAP_ICON_TYPES, MAP_ICON_COLORS, getDeterministicColor } from '../utils/adminMapIcons';
+import { MAP_ICON_TYPES, getDeterministicColor } from '../utils/adminMapIcons';
 import { formatRupiah } from '../utils/format';
 
 const ACCOUNT_COLUMNS = 'id, full_name, email, role, device_id, device_label, allowed_paths, last_login_at, last_login_device, last_login_location, last_login_ip';
