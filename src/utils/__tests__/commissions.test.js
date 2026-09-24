@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { 
   calculateAdminCommissions, 
-  createCommissionPayout 
+  createCommissionPayout,
+  calculateStoreFinancialOverview
 } from '../commissions';
 
 describe('calculateAdminCommissions', () => {
@@ -131,5 +132,30 @@ describe('createCommissionPayout', () => {
     expect(payout.sent_by_name).toBe('Super Admin');
   });
 });
+
+describe('calculateStoreFinancialOverview', () => {
+  it('calculates gross revenue, total admin commission liabilities, and net profit', () => {
+    const now = new Date('2026-09-24T12:00:00Z');
+    const transactions = [
+      { id: 't1', status: 'LUNAS', type: 'retail', price: 200000, cashier_name: 'Wahyu', date: '2026-09-20T10:00:00Z' },
+      { id: 't2', status: 'LUNAS', type: 'retail', price: 150000, payment_method: 'CS', cashier_name: 'CS', date: '2026-09-21T10:00:00Z' },
+      { id: 't3', status: 'LUNAS', type: 'retail', price: 250000, cashier_id: 'adm-budi', cashier_name: 'Budi', date: '2026-09-22T10:00:00Z' },
+    ];
+    const accounts = [
+      { id: 'adm-wahyu', full_name: 'Wahyu', role: 'admin', allowed_paths: { commissions: [{ amount: 10000, status: 'TERKIRIM' }] } },
+      { id: 'adm-budi', full_name: 'Budi', role: 'admin', allowed_paths: { commissions: [] } },
+      { id: 'super-1', full_name: 'Owner', role: 'superadmin' }
+    ];
+
+    const overview = calculateStoreFinancialOverview(transactions, accounts, 10000, now);
+    expect(overview.grossRevenue).toBe(600000);
+    expect(overview.totalCommissionLiability).toBe(20000); // Wahyu (1) + Budi (1), CS (0)
+    expect(overview.totalCommissionPaid).toBe(10000);
+    expect(overview.pendingCommissionBalance).toBe(10000);
+    expect(overview.netStoreProfit).toBe(580000);
+    expect(overview.activeAdminCount).toBe(2);
+  });
+});
+
 
 

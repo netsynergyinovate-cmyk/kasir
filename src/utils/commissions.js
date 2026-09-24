@@ -131,3 +131,66 @@ export async function recordCommissionPayout(admin, payoutRecord) {
   return updatedPayload;
 }
 
+/**
+ * Menghitung ringkasan finansial dan kewajiban komisi toko untuk Superadmin:
+ * - grossRevenue: Total omset penjualan lunas bulan ini
+ * - totalCommissionLiability: Total komisi hak seluruh kasir/admin aktif bulan ini
+ * - totalCommissionPaid: Total komisi yang sudah dicairkan ke kasir/admin
+ * - pendingCommissionBalance: Sisa komisi yang belum dicairkan ke admin
+ * - netStoreProfit: Estimasi keuntungan bersih toko setelah dikurangi hak komisi kasir
+ * - activeAdminCount: Jumlah admin kasir aktif (non-superadmin)
+ */
+export function calculateStoreFinancialOverview(
+  transactions = [], 
+  accounts = [], 
+  adminFee = 10000, 
+  now = new Date()
+) {
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const isCurrentMonthSuccess = (t) => {
+    const rawDate = t.date || t.created_at;
+    if (!rawDate) return false;
+    const d = new Date(rawDate);
+    const inThisMonth = d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    const isPaid = t.status === 'LUNAS' || t.type === 'instansi';
+    return inThisMonth && isPaid;
+  };
+
+  const monthlyTrx = transactions.filter(isCurrentMonthSuccess);
+  const grossRevenue = monthlyTrx.reduce((sum, t) => sum + Number(t.price || 0), 0);
+
+  // Hitung komisi untuk seluruh admin (kecuali superadmin)
+  let totalCommissionLiability = 0;
+  let totalCommissionPaid = 0;
+
+  const adminAccounts = (accounts || []).filter(a => a.role !== 'superadmin');
+  adminAccounts.forEach(admin => {
+    const access = normalizeAdminAccess(admin.allowed_paths);
+    const comm = calculateAdminCommissions(
+      monthlyTrx, 
+      admin.id, 
+      admin.full_name, 
+      adminFee, 
+      access.commissions || [],
+      admin.role
+    );
+    totalCommissionLiability += comm.totalEarned;
+    totalCommissionPaid += comm.totalPaid;
+  });
+
+  const pendingCommissionBalance = Math.max(0, totalCommissionLiability - totalCommissionPaid);
+  const netStoreProfit = Math.max(0, grossRevenue - totalCommissionLiability);
+
+  return {
+    grossRevenue,
+    totalCommissionLiability,
+    totalCommissionPaid,
+    pendingCommissionBalance,
+    netStoreProfit,
+    activeAdminCount: adminAccounts.length,
+  };
+}
+
+
