@@ -15,6 +15,8 @@ import AdminAccountsPanel from '../components/AdminAccountsPanel';
 import RunsnetSyncPanel from '../components/RunsnetSyncPanel';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { resizeImageFile } from '../utils/imageResize';
+import { MAP_ICON_TYPES, MAP_ICON_COLORS, getDeterministicColor, getInitials } from '../utils/adminMapIcons';
+import { normalizeAdminAccess } from '../utils/permissions';
 
 const parseLogDetail = (detail) => {
   if (!detail) return {};
@@ -37,6 +39,57 @@ const Settings = ({
   const [myName, setMyName] = useState('');
   const [savingMyName, setSavingMyName] = useState(false);
   const [myNameError, setMyNameError] = useState(null);
+
+  // Kustomisasi Icon Map Akun Sendiri
+  const myAccess = normalizeAdminAccess(session?.profile?.allowed_paths);
+  const myIconConfig = myAccess.map_icon || {};
+  const [myIconType, setMyIconType] = useState(myIconConfig.type || (session?.profile?.role === 'superadmin' ? 'crown' : 'motor'));
+  const [myIconColor, setMyIconColor] = useState(myIconConfig.color || getDeterministicColor(session?.user?.id || session?.profile?.full_name || 'Admin'));
+  const [myIconLabel, setMyIconLabel] = useState(myIconConfig.label || getInitials(session?.profile?.full_name || 'Admin'));
+  const [savingMyIcon, setSavingMyIcon] = useState(false);
+  const [myIconSaved, setMyIconSaved] = useState(false);
+
+  useEffect(() => {
+    if (session?.profile?.allowed_paths) {
+      const acc = normalizeAdminAccess(session.profile.allowed_paths);
+      if (acc.map_icon) {
+        if (acc.map_icon.type) setMyIconType(acc.map_icon.type);
+        if (acc.map_icon.color) setMyIconColor(acc.map_icon.color);
+        if (acc.map_icon.label) setMyIconLabel(acc.map_icon.label);
+      }
+    }
+  }, [session?.profile?.allowed_paths]);
+
+  const saveMyMapIcon = async () => {
+    if (!session?.user?.id) return;
+    setSavingMyIcon(true);
+    setMyIconSaved(false);
+    try {
+      const current = normalizeAdminAccess(session?.profile?.allowed_paths);
+      const updated = {
+        ...current,
+        map_icon: {
+          type: myIconType,
+          color: myIconColor,
+          label: (myIconLabel || getInitials(myName || 'Admin')).substring(0, 3).toUpperCase(),
+        },
+      };
+
+      const { error } = await supabase
+        .from('admin_profiles')
+        .update({ allowed_paths: updated })
+        .eq('id', session.user.id);
+
+      if (error) throw error;
+      setMyIconSaved(true);
+      setTimeout(() => setMyIconSaved(false), 2500);
+    } catch (err) {
+      alert('Gagal menyimpan icon peta: ' + err.message);
+    } finally {
+      setSavingMyIcon(false);
+    }
+  };
+
   const [localCompany, setLocalCompany] = useState(() => ({
     ...companyInfo,
     watbizToken: companyInfo?.watbizToken || (typeof window !== 'undefined' ? localStorage.getItem('watbiz_token') : '') || '51dad347-d267-4254-9858-3e3b19c76c53',
@@ -643,6 +696,100 @@ const Settings = ({
                   className="font-bold text-gray-800 bg-transparent border-none p-0 w-full outline-none text-base disabled:opacity-60"
                 />
                 {myNameError && <p className="text-[10px] text-red-600 font-semibold mt-0.5">{myNameError}</p>}
+              </div>
+            </div>
+
+            {/* Custom Icon & Marker Peta Saya (Live Preview) */}
+            <div className="pt-4 border-t border-gray-100 space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Icon & Marker Peta Saya</p>
+                  <p className="text-[11px] text-gray-500">Tampilan pin unik akun Anda di peta rute kunjungan</p>
+                </div>
+                {myIconSaved && (
+                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 size={12} /> Tersimpan
+                  </span>
+                )}
+              </div>
+
+              {/* Live Preview Card */}
+              <div className="p-4 bg-gradient-to-b from-slate-50 to-slate-100/60 border border-slate-200/80 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex flex-col items-center">
+                  <div className="relative flex flex-col items-center" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.35))' }}>
+                    <div style={{ position: 'relative', width: 44, height: 44, borderRadius: '9999px', background: myIconColor, border: '3px solid #ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', boxShadow: '0 2px 5px rgba(0,0,0,0.25)' }}>
+                      <span dangerouslySetInnerHTML={{ __html: (MAP_ICON_TYPES.find(t => t.id === myIconType) || MAP_ICON_TYPES[0]).svg.replace('width="18"', 'width="22"').replace('height="18"', 'height="22"') }} />
+                      <div style={{ position: 'absolute', top: -5, right: -5, background: '#ffffff', color: myIconColor, fontSize: 10, fontWeight: 900, padding: '1px 3.5px', borderRadius: '9999px', border: `1.5px solid ${myIconColor}`, lineHeight: 1 }}>
+                        {myIconLabel || getInitials(myName || 'Saya')}
+                      </div>
+                    </div>
+                    <div style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `6px solid ${myIconColor}`, marginTop: -1.5 }} />
+                    <div className="mt-1 bg-slate-900/85 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md whitespace-nowrap shadow-xs">
+                      {myName || 'Saya'}
+                    </div>
+                  </div>
+                  <span className="text-[9px] text-gray-400 mt-1 italic">Pratinjau Marker di Peta</span>
+                </div>
+
+                <div className="flex-1 w-full space-y-2.5">
+                  {/* Pilihan Jenis */}
+                  <div>
+                    <span className="text-[9px] font-black text-gray-400 uppercase">Jenis Icon:</span>
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 mt-1">
+                      {MAP_ICON_TYPES.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setMyIconType(t.id)}
+                          className={`flex flex-col items-center gap-0.5 p-1.5 rounded-xl border text-[9px] font-bold transition-all ${myIconType === t.id ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-xs' : 'border-gray-200 text-gray-500 hover:bg-white'}`}
+                        >
+                          <span className="text-base">{t.iconText}</span>
+                          <span className="text-[8px] truncate">{t.label.split(' ')[0]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pilihan Warna */}
+                  <div>
+                    <span className="text-[9px] font-black text-gray-400 uppercase">Warna Tema:</span>
+                    <div className="flex gap-1.5 mt-1 flex-wrap">
+                      {MAP_ICON_COLORS.map((c) => (
+                        <button
+                          key={c.value}
+                          type="button"
+                          onClick={() => setMyIconColor(c.value)}
+                          className={`w-7 h-7 rounded-lg border-2 transition-all ${myIconColor === c.value ? 'border-gray-900 scale-110 ring-2 ring-offset-1 ring-gray-300' : 'border-transparent hover:scale-105'}`}
+                          style={{ background: c.value }}
+                          title={c.name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Inisial & Tombol Simpan */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="w-20">
+                      <input
+                        type="text"
+                        maxLength={3}
+                        value={myIconLabel}
+                        onChange={(e) => setMyIconLabel(e.target.value.toUpperCase())}
+                        placeholder="Inisial"
+                        className="w-full p-2 bg-white border border-gray-200 rounded-xl outline-none text-xs font-black text-center uppercase"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={saveMyMapIcon}
+                      disabled={savingMyIcon}
+                      className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-60 shadow-sm"
+                    >
+                      {savingMyIcon ? <Loader2 size={13} className="animate-spin" /> : myIconSaved ? <CheckCircle2 size={13} /> : null}
+                      {savingMyIcon ? 'Menyimpan...' : myIconSaved ? 'Tersimpan!' : 'Simpan Icon Peta'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
