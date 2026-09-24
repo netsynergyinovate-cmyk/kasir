@@ -140,106 +140,106 @@ const DashboardSuperadmin = (props) => {
         </div>
 
         {/* Executive Financial & Commission Hub */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1.5 ml-1">
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between px-0.5">
+            <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles size={12} className="text-indigo-600" /> Ringkasan Finansial Eksekutif
             </h2>
-            <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
+            <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100/80 px-2 py-0.5 rounded-full">
               Bulan {monthLabel}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
             {/* Card 1: Omset Kotor Toko */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm card-interactive relative overflow-hidden flex flex-col justify-between group">
-              <div className="h-1 bg-gradient-to-r from-blue-600 to-indigo-600 absolute top-0 left-0 right-0" />
+            <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between group transition-all hover:border-slate-300">
+              <div className="h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 absolute top-0 left-0 right-0" />
               <div>
                 <div className="flex items-center justify-between gap-1 mb-2">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
                       <DollarSign size={12} />
                     </span>
                     Omset Kotor Toko
                   </span>
                   <TrendBadge change={comparison.revenueChange} />
                 </div>
-                <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{formatRupiah(financialOverview.grossRevenue)}</p>
+                <p className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">{formatRupiah(financialOverview.grossRevenue)}</p>
               </div>
-              <div className="text-[10px] text-slate-500 mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+              <div className="text-[10px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                 <span>{comparison.current.count} transaksi lunas</span>
-                <span className="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">Total Kotor</span>
+                <span className="font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[9px]">Total Kotor</span>
               </div>
             </div>
 
             {/* Card 2: Hak Komisi Kasir */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm card-interactive relative overflow-hidden flex flex-col justify-between group">
-              <div className="h-1 bg-gradient-to-r from-amber-500 to-orange-500 absolute top-0 left-0 right-0" />
+            <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between group transition-all hover:border-slate-300">
+              <div className="h-0.5 bg-gradient-to-r from-amber-500 to-orange-500 absolute top-0 left-0 right-0" />
               <div>
                 <div className="flex items-center justify-between gap-1 mb-2">
-                  <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
                       <Trophy size={12} />
                     </span>
                     Hak Komisi Kasir
                   </span>
-                  <span className="text-[9px] font-extrabold bg-amber-100/70 text-amber-800 px-2 py-0.5 rounded-md">
+                  <span className="text-[9px] font-semibold bg-amber-100/70 text-amber-800 px-1.5 py-0.5 rounded">
                     {effectiveAccounts.filter(a => a.role !== 'superadmin').length || 1} Kasir
                   </span>
                 </div>
-                <p className="text-xl sm:text-2xl font-black text-amber-600 tracking-tight">{formatRupiah(financialOverview.totalCommissionLiability)}</p>
+                <p className="text-base sm:text-lg font-bold text-amber-600 tracking-tight">{formatRupiah(financialOverview.totalCommissionLiability)}</p>
               </div>
-              <div className="text-[10px] text-slate-500 mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+              <div className="text-[10px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                 <span>Hak Jasa Kasir</span>
-                <span className="font-bold text-slate-700">{formatRupiah(companyInfo.adminFee || 10000)}/trx</span>
+                <span className="font-semibold text-slate-700">{formatRupiah(companyInfo.adminFee || 10000)}/trx</span>
               </div>
             </div>
 
             {/* Card 3: Pencairan Komisi (Sudah Cair vs Sisa Pending) */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm card-interactive relative overflow-hidden flex flex-col justify-between group">
-              <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-500 absolute top-0 left-0 right-0" />
+            <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between group transition-all hover:border-slate-300">
+              <div className="h-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 absolute top-0 left-0 right-0" />
               <div>
                 <div className="flex items-center justify-between gap-1 mb-2">
-                  <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
                       <Wallet size={12} />
                     </span>
                     Komisi Dicairkan
                   </span>
-                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md ${financialOverview.pendingCommissionBalance > 0 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${financialOverview.pendingCommissionBalance > 0 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
                     {financialOverview.pendingCommissionBalance > 0 ? 'Ada Pending' : 'Semua Lunas'}
                   </span>
                 </div>
-                <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">{formatRupiah(financialOverview.totalCommissionPaid)}</p>
+                <p className="text-base sm:text-lg font-bold text-emerald-600 tracking-tight">{formatRupiah(financialOverview.totalCommissionPaid)}</p>
               </div>
-              <div className="text-[10px] text-slate-500 mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+              <div className="text-[10px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                 <span>Pending:</span>
-                <span className="font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md">
+                <span className="font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded text-[9px]">
                   {formatRupiah(financialOverview.pendingCommissionBalance)}
                 </span>
               </div>
             </div>
 
             {/* Card 4: Estimasi Laba Bersih Toko */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm card-interactive relative overflow-hidden flex flex-col justify-between group">
-              <div className="h-1 bg-gradient-to-r from-purple-600 to-violet-600 absolute top-0 left-0 right-0" />
+            <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between group transition-all hover:border-slate-300">
+              <div className="h-0.5 bg-gradient-to-r from-purple-600 to-violet-600 absolute top-0 left-0 right-0" />
               <div>
                 <div className="flex items-center justify-between gap-1 mb-2">
-                  <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                  <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
                       <ShieldCheck size={12} />
                     </span>
                     Laba Bersih Toko
                   </span>
-                  <span className="text-[9px] font-extrabold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md">
+                  <span className="text-[9px] font-semibold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">
                     Setelah Komisi
                   </span>
                 </div>
-                <p className="text-xl sm:text-2xl font-black text-indigo-950 tracking-tight">{formatRupiah(financialOverview.netStoreProfit)}</p>
+                <p className="text-base sm:text-lg font-bold text-indigo-950 tracking-tight">{formatRupiah(financialOverview.netStoreProfit)}</p>
               </div>
-              <div className="text-[10px] text-slate-500 mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+              <div className="text-[10px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                 <span>Margin Toko</span>
-                <span className="font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                <span className="font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded text-[9px]">
                   {financialOverview.grossRevenue > 0 ? `${Math.round((financialOverview.netStoreProfit / financialOverview.grossRevenue) * 100)}%` : '100%'}
                 </span>
               </div>
