@@ -112,53 +112,30 @@ const DashboardSuperadmin = (props) => {
     <div className="pb-32 animate-in fade-in duration-300">
       <div className="p-4 space-y-6">
 
-        {/* Hero Sapaan - Executive Command Center Header */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl shadow-indigo-950/20 border border-indigo-800/30">
-          <div className="absolute -right-12 -top-12 w-48 h-48 rounded-full bg-indigo-500/10 blur-2xl pointer-events-none" />
-          <div className="absolute -left-12 -bottom-12 w-48 h-48 rounded-full bg-purple-500/10 blur-2xl pointer-events-none" />
-          
-          <div className="relative space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase bg-white/10 text-indigo-200 border border-white/15 backdrop-blur-md">
-                👑 Superadmin Command Center
+        {/* Slim Minimalist Executive Header */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-indigo-50 text-indigo-700 border border-indigo-100">
+                👑 Superadmin
               </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Sistem Aktif &amp; Terpantau
-              </span>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-indigo-200/90 flex items-center gap-1.5">
+              <p className="text-xs font-medium text-slate-500">
                 {getGreeting(now.getHours())} · {now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
-              <h1 className="text-2xl sm:text-3xl font-black leading-tight mt-1 tracking-tight text-white">
-                Halo, {displayName} 👋
-              </h1>
-              <p className="text-xs text-indigo-200/80 mt-1 flex items-center gap-1.5">
-                <ShieldCheck size={14} className="text-indigo-400 shrink-0" /> Ringkasan operasional {monthLabel}
-              </p>
             </div>
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+              Halo, {displayName}
+            </h1>
+            <p className="text-xs text-slate-500 flex items-center gap-1.5">
+              <ShieldCheck size={14} className="text-indigo-600 shrink-0" /> Ringkasan operasional {monthLabel}
+            </p>
+          </div>
 
-            {/* Micro-KPI Strip inside Hero */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-white/10">
-              <div className="bg-white/5 backdrop-blur-md rounded-xl p-2.5 border border-white/10">
-                <span className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider block">Hari Ini</span>
-                <span className="text-sm font-black text-white">{formatRupiahCompact(dayComparison.current.revenue)}</span>
-              </div>
-              <div className="bg-white/5 backdrop-blur-md rounded-xl p-2.5 border border-white/10">
-                <span className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider block">Bulan Berjalan</span>
-                <span className="text-sm font-black text-white">{formatRupiahCompact(financialOverview.grossRevenue)}</span>
-              </div>
-              <div className="bg-white/5 backdrop-blur-md rounded-xl p-2.5 border border-white/10">
-                <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block">Laba Bersih Est.</span>
-                <span className="text-sm font-black text-emerald-400">{formatRupiahCompact(financialOverview.netStoreProfit)}</span>
-              </div>
-              <div className="bg-white/5 backdrop-blur-md rounded-xl p-2.5 border border-white/10">
-                <span className="text-[9px] font-bold text-amber-300 uppercase tracking-wider block">Admin Kasir</span>
-                <span className="text-sm font-black text-amber-300">{effectiveAccounts.filter(a => a.role !== 'superadmin').length} Aktif</span>
-              </div>
-            </div>
+          <div className="flex items-center gap-2 self-start md:self-center">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Sistem Aktif &amp; Terpantau
+            </span>
           </div>
         </div>
 

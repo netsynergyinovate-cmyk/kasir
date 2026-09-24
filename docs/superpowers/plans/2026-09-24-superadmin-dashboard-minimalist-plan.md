@@ -28,22 +28,22 @@
 - Consumes: `displayName`, `currentDate`, `effectiveAccounts`
 - Produces: Slim header bar with greeting, role badge, live system indicator; NO duplicate metric tiles.
 
-- [ ] **Step 1: Check existing test status**
+- [x] **Step 1: Check existing test status**
 Run: `npx vitest run src/pages/__tests__/DashboardSuperadmin.test.jsx`
 Expected: PASS (9 tests)
 
-- [ ] **Step 2: Replace oversized dark hero with slim executive header**
+- [x] **Step 2: Replace oversized dark hero with slim executive header**
 Replace the bulky dark hero block in `src/pages/DashboardSuperadmin.jsx`:
 - Keep `Halo, {displayName}` and subtitle.
 - Keep the live system indicator badge.
 - Remove the 4 duplicate metric tiles (`Hari Ini`, `Bulan Berjalan`, `Laba Bersih Est.`, `Admin Kasir`).
 - Style with a clean, low-profile executive card (`bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-sm`).
 
-- [ ] **Step 3: Run Vitest to verify greeting tests pass**
+- [x] **Step 3: Run Vitest to verify greeting tests pass**
 Run: `npx vitest run src/pages/__tests__/DashboardSuperadmin.test.jsx`
 Expected: PASS (9 tests)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 ```bash
 git add src/pages/DashboardSuperadmin.jsx
 git commit -m "refactor(dashboard-superadmin): slim minimalist executive header without duplicate metrics"
