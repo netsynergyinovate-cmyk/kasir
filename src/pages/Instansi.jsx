@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useSearchParamSync } from '../hooks/useSearchParamSync';
 import {
   Building2, FileText, Receipt, Layers, Plus, Trash2, Pencil, Eye, Search, X,
   Wallet, ListChecks, AlertCircle, TrendingUp,
@@ -49,18 +50,7 @@ const Instansi = () => {
     return searchParams.get('tab') || localStorage.getItem('kasir_instansi_tab') || 'clients';
   });
 
-  useEffect(() => {
-    try { localStorage.setItem('kasir_instansi_tab', tab); } catch { /* diabaikan: best-effort */ }
-    setSearchParams((prev) => {
-      const currentVal = prev.get('tab') || '';
-      const targetVal = tab && tab !== 'clients' ? tab : '';
-      if (currentVal === targetVal) return prev;
-      const next = new URLSearchParams(prev);
-      if (!targetVal) next.delete('tab');
-      else next.set('tab', targetVal);
-      return next;
-    }, { replace: true });
-  }, [tab]);
+  useSearchParamSync(setSearchParams, 'tab', tab, 'clients', 'kasir_instansi_tab');
   const [clients, setClients] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [profile, setProfile] = useState(mapProfile(null));
@@ -82,12 +72,13 @@ const Instansi = () => {
   const [invoiceMonthFilter, setInvoiceMonthFilter] = useState('');
   const [invoiceYearFilter, setInvoiceYearFilter] = useState('');
 
-  const loadAll = async () => {
-    const [clientsRes, invoicesRes, settingsRes] = await Promise.all([
-      supabase.from('instansi_clients').select('*').order('institution_name'),
-      supabase.from('instansi_invoices').select('*, client:instansi_clients(*)').order('created_at', { ascending: false }),
-      supabase.from('company_settings').select('*').eq('id', 1).maybeSingle(),
-    ]);
+  const fetchAll = () => Promise.all([
+    supabase.from('instansi_clients').select('*').order('institution_name'),
+    supabase.from('instansi_invoices').select('*, client:instansi_clients(*)').order('created_at', { ascending: false }),
+    supabase.from('company_settings').select('*').eq('id', 1).maybeSingle(),
+  ]);
+
+  const applyAll = ([clientsRes, invoicesRes, settingsRes]) => {
     if (clientsRes.data) setClients(clientsRes.data);
     if (invoicesRes.data) setInvoices(invoicesRes.data);
     if (settingsRes.data) {
@@ -97,7 +88,11 @@ const Instansi = () => {
     setLoading(false);
   };
 
-  useEffect(() => { loadAll(); }, []);
+  const loadAll = async () => applyAll(await fetchAll());
+
+  useEffect(() => {
+    fetchAll().then(applyAll);
+  }, []);
 
   const existingInvoiceNumbers = useMemo(() => invoices.map((i) => i.invoice_number), [invoices]);
 

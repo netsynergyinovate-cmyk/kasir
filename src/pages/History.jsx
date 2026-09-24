@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useSearchParamSync } from '../hooks/useSearchParamSync';
 import {
   Search, Calendar, Filter, FileText, Building2, ChevronRight, Trash2,
   RefreshCw, Camera, AlertTriangle, CheckCircle2, Clock, CreditCard,
@@ -65,27 +66,18 @@ const History = ({
     }, { replace: true });
   };
 
-  useEffect(() => {
-    try { localStorage.setItem('kasir_history_tab', statusTab); } catch { /* diabaikan: best-effort */ }
-    updateUrlParam('tab', statusTab, 'all');
-  }, [statusTab]);
+  useSearchParamSync(setSearchParams, 'tab', statusTab, 'all', 'kasir_history_tab');
+  useSearchParamSync(setSearchParams, 'day', selectedDay, 'all');
+  useSearchParamSync(setSearchParams, 'month', selectedMonth, String(new Date().getMonth()));
+  useSearchParamSync(setSearchParams, 'year', selectedYear, String(new Date().getFullYear()));
 
-  useEffect(() => {
-    updateUrlParam('day', selectedDay, 'all');
-  }, [selectedDay]);
-
-  useEffect(() => {
-    updateUrlParam('month', selectedMonth, String(new Date().getMonth()));
-  }, [selectedMonth]);
-
-  useEffect(() => {
-    updateUrlParam('year', selectedYear, String(new Date().getFullYear()));
-  }, [selectedYear]);
-
-  useEffect(() => {
-    const q = searchParams.get('q');
-    if (q !== null && q !== searchQuery) setSearchQuery(q);
-  }, [searchParams]);
+  // Pencarian yang diubah dari luar (mis. navigasi dengan ?q=) diterapkan saat render, bukan di effect
+  const urlQuery = searchParams.get('q');
+  const [lastUrlQuery, setLastUrlQuery] = useState(urlQuery);
+  if (urlQuery !== lastUrlQuery) {
+    setLastUrlQuery(urlQuery);
+    if (urlQuery !== null && urlQuery !== searchQuery.trim()) setSearchQuery(urlQuery);
+  }
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',

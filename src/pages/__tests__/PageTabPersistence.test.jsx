@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import Pelanggan from '../Pelanggan';
 import History from '../History';
 import Settings from '../Settings';
@@ -118,6 +118,40 @@ describe('Page and Tab Persistence across Refresh & Reopening', () => {
     // Modal with customer details should be open
     expect(container.textContent).toContain('Pelanggan Isolir Dua');
     expect(container.textContent).toContain('Layanan & Teknis');
+
+    root.unmount();
+    container.remove();
+  });
+
+  it('Pelanggan detail modal stays closed after being closed, and ?detail is cleared from the URL', async () => {
+    let currentSearch = '';
+    const LocationProbe = () => {
+      currentSearch = useLocation().search;
+      return null;
+    };
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={['/customers?detail=cust-2']}>
+          <LocationProbe />
+          <Pelanggan
+            customers={sampleCustomers}
+            transactions={[]}
+            packages={[{ name: 'Home 20M', price: 250000 }]}
+            companyInfo={{}}
+          />
+        </MemoryRouter>
+      );
+    });
+    expect(container.textContent).toContain('Layanan & Teknis');
+    expect(new URLSearchParams(currentSearch).get('detail')).toBe('cust-2');
+
+    const closeButton = container.querySelector('button[title="Tutup Modal"]');
+    expect(closeButton).toBeTruthy();
+    await act(async () => { closeButton.click(); });
+
+    expect(container.textContent).not.toContain('Layanan & Teknis');
+    expect(new URLSearchParams(currentSearch).get('detail')).toBeNull();
 
     root.unmount();
     container.remove();

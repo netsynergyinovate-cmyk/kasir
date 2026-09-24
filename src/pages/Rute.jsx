@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useSearchParamSync } from '../hooks/useSearchParamSync';
 import {
   Navigation, MapPin, Phone, ClipboardPen, ChevronUp, ChevronDown, X, Plus,
   Settings2, Route as RouteIcon, CheckCircle2, Loader2, Search, LocateFixed,
@@ -57,30 +58,8 @@ const Rute = ({
   const [coordDraft, setCoordDraft] = useState(null);
   const [query, setQuery] = useState(() => searchParams.get('q') || '');
 
-  useEffect(() => {
-    try { localStorage.setItem('kasir_rute_filter', filter); } catch { /* diabaikan: best-effort */ }
-    setSearchParams((prev) => {
-      const currentVal = prev.get('filter') || '';
-      const targetVal = filter && filter !== defaultFilter ? filter : '';
-      if (currentVal === targetVal) return prev;
-      const next = new URLSearchParams(prev);
-      if (!targetVal) next.delete('filter');
-      else next.set('filter', targetVal);
-      return next;
-    }, { replace: true });
-  }, [filter, defaultFilter]);
-
-  useEffect(() => {
-    setSearchParams((prev) => {
-      const currentVal = prev.get('edit') || '';
-      const targetVal = editMode ? '1' : '';
-      if (currentVal === targetVal) return prev;
-      const next = new URLSearchParams(prev);
-      if (!targetVal) next.delete('edit');
-      else next.set('edit', targetVal);
-      return next;
-    }, { replace: true });
-  }, [editMode]);
+  useSearchParamSync(setSearchParams, 'filter', filter, defaultFilter, 'kasir_rute_filter');
+  useSearchParamSync(setSearchParams, 'edit', editMode ? '1' : '');
 
   // State untuk mode penyusunan puzzle & urutan nomor
   const [draggedId, setDraggedId] = useState(null);

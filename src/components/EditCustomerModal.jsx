@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Key, Phone, Network } from 'lucide-react';
 
 const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
@@ -14,7 +14,10 @@ const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
     dueDate: ''
   });
 
-  useEffect(() => {
+  // Isi form mengikuti pelanggan yang sedang diedit; disesuaikan saat render, bukan di effect
+  const [loadedCustomer, setLoadedCustomer] = useState(null);
+  if (customer !== loadedCustomer) {
+    setLoadedCustomer(customer);
     if (customer) {
       setFormData({
         id: customer.id,
@@ -28,7 +31,7 @@ const EditCustomerModal = ({ customer, packages = [], onClose, onSave }) => {
         dueDate: customer.due_date || customer.dueDate || ''
       });
     }
-  }, [customer]);
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault();

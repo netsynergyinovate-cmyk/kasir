@@ -17,11 +17,6 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
-    rules: {
-      // Pola sinkron state dari URL/localStorage/props di dalam effect dipakai luas dan disengaja;
-      // tetap dilaporkan sebagai peringatan, tidak memblokir lint.
-      'react-hooks/set-state-in-effect': 'warn',
-    },
   },
   {
     // API serverless, skrip, dan konfigurasi berjalan di Node, bukan browser

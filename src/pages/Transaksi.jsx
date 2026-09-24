@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Wifi, Printer, UserCheck, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
@@ -75,28 +75,36 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   const [searchParams] = useSearchParams();
   const defaultCashierName = session?.profile?.full_name || (session?.profile?.role === 'superadmin' ? 'Super Admin' : (companyInfo?.adminName || 'Admin Kasir'));
   const [selectedCust, setSelectedCust] = useState('');
-  const [activePackage, setActivePackage] = useState(null);
+  // Paket yang dipilih kasir secara manual; kosong = pakai paket hasil resolusi dari data pelanggan
+  const [packageOverride, setPackageOverride] = useState(null);
   const [status, setStatus] = useState('LUNAS');
   const [amountPaid, setAmountPaid] = useState('');
-  const [change, setChange] = useState(0);
   const [searchCust, setSearchCust] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedCustomerData, setSelectedCustomerData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const custIdParam = searchParams.get('cust') || searchParams.get('customer_id');
-    const custNameParam = searchParams.get('customer') || searchParams.get('name');
-    if (customers && customers.length > 0) {
-      if (custIdParam) {
-        const found = customers.find(c => String(c.id) === String(custIdParam) || String(c.custid) === String(custIdParam));
-        if (found) setSelectedCust(found.id);
-      } else if (custNameParam) {
-        const found = customers.find(c => (c.name || '').toLowerCase() === custNameParam.toLowerCase());
-        if (found) setSelectedCust(found.id);
-      }
+  // Pelanggan dari param URL (?cust= / ?customer=) dipilih otomatis sekali per nilai param,
+  // begitu daftar pelanggan sudah dimuat. Disesuaikan saat render (bukan di effect) agar tidak render ganda.
+  const custIdParam = searchParams.get('cust') || searchParams.get('customer_id');
+  const custNameParam = searchParams.get('customer') || searchParams.get('name');
+  const custParamKey = custIdParam ? `id:${custIdParam}` : (custNameParam ? `name:${custNameParam}` : null);
+  const [appliedCustParam, setAppliedCustParam] = useState(null);
+  if (custParamKey && custParamKey !== appliedCustParam && customers && customers.length > 0) {
+    const found = custIdParam
+      ? customers.find(c => String(c.id) === String(custIdParam) || String(c.custid) === String(custIdParam))
+      : customers.find(c => (c.name || '').toLowerCase() === custNameParam.toLowerCase());
+    if (found) {
+      setAppliedCustParam(custParamKey);
+      setSelectedCust(found.id);
+      setPackageOverride(null);
     }
-  }, [searchParams, customers]);
+  }
+
+  const selectedCustomerData = useMemo(
+    () => (selectedCust ? customers.find(c => c.id === selectedCust) || null : null),
+    [selectedCust, customers]
+  );
+  const activePackage = packageOverride || (selectedCustomerData ? resolvePackageAndPrice(selectedCustomerData, packages) : null);
 
   // Pelanggan yang sudah LUNAS bulan ini tidak perlu muncul lagi di daftar pembayaran.
   const unpaidCustomers = customers.filter(c => !isPaidThisMonth(c, transactions));
@@ -120,30 +128,8 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
     // (data lama/rusak) tetap muncul, diurutkan paling akhir, bukan bikin halaman blank.
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-  useEffect(() => {
-    if (selectedCust) {
-      const cust = customers.find(c => c.id === selectedCust);
-      if (cust) {
-        setSelectedCustomerData(cust);
-        const resolved = resolvePackageAndPrice(cust, packages);
-        setActivePackage(resolved);
-        setAmountPaid('');
-      }
-    } else {
-      setSelectedCustomerData(null);
-      setActivePackage(null);
-      setAmountPaid('');
-    }
-  }, [selectedCust, customers, packages]);
-
-  useEffect(() => {
-    if (activePackage) {
-      const payValue = Number(amountPaid) || 0;
-      setChange(payValue > 0 ? payValue - activePackage.price : 0);
-    } else {
-      setChange(0);
-    }
-  }, [amountPaid, activePackage]);
+  const payValue = Number(amountPaid) || 0;
+  const change = activePackage && payValue > 0 ? payValue - activePackage.price : 0;
 
   const handleQuickPay = (amount) => {
     setAmountPaid(amount.toString());
@@ -157,14 +143,12 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
 
   const handleSelectCustomer = (cust) => {
     setSelectedCust(cust.id);
-    setSelectedCustomerData(cust);
     const pppoe = cust.pppoe_id || cust.pppoeId;
     const custId = cust.custid || cust.customer_id || cust.id;
     setSearchCust(`${cust.name} - [ID: ${custId}]${pppoe ? ` (${pppoe})` : ''}`);
     
-    // Set paket langsung dengan aturan harga Mbps yang akurat
-    const resolved = resolvePackageAndPrice(cust, packages);
-    setActivePackage(resolved);
+    // Paket mengikuti aturan harga Mbps yang akurat (dihitung dari data pelanggan), tanpa override manual
+    setPackageOverride(null);
     setAmountPaid('');
     setIsSearching(false);
   };
@@ -221,7 +205,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
     onComplete(newTransaction);
     e.target.reset();
     setSelectedCust('');
-    setSelectedCustomerData(null);
+    setPackageOverride(null);
     setSearchCust('');
     setAmountPaid('');
     setStatus('LUNAS');
@@ -273,7 +257,8 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                     setIsSearching(true);
                     if (!e.target.value) {
                       setSelectedCust('');
-                      setSelectedCustomerData(null);
+                      setPackageOverride(null);
+                      setAmountPaid('');
                     }
                   }}
                   onFocus={() => setIsSearching(true)}
@@ -363,7 +348,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                     onChange={(e) => {
                       const sel = packages.find(p => p.name === e.target.value);
                       if (sel) {
-                        setActivePackage({ name: sel.name, price: Number(sel.price) });
+                        setPackageOverride({ name: sel.name, price: Number(sel.price) });
                         setAmountPaid(sel.price.toString());
                       }
                     }}

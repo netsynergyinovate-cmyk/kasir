@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParamSync } from '../hooks/useSearchParamSync';
 import {
   Search, PlusCircle, Wifi, Trash2, Pencil, MapPin, LayoutGrid, List,
   Calendar, RefreshCw, Key, Phone, Network, ShieldCheck, CheckCircle2,
@@ -103,46 +104,34 @@ const Pelanggan = ({
     }, { replace: true });
   };
 
-  // Sinkronisasi activeTab ke URL dan LocalStorage
-  useEffect(() => {
-    try { localStorage.setItem('kasir_pelanggan_tab', activeTab); } catch { /* diabaikan: best-effort */ }
-    updateUrlParam('tab', activeTab, 'all');
-  }, [activeTab]);
+  // Sinkronisasi state tab/filter ke URL (dan LocalStorage untuk tab & tampilan)
+  useSearchParamSync(setSearchParams, 'tab', activeTab, 'all', 'kasir_pelanggan_tab');
+  useSearchParamSync(setSearchParams, 'view', viewMode, 'grid', 'kasir_pelanggan_view');
+  useSearchParamSync(setSearchParams, 'pkg', selectedPackage, '');
+  useSearchParamSync(setSearchParams, 'sort', sortBy, 'name_asc');
 
-  // Sinkronisasi viewMode ke URL dan LocalStorage
-  useEffect(() => {
-    try { localStorage.setItem('kasir_pelanggan_view', viewMode); } catch { /* diabaikan: best-effort */ }
-    updateUrlParam('view', viewMode, 'grid');
-  }, [viewMode]);
-
-  // Sinkronisasi selectedPackage ke URL
-  useEffect(() => {
-    updateUrlParam('pkg', selectedPackage, '');
-  }, [selectedPackage]);
-
-  // Sinkronisasi sortBy ke URL
-  useEffect(() => {
-    updateUrlParam('sort', sortBy, 'name_asc');
-  }, [sortBy]);
-
-  // Buka kembali modal detail pelanggan jika URL memuat ?detail=... (misal saat refresh)
-  useEffect(() => {
+  // Buka kembali modal detail pelanggan jika URL memuat ?detail=... saat halaman dibuka (misal refresh).
+  // Dilakukan sekali, begitu daftar pelanggan tersedia; disesuaikan saat render, bukan di effect.
+  const [detailRestored, setDetailRestored] = useState(false);
+  if (!detailRestored && customers.length > 0) {
+    setDetailRestored(true);
     const detailId = searchParams.get('detail');
-    if (detailId && customers.length > 0 && !selectedDetailCust) {
+    if (detailId) {
       const found = customers.find(c => String(c.id) === String(detailId) || String(c.custid) === String(detailId) || String(c.customer_id) === String(detailId));
       if (found) setSelectedDetailCust(found);
     }
-  }, [searchParams, customers]);
+  }
 
   // Sinkronisasi selectedDetailCust ke URL ?detail=...
-  useEffect(() => {
-    updateUrlParam('detail', selectedDetailCust?.id ? String(selectedDetailCust.id) : '', '');
-  }, [selectedDetailCust]);
+  useSearchParamSync(setSearchParams, 'detail', selectedDetailCust?.id ? String(selectedDetailCust.id) : '', '');
 
-  useEffect(() => {
-    const q = searchParams.get('q');
-    if (q !== null && q !== searchTerm) setSearchTerm(q);
-  }, [searchParams]);
+  // Pencarian yang diubah dari luar (mis. navigasi dengan ?q=) diterapkan saat render, bukan di effect
+  const urlQuery = searchParams.get('q');
+  const [lastUrlQuery, setLastUrlQuery] = useState(urlQuery);
+  if (urlQuery !== lastUrlQuery) {
+    setLastUrlQuery(urlQuery);
+    if (urlQuery !== null && urlQuery !== searchTerm.trim()) setSearchTerm(urlQuery);
+  }
 
   // Close dropdowns when clicking outside
   useEffect(() => {

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Calendar, Filter, Server, CheckCircle2, Zap } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { getEbillingLogs } from '../utils/billingApi';
+import { useSearchParamSync } from '../hooks/useSearchParamSync';
 
 const Aktivitas = ({ transactions = [] }) => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -10,27 +11,14 @@ const Aktivitas = ({ transactions = [] }) => {
     return searchParams.get('tab') || localStorage.getItem('kasir_aktivitas_tab') || 'kasir';
   });
 
-  useEffect(() => {
-    try { localStorage.setItem('kasir_aktivitas_tab', activeTab); } catch { /* diabaikan: best-effort */ }
-    setSearchParams((prev) => {
-      const currentVal = prev.get('tab') || '';
-      const targetVal = activeTab && activeTab !== 'kasir' ? activeTab : '';
-      if (currentVal === targetVal) return prev;
-      const next = new URLSearchParams(prev);
-      if (!targetVal) next.delete('tab');
-      else next.set('tab', targetVal);
-      return next;
-    }, { replace: true });
-  }, [activeTab]);
+  useSearchParamSync(setSearchParams, 'tab', activeTab, 'kasir', 'kasir_aktivitas_tab');
   const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [cashierFilter, setCashierFilter] = useState('');
-  const [ebillingLogs, setEbillingLogs] = useState([]);
-
-  useEffect(() => {
-    setEbillingLogs(getEbillingLogs());
-  }, [activeTab]);
+  // Log e-billing dibaca ulang dari localStorage setiap kali tab berpindah
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ebillingLogs = useMemo(() => getEbillingLogs(), [activeTab]);
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',

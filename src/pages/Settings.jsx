@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useSearchParamSync } from '../hooks/useSearchParamSync';
 import {
   Building2, Trash2, 
   AlertTriangle, Printer, User, LogOut, Image, 
@@ -49,16 +50,20 @@ const Settings = ({
   const [savingMyIcon, setSavingMyIcon] = useState(false);
   const [myIconSaved, setMyIconSaved] = useState(false);
 
-  useEffect(() => {
-    if (session?.profile?.allowed_paths) {
-      const acc = normalizeAdminAccess(session.profile.allowed_paths);
+  // Icon peta mengikuti perubahan allowed_paths dari session; disesuaikan saat render, bukan di effect
+  const sessionAllowedPaths = session?.profile?.allowed_paths;
+  const [lastAllowedPaths, setLastAllowedPaths] = useState(sessionAllowedPaths);
+  if (sessionAllowedPaths !== lastAllowedPaths) {
+    setLastAllowedPaths(sessionAllowedPaths);
+    if (sessionAllowedPaths) {
+      const acc = normalizeAdminAccess(sessionAllowedPaths);
       if (acc.map_icon) {
         if (acc.map_icon.type) setMyIconType(acc.map_icon.type);
         if (acc.map_icon.color) setMyIconColor(acc.map_icon.color);
         if (acc.map_icon.label) setMyIconLabel(acc.map_icon.label);
       }
     }
-  }, [session?.profile?.allowed_paths]);
+  }
 
   const saveMyMapIcon = async () => {
     if (!session?.user?.id) return;
@@ -96,17 +101,6 @@ const Settings = ({
     watbizEnabled: companyInfo?.watbizEnabled ?? (typeof window !== 'undefined' ? localStorage.getItem('watbiz_enabled') !== 'false' : true),
   }));
 
-  useEffect(() => {
-    if (companyInfo) {
-      setLocalCompany((prev) => ({
-        ...prev,
-        ...companyInfo,
-        watbizToken: companyInfo.watbizToken || prev.watbizToken || (typeof window !== 'undefined' ? localStorage.getItem('watbiz_token') : '') || '51dad347-d267-4254-9858-3e3b19c76c53',
-        watbizEnabled: companyInfo.watbizEnabled ?? prev.watbizEnabled ?? true,
-      }));
-    }
-  }, [companyInfo]);
-
   const [showApiKey, setShowApiKey] = useState(false);
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [isSyncingCust, setIsSyncingCust] = useState(false);
@@ -120,18 +114,7 @@ const Settings = ({
     return searchParams.get('tab') || localStorage.getItem('kasir_settings_tab') || 'umum';
   });
 
-  useEffect(() => {
-    try { localStorage.setItem('kasir_settings_tab', activeTab); } catch { /* diabaikan: best-effort */ }
-    setSearchParams((prev) => {
-      const currentVal = prev.get('tab') || '';
-      const targetVal = activeTab && activeTab !== 'umum' ? activeTab : '';
-      if (currentVal === targetVal) return prev;
-      const next = new URLSearchParams(prev);
-      if (!targetVal) next.delete('tab');
-      else next.set('tab', targetVal);
-      return next;
-    }, { replace: true });
-  }, [activeTab]);
+  useSearchParamSync(setSearchParams, 'tab', activeTab, 'umum', 'kasir_settings_tab');
   const [watbizTestNumber, setWatbizTestNumber] = useState('');
   const [isTestingWatbiz, setIsTestingWatbiz] = useState(false);
   const [watbizTestResult, setWatbizTestResult] = useState(null);
@@ -158,7 +141,7 @@ const Settings = ({
     window.location.hostname.startsWith('10.')
   );
 
-  const [webhookUrlInput, setWebhookUrlInput] = useState(() => {
+  const [webhookUrlDraft, setWebhookUrlDraft] = useState(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('kasir_watbiz_webhook_url') : '';
     // Jika tersimpan localhost tapi sekarang diakses di domain publik hasil deploy, otomatis gunakan domain publik aktif
     const isPublic = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
@@ -168,13 +151,15 @@ const Settings = ({
     return saved || defaultWebhookUrl;
   });
 
-  // Otomatis ganti ke domain publik jika berpindah dari localhost ke deploy publik
+  // Otomatis pakai domain publik jika URL tersimpan masih localhost tetapi aplikasi diakses dari deploy publik
+  const shouldUsePublicWebhookUrl = !isLocalhost && Boolean(webhookUrlDraft) && (webhookUrlDraft.includes('localhost') || webhookUrlDraft.includes('127.0.0.1'));
+  const webhookUrlInput = shouldUsePublicWebhookUrl ? defaultWebhookUrl : webhookUrlDraft;
+
   useEffect(() => {
-    if (!isLocalhost && webhookUrlInput && (webhookUrlInput.includes('localhost') || webhookUrlInput.includes('127.0.0.1'))) {
-      setWebhookUrlInput(defaultWebhookUrl);
-      localStorage.setItem('kasir_watbiz_webhook_url', defaultWebhookUrl);
+    if (shouldUsePublicWebhookUrl) {
+      try { localStorage.setItem('kasir_watbiz_webhook_url', defaultWebhookUrl); } catch { /* localStorage bisa diblokir */ }
     }
-  }, [isLocalhost, defaultWebhookUrl, webhookUrlInput]);
+  }, [shouldUsePublicWebhookUrl, defaultWebhookUrl]);
 
   const [logFilter, setLogFilter] = useState('all');
   const [expandedLogId, setExpandedLogId] = useState(null);
@@ -266,8 +251,10 @@ const Settings = ({
     setIsLoadingWebhookStatus(false);
   };
 
+  // Membuka tab Watbiz memulai pengambilan data (dengan indikator loading) lalu polling tiap 8 detik
   useEffect(() => {
     if (activeTab === 'watbiz') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- memulai fetch + indikator loading
       loadWatbizLogs(true);
       fetchRegisteredWebhook();
       const interval = setInterval(() => {
@@ -275,6 +262,7 @@ const Settings = ({
       }, 8000);
       return () => clearInterval(interval);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loader dibuat ulang tiap render; hanya tab yang memicu
   }, [activeTab]);
 
 
@@ -282,9 +270,12 @@ const Settings = ({
   const isSuper = session?.profile?.role === 'superadmin';
   const myFullName = session?.profile?.full_name || '';
 
-  useEffect(() => {
+  // Kolom nama mengikuti nama profil yang sedang login; disesuaikan saat render, bukan di effect
+  const [lastMyFullName, setLastMyFullName] = useState(null);
+  if (myFullName !== lastMyFullName) {
+    setLastMyFullName(myFullName);
     setMyName(myFullName);
-  }, [myFullName]);
+  }
 
   // Nama tampilan akun yang SEDANG login (header, struk) — tiap admin/superadmin mengatur miliknya
   // sendiri, bukan satu nama bersama untuk semua akun (lihat handleUpdateMyName di App.jsx).
@@ -468,22 +459,17 @@ const Settings = ({
   };
 
 
-  // Sync local state & load API Key guarantee from localStorage
-  useEffect(() => {
-    const savedKey = localStorage.getItem('api_monitoring_key') || '';
-    const keyToUse = companyInfo.apiMonitoringKey || savedKey;
-
-    setLocalCompany(() => ({
+  // Sinkronkan salinan lokal saat companyInfo berubah (dan saat pertama render), pastikan API Key
+  // terbaca dari localStorage; disesuaikan saat render, bukan di effect
+  const [syncedCompanyInfo, setSyncedCompanyInfo] = useState(null);
+  if (companyInfo !== syncedCompanyInfo) {
+    setSyncedCompanyInfo(companyInfo);
+    setLocalCompany({
       ...companyInfo,
-      apiMonitoringKey: keyToUse
-    }));
-
+      apiMonitoringKey: companyInfo.apiMonitoringKey || localStorage.getItem('api_monitoring_key') || '',
+    });
     setEbillingLogs(getEbillingLogs());
-  }, [companyInfo]);
-
-  useEffect(() => {
-    if (activeTab === 'watbiz') loadWatbizLogs();
-  }, [activeTab]);
+  }
 
   // Periodic Live Ping Heartbeat (Menjalankan tes ping tiap 10 detik saat API Key ada)
   useEffect(() => {
@@ -1326,7 +1312,7 @@ const Settings = ({
                     type="text"
                     value={webhookUrlInput}
                     onChange={(e) => {
-                      setWebhookUrlInput(e.target.value);
+                      setWebhookUrlDraft(e.target.value);
                       localStorage.setItem('kasir_watbiz_webhook_url', e.target.value);
                     }}
                     placeholder="https://domain-anda.vercel.app/api/watbiz"
@@ -1350,7 +1336,7 @@ const Settings = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setWebhookUrlInput(defaultWebhookUrl);
+                      setWebhookUrlDraft(defaultWebhookUrl);
                       localStorage.setItem('kasir_watbiz_webhook_url', defaultWebhookUrl);
                     }}
                     className="text-[10px] text-blue-600 hover:underline font-bold flex items-center gap-1 ml-1"

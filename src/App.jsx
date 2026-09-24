@@ -230,17 +230,16 @@ export default function App() {
   const idleLockEnabled = Boolean(session) && !isLoading && Boolean(companyInfo.appPin) && !isLocked && !isSuperExemptFromIdleLock;
   const idleRemaining = useIdleLock({ enabled: idleLockEnabled, onLock: lockApp });
 
-  // Determine lock state based on session, DB pin, and local unlock flag
-  useEffect(() => {
+  // Tentukan status kunci dari sesi, PIN di DB, dan flag buka-kunci lokal. Dihitung ulang saat salah satu
+  // masukan berubah; disesuaikan saat render, bukan di effect.
+  const [lockInputs, setLockInputs] = useState({ session: null, appPin: null, isLoading: true });
+  if (lockInputs.session !== session || lockInputs.appPin !== companyInfo.appPin || lockInputs.isLoading !== isLoading) {
+    setLockInputs({ session, appPin: companyInfo.appPin, isLoading });
     if (session && !isLoading) {
       const isDeviceUnlocked = localStorage.getItem('device_unlocked') === 'true';
-      if (!isDeviceUnlocked && companyInfo.appPin) {
-        setIsLocked(true);
-      } else {
-        setIsLocked(false);
-      }
+      setIsLocked(!isDeviceUnlocked && Boolean(companyInfo.appPin));
     }
-  }, [session, companyInfo.appPin, isLoading]);
+  }
 
   useEffect(() => {
     if (session?.profile?.role === 'admin' && !isPathAllowedForRole('admin', location.pathname, session.profile?.allowed_paths)) {
@@ -271,11 +270,11 @@ export default function App() {
     saveLastPath(fullPath);
   }, [session, authChecked, isLoading, isLocked, location.pathname, location.search, location.hash, navigate]);
 
+  // Tanpa sesi tidak ada data yang perlu dimuat
+  if (!session && isLoading) setIsLoading(false);
+
   useEffect(() => {
-    if (!session) {
-      setIsLoading(false);
-      return;
-    }
+    if (!session) return;
     const fetchData = async () => {
       console.log('Mulai mengambil data dari Supabase...');
       try {

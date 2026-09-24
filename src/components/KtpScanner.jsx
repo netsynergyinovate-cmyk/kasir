@@ -70,9 +70,12 @@ function warningsFromQuality(quality) {
 // kondisi lapangan gak selalu ideal) atau upload file, lalu OCR sepenuhnya di browser (tesseract.js,
 // dimuat baru pas dipakai) buat nebak NIK & Nama. Hasil WAJIB direview manual (kotak yang bisa
 // diedit) sebelum "Terapkan ke Form" — OCR gratis begini gampang salah baca, terutama Nama.
+const CAMERA_UNSUPPORTED_MESSAGE = 'Kamera tidak didukung browser ini. Coba pakai Upload File.';
+const isCameraSupported = () => typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
+
 const KtpScanner = ({ onApply, onClose }) => {
-  const [tab, setTab] = useState('camera');
-  const [cameraError, setCameraError] = useState(null);
+  const [tab, setTab] = useState(() => (isCameraSupported() ? 'camera' : 'upload'));
+  const [cameraError, setCameraError] = useState(() => (isCameraSupported() ? null : CAMERA_UNSUPPORTED_MESSAGE));
   const [qualityWarnings, setQualityWarnings] = useState([]);
   const [capturedImage, setCapturedImage] = useState(null); // data URL
   const [ocrStatus, setOcrStatus] = useState('idle'); // idle | running | done | error
@@ -115,13 +118,8 @@ const KtpScanner = ({ onApply, onClose }) => {
       return undefined;
     }
     let cancelled = false;
-    setCameraError(null);
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError('Kamera tidak didukung browser ini. Coba pakai Upload File.');
-      setTab('upload');
-      return undefined;
-    }
+    if (!isCameraSupported()) return undefined;
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then((stream) => {
@@ -175,7 +173,7 @@ const KtpScanner = ({ onApply, onClose }) => {
     canvas.height = Math.round(video.videoHeight * captureScale);
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    setCapturedImage(canvas.toDataURL('image/jpeg', 0.9));
+    captureImage(canvas.toDataURL('image/jpeg', 0.9));
 
     stopCamera();
   };
@@ -209,7 +207,7 @@ const KtpScanner = ({ onApply, onClose }) => {
           canvas.height = Math.round(img.height * captureScale);
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          setCapturedImage(canvas.toDataURL('image/jpeg', 0.9));
+          captureImage(canvas.toDataURL('image/jpeg', 0.9));
         } catch (err) {
           setUploadError(`Gagal memproses gambar (${err.message}). Coba file lain.`);
         }
@@ -219,7 +217,7 @@ const KtpScanner = ({ onApply, onClose }) => {
     reader.readAsDataURL(file);
   };
 
-  const runOcr = useCallback(async (imageDataUrl) => {
+  const runOcr = async (imageDataUrl) => {
     setOcrStatus('running');
     setOcrError(null);
     setOcrProgress(null);
@@ -335,15 +333,26 @@ const KtpScanner = ({ onApply, onClose }) => {
       if (tesseractWorker) tesseractWorker.terminate().catch(() => {});
       if (paddleService) paddleService.destroy().catch(() => {});
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    if (capturedImage) runOcr(capturedImage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capturedImage]);
+  // Simpan gambar hasil jepret/upload lalu langsung jalankan OCR-nya
+  const captureImage = (dataUrl) => {
+    setCapturedImage(dataUrl);
+    runOcr(dataUrl);
+  };
+
+  const selectCameraTab = () => {
+    if (!isCameraSupported()) {
+      setCameraError(CAMERA_UNSUPPORTED_MESSAGE);
+      return;
+    }
+    setCameraError(null);
+    setTab('camera');
+  };
 
   const retake = () => {
     setCapturedImage(null);
+    setCameraError(null);
     setOcrStatus('idle');
     setOcrError(null);
     setOcrProgress(null);
@@ -385,7 +394,7 @@ const KtpScanner = ({ onApply, onClose }) => {
         {!capturedImage && (
           <>
             <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-              <button type="button" onClick={() => setTab('camera')} className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 ${tab === 'camera' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
+              <button type="button" onClick={selectCameraTab} className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 ${tab === 'camera' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
                 <Camera size={14} /> Kamera
               </button>
               <button type="button" onClick={() => setTab('upload')} className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 ${tab === 'upload' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>
