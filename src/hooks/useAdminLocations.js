@@ -16,16 +16,24 @@ export function useAdminLocations({ enabled }) {
     const load = async () => {
       const [locationsRes, profilesRes] = await Promise.all([
         supabase.from('admin_locations').select('admin_id, lat, lng, accuracy, updated_at'),
-        supabase.from('admin_profiles').select('id, full_name'),
+        supabase.from('admin_profiles').select('id, full_name, role, allowed_paths'),
       ]);
       if (cancelled || locationsRes.error || !locationsRes.data) return;
 
-      const names = {};
-      (profilesRes.data || []).forEach((profile) => { names[profile.id] = profile.full_name; });
+      const profilesMap = {};
+      (profilesRes.data || []).forEach((profile) => {
+        profilesMap[profile.id] = {
+          name: profile.full_name,
+          role: profile.role,
+          mapIcon: profile.allowed_paths?.map_icon || null,
+        };
+      });
 
       setLocations(locationsRes.data.map((row) => ({
         id: row.admin_id,
-        name: names[row.admin_id] || 'Admin',
+        name: profilesMap[row.admin_id]?.name || 'Admin',
+        role: profilesMap[row.admin_id]?.role || 'admin',
+        mapIcon: profilesMap[row.admin_id]?.mapIcon || null,
         lat: row.lat,
         lng: row.lng,
         accuracy: row.accuracy,

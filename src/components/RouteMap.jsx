@@ -5,6 +5,7 @@ import { Maximize2, Minimize2, Layers, LocateFixed, Plus, Minus, Focus, MapPin }
 import { TONE_COLORS } from '../utils/visits';
 import { createBaseLayers } from '../utils/leafletBase';
 import { MAP_MAX_ZOOM } from '../utils/mapConfig';
+import { createAdminMapIcon } from '../utils/adminMapIcons';
 
 const DEFAULT_CENTER = [-2.5, 118];
 
@@ -29,40 +30,6 @@ const googleMapPin = (number, color, selected) => {
     iconSize: [pinW, pinH],
     iconAnchor: [pinW / 2, pinH],
     tooltipAnchor: [0, -pinH + 4],
-  });
-};
-
-// Penanda posisi admin / diri sendiri ala Google Maps live blue dot dengan radar pulse
-const personIcon = (self, stale) => {
-  if (self) {
-    return L.divIcon({
-      className: 'google-live-dot',
-      html: `
-        <div style="position:relative;width:26px;height:26px;display:flex;align-items:center;justify-content:center;">
-          <div style="position:absolute;width:26px;height:26px;border-radius:9999px;background:#3b82f6;opacity:0.35;animation:ping 2s cubic-bezier(0,0,0.2,1) infinite;"></div>
-          <div style="position:relative;width:16px;height:16px;border-radius:9999px;background:#2563eb;border:3px solid #ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>
-        </div>
-      `,
-      iconSize: [26, 26],
-      iconAnchor: [13, 13],
-      tooltipAnchor: [0, -14],
-    });
-  }
-
-  return L.divIcon({
-    className: 'admin-marker-dot',
-    html: `
-      <div style="position:relative;width:30px;height:38px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
-        <svg width="30" height="38" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M16 1C7.716 1 1 7.716 1 16c0 10.8 15 23 15 23s15-12.2 15-23c0-8.284-6.716-15-15-15z" fill="${stale ? '#6b7280' : '#7c3aed'}" stroke="#ffffff" stroke-width="1.5"/>
-          <circle cx="16" cy="15" r="9" fill="#ffffff"/>
-          <text x="16" y="19" text-anchor="middle" font-size="11" font-weight="900" fill="${stale ? '#6b7280' : '#7c3aed'}" font-family="system-ui, sans-serif">A</text>
-        </svg>
-      </div>
-    `,
-    iconSize: [30, 38],
-    iconAnchor: [15, 38],
-    tooltipAnchor: [0, -34],
   });
 };
 
@@ -227,7 +194,7 @@ const RouteMap = ({ stops = [], routeLine, selectedId, onSelect, compact = false
         }).addTo(layer);
       }
       const marker = L.marker([person.lat, person.lng], {
-        icon: personIcon(person.self, person.stale),
+        icon: createAdminMapIcon(person, person.self, person.stale),
         zIndexOffset: 2000,
       });
       const tooltip = document.createElement('span');
