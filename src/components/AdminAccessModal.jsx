@@ -49,8 +49,18 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
     setMenus((prev) => (prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path]));
   };
 
+  // Mencentang sebuah hak akses otomatis membuka menu halamannya; tanpa menu itu halaman tidak bisa
+  // dibuka admin walau hak aksesnya dicentang (mis. "Lihat Data Pelanggan" tapi menu Pelanggan mati).
   const togglePermission = (permId) => {
-    setPermissions((prev) => prev.includes(permId) ? prev.filter((p) => p !== permId) : [...prev, permId]);
+    const enabling = !permissions.includes(permId);
+    setPermissions((prev) => (enabling ? [...prev, permId] : prev.filter((p) => p !== permId)));
+    if (!enabling) return;
+
+    const owner = PERMISSION_MODULES.find((m) => m.permissions.some((p) => p.id === permId));
+    const isConfigurableMenu = CONFIGURABLE_ADMIN_MENUS.some((m) => m.path === owner?.path);
+    if (owner?.path && isConfigurableMenu) {
+      setMenus((prev) => (prev.includes(owner.path) ? prev : [...prev, owner.path]));
+    }
   };
 
   const toggleModule = (moduleId) => {

@@ -1706,6 +1706,17 @@ const Settings = ({
                   >
                     <span>🛡️ Minta Foto ({watbizLogs.filter((l) => l.kind === 'inbound_request_proof').length})</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('manual_review')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors ${
+                      logFilter === 'manual_review'
+                        ? 'bg-orange-600 text-white shadow-xs'
+                        : 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200'
+                    }`}
+                  >
+                    <span>⚠️ Perlu Verifikasi ({watbizLogs.filter((l) => l.kind === 'inbound_manual_review').length})</span>
+                  </button>
                 </div>
               )}
 
@@ -1720,6 +1731,7 @@ const Settings = ({
                       if (logFilter === 'auto_payment') return log.kind === 'auto_payment';
                       if (logFilter === 'invoice') return log.kind === 'invoice';
                       if (logFilter === 'request') return log.kind === 'inbound_request_proof';
+                      if (logFilter === 'manual_review') return log.kind === 'inbound_manual_review';
                       return true;
                     })
                     .map((log) => {
@@ -1737,6 +1749,7 @@ const Settings = ({
                         invoice: { text: '🧾 Bukti Transaksi', bg: 'bg-blue-100 text-blue-800 border-blue-200' },
                         reminder: { text: '⏰ Pengingat Tagihan', bg: 'bg-amber-100 text-amber-800 border-amber-200' },
                         inbound_request_proof: { text: '🛡️ Minta Foto Struk', bg: 'bg-amber-100 text-amber-800 border-amber-200' },
+                        inbound_manual_review: { text: '⚠️ Perlu Verifikasi Manual', bg: 'bg-orange-100 text-orange-800 border-orange-200' },
                         inbound: { text: '💬 Pesan Masuk WA', bg: 'bg-cyan-100 text-cyan-800 border-cyan-200' },
                         test: { text: '🧪 Tes Koneksi', bg: 'bg-gray-100 text-gray-700 border-gray-200' }
                       }[log.kind] || { text: log.kind || 'WA', bg: 'bg-gray-100 text-gray-700 border-gray-200' };
@@ -1749,7 +1762,9 @@ const Settings = ({
                               ? 'border-emerald-200 hover:border-emerald-300 ring-1 ring-emerald-50'
                               : log.kind === 'auto_payment'
                                 ? 'border-purple-200 hover:border-purple-300 ring-1 ring-purple-50'
-                                : 'border-slate-200 hover:border-slate-300'
+                                : log.kind === 'inbound_manual_review'
+                                  ? 'border-orange-300 hover:border-orange-400 ring-1 ring-orange-100'
+                                  : 'border-slate-200 hover:border-slate-300'
                           }`}
                         >
                           {/* Header Bar Log */}
@@ -1761,6 +1776,11 @@ const Settings = ({
                               {(detail.customerName || log.sender_name) && (
                                 <span className="text-[11px] font-bold text-slate-700">
                                   👤 {detail.customerName || log.sender_name}
+                                </span>
+                              )}
+                              {log.kind === 'inbound_manual_review' && detail.senderName && (
+                                <span className="text-[10px] font-semibold text-orange-700">
+                                  dikirim oleh “{detail.senderName}” (cocok lewat nama)
                                 </span>
                               )}
                               <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${kindBadge.bg}`}>
