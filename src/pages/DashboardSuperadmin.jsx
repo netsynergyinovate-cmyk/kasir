@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { 
   TrendingUp, TrendingDown, Minus, Wallet, CalendarDays, BookOpen, ChevronDown, 
   Receipt, CheckCircle, AlertCircle, Trophy, Clock, Smartphone, MapPin, ShieldCheck,
-  Zap, Users, Settings, Send, MessageCircle, DollarSign, Sparkles, Navigation2
+  Zap, Users, Settings, Send, MessageCircle, DollarSign, Sparkles, Navigation2, Folder
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatRupiah, formatRupiahCompact } from '../utils/format';
@@ -47,6 +47,7 @@ const DashboardSuperadmin = (props) => {
   const [dayMode, setDayMode] = useState('today');
   const [customDate, setCustomDate] = useState('');
   const [showLedger, setShowLedger] = useState(false);
+  const [activeNavFolder, setActiveNavFolder] = useState('all');
 
   const fetchAccounts = useCallback(() => {
     supabase
@@ -107,6 +108,107 @@ const DashboardSuperadmin = (props) => {
     companyInfo.adminFee || 10000,
     now
   );
+
+  const NAV_FOLDERS = [
+    { id: 'all', label: 'Semua Menu', icon: '📁', count: 6 },
+    { id: 'ops', label: 'Operasional', icon: '💼', count: 2 },
+    { id: 'finance', label: 'Finansial', icon: '💰', count: 2 },
+    { id: 'system', label: 'Sistem & Rute', icon: '⚙️', count: 2 },
+  ];
+
+  const quickActions = [
+    {
+      id: 'pos',
+      category: 'ops',
+      type: 'link',
+      to: '/pos',
+      icon: Zap,
+      iconColor: 'text-blue-600',
+      iconBg: 'bg-blue-50 border-blue-100',
+      hoverBorder: 'hover:border-blue-200',
+      title: 'Kasir Baru',
+      subLabel: 'POS / Retail',
+      subColor: 'text-blue-600',
+    },
+    {
+      id: 'customers',
+      category: 'ops',
+      type: 'link',
+      to: '/customers',
+      icon: Users,
+      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-50 border-emerald-100',
+      hoverBorder: 'hover:border-emerald-200',
+      title: 'Pelanggan',
+      subLabel: `${customers.length} Terdaftar`,
+      subColor: 'text-emerald-600',
+    },
+    {
+      id: 'commission',
+      category: 'finance',
+      type: 'button',
+      onClick: () => {
+        const defaultTarget = effectiveAccounts.find(a => a.role !== 'superadmin') || {
+          id: 'adm-wahyu',
+          full_name: 'Admin Wahyu',
+          role: 'admin',
+          allowed_paths: {}
+        };
+        setSelectedCommissionAdmin(defaultTarget);
+      },
+      icon: DollarSign,
+      iconColor: 'text-amber-600',
+      iconBg: 'bg-amber-50 border-amber-100',
+      hoverBorder: 'hover:border-amber-200',
+      title: 'Kelola Komisi',
+      subLabel: financialOverview.pendingCommissionBalance > 0 ? 'Pencairan' : 'Riwayat',
+      subColor: 'text-amber-600',
+      hasPending: financialOverview.pendingCommissionBalance > 0,
+    },
+    {
+      id: 'wa-billing',
+      category: 'finance',
+      type: 'link',
+      to: '/customers',
+      icon: MessageCircle,
+      iconColor: 'text-green-600',
+      iconBg: 'bg-green-50 border-green-100',
+      hoverBorder: 'hover:border-green-200',
+      title: 'WA Tagihan',
+      subLabel: `${payment.unpaid} Belum Bayar`,
+      subColor: 'text-green-600',
+    },
+    {
+      id: 'rute',
+      category: 'system',
+      type: 'link',
+      to: '/rute',
+      icon: Navigation2,
+      iconColor: 'text-purple-600',
+      iconBg: 'bg-purple-50 border-purple-100',
+      hoverBorder: 'hover:border-purple-200',
+      title: 'Rute & Live',
+      subLabel: 'Pelacakan',
+      subColor: 'text-purple-600',
+    },
+    {
+      id: 'settings',
+      category: 'system',
+      type: 'link',
+      to: '/settings',
+      icon: Settings,
+      iconColor: 'text-slate-600',
+      iconBg: 'bg-slate-100 border-slate-200',
+      hoverBorder: 'hover:border-slate-300',
+      title: 'Pengaturan',
+      subLabel: 'Toko & Paket',
+      subColor: 'text-slate-500',
+    },
+  ];
+
+  const displayedActions = activeNavFolder === 'all'
+    ? quickActions
+    : quickActions.filter(action => action.category === activeNavFolder);
 
   return (
     <div className="pb-32 animate-in fade-in duration-300">
@@ -247,97 +349,108 @@ const DashboardSuperadmin = (props) => {
           </div>
         </div>
 
-        {/* Executive Quick Actions */}
-        <div className="space-y-2.5">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1.5">
-            <Zap size={12} className="text-amber-500" /> Aksi Cepat Superadmin
-          </p>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
-            {/* 1. Kasir Baru */}
-            <Link
-              to="/pos"
-              className="quick-action-tile group bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:border-blue-200 transition-all text-center flex flex-col items-center"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-200 group-hover:scale-110 transition-transform">
-                <Zap size={18} className="fill-white" />
-              </div>
-              <span className="text-[11px] font-black text-slate-800 mt-2">Kasir Baru</span>
-              <span className="text-[8px] font-bold text-blue-600">POS / Retail</span>
-            </Link>
-
-            {/* 2. Pelanggan */}
-            <Link
-              to="/customers"
-              className="quick-action-tile group bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:border-emerald-200 transition-all text-center flex flex-col items-center"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-200 group-hover:scale-110 transition-transform">
-                <Users size={18} />
-              </div>
-              <span className="text-[11px] font-black text-slate-800 mt-2">Pelanggan</span>
-              <span className="text-[8px] font-bold text-emerald-600">{customers.length} Terdaftar</span>
-            </Link>
-
-            {/* 3. Kelola Komisi */}
-            <button
-              type="button"
-              onClick={() => {
-                const defaultTarget = effectiveAccounts.find(a => a.role !== 'superadmin') || {
-                  id: 'adm-wahyu',
-                  full_name: 'Admin Wahyu',
-                  role: 'admin',
-                  allowed_paths: {}
-                };
-                setSelectedCommissionAdmin(defaultTarget);
-              }}
-              className="quick-action-tile group bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:border-amber-200 transition-all text-center flex flex-col items-center cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-200 group-hover:scale-110 transition-transform relative">
-                <DollarSign size={18} />
-                {financialOverview.pendingCommissionBalance > 0 && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full animate-ping" />
-                )}
-              </div>
-              <span className="text-[11px] font-black text-slate-800 mt-2">Kelola Komisi</span>
-              <span className="text-[8px] font-bold text-amber-600">
-                {financialOverview.pendingCommissionBalance > 0 ? 'Pencairan' : 'Riwayat'}
+        {/* Folder Tombol Navigasi Cepat (Quick Action Navigation Dock) */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          {/* Folder Tabs Header */}
+          <div className="bg-slate-50/90 px-3.5 py-2.5 border-b border-slate-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                <Folder size={13} className="text-indigo-600" />
               </span>
-            </button>
-
-            {/* 4. Rute Lapangan */}
-            <Link
-              to="/rute"
-              className="quick-action-tile group bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:border-purple-200 transition-all text-center flex flex-col items-center"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-violet-500 text-white flex items-center justify-center shadow-md shadow-purple-200 group-hover:scale-110 transition-transform">
-                <Navigation2 size={18} />
+              <div>
+                <span className="text-xs font-bold text-slate-800 tracking-tight">Folder Tombol Navigasi</span>
+                <span className="text-[10px] text-slate-400 font-medium ml-1.5 hidden sm:inline">• Aksi Cepat Superadmin</span>
               </div>
-              <span className="text-[11px] font-black text-slate-800 mt-2">Rute &amp; Live</span>
-              <span className="text-[8px] font-bold text-purple-600">Pelacakan</span>
-            </Link>
+            </div>
 
-            {/* 5. WA Pengingat */}
-            <Link
-              to="/customers"
-              className="quick-action-tile group bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:border-green-200 transition-all text-center flex flex-col items-center"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-green-200 group-hover:scale-110 transition-transform">
-                <MessageCircle size={18} />
-              </div>
-              <span className="text-[11px] font-black text-slate-800 mt-2">WA Tagihan</span>
-              <span className="text-[8px] font-bold text-green-600">{payment.unpaid} Belum Bayar</span>
-            </Link>
+            {/* Category Folder Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto p-0.5 bg-slate-200/50 rounded-xl border border-slate-200/60 scrollbar-none">
+              {NAV_FOLDERS.map((folder) => {
+                const isActive = activeNavFolder === folder.id;
+                return (
+                  <button
+                    key={folder.id}
+                    type="button"
+                    onClick={() => setActiveNavFolder(folder.id)}
+                    className={`px-2.5 py-1 text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-white text-indigo-700 font-bold shadow-xs border border-slate-200/80'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
+                    }`}
+                  >
+                    <span className="text-xs">{folder.icon}</span>
+                    <span>{folder.label}</span>
+                    <span className={`text-[10px] px-1 rounded-full ${isActive ? 'bg-indigo-50 text-indigo-700 font-bold' : 'bg-slate-200/70 text-slate-500'}`}>
+                      {folder.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-            {/* 6. Pengaturan Toko */}
-            <Link
-              to="/settings"
-              className="quick-action-tile group bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:border-slate-300 transition-all text-center flex flex-col items-center"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-slate-600 to-gray-700 text-white flex items-center justify-center shadow-md shadow-slate-200 group-hover:scale-110 transition-transform">
-                <Settings size={18} />
+          {/* Action Buttons Grid */}
+          <div className="p-3 sm:p-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-2.5">
+              {displayedActions.map((action) => {
+                const IconComponent = action.icon;
+                const tileClass = `quick-action-tile group bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-xs ${action.hoverBorder} transition-all text-center flex flex-col items-center justify-center cursor-pointer`;
+                const innerContent = (
+                  <>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center border group-hover:scale-105 transition-transform relative ${action.iconBg} ${action.iconColor}`}>
+                      <IconComponent size={16} />
+                      {action.hasPending && (
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full animate-ping" />
+                      )}
+                    </div>
+                    <span className="text-xs font-bold text-slate-800 mt-2 text-center whitespace-nowrap">
+                      {action.title}
+                    </span>
+                    <span className={`text-[10px] font-semibold text-center whitespace-nowrap mt-0.5 ${action.subColor}`}>
+                      {action.subLabel}
+                    </span>
+                  </>
+                );
+
+                if (action.type === 'button') {
+                  return (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={action.onClick}
+                      className={tileClass}
+                    >
+                      {innerContent}
+                    </button>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={action.id}
+                    to={action.to}
+                    className={tileClass}
+                  >
+                    {innerContent}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {activeNavFolder !== 'all' && (
+              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                <span>
+                  Folder aktif: <strong className="text-slate-700">{NAV_FOLDERS.find(f => f.id === activeNavFolder)?.label}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveNavFolder('all')}
+                  className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                >
+                  Tampilkan Semua Menu &rarr;
+                </button>
               </div>
-              <span className="text-[11px] font-black text-slate-800 mt-2">Pengaturan</span>
-              <span className="text-[8px] font-bold text-slate-500">Toko &amp; Paket</span>
-            </Link>
+            )}
           </div>
         </div>
 
