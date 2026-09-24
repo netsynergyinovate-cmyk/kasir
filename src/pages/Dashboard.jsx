@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2 } from 'lucide-react';
+import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { formatDueReminderMessage } from '../utils/whatsappTemplates';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
 import { getGreeting, isOwnTransaction } from '../utils/dashboardStats';
+import { calculateAdminCommissions } from '../utils/commissions';
+import { normalizeAdminAccess } from '../utils/permissions';
 import './Dashboard.css';
 
 const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute = false, origin = null, myPosition = null, locationStatus = 'off', adminLocations = [], onRetryLocation, transactions = [], customers = [], packages = [], companyInfo = {}, session, setReceiptToView, setInstansiReceiptToView }) => {
@@ -66,6 +68,17 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
       && isOwnTransaction(t, session?.user?.id, session?.profile?.full_name)
   );
   const adminIncome = successTrxForAdmin.length * (companyInfo.adminFee || 10000);
+
+  // Komisi komprehensif & riwayat payout dari Super Admin
+  const userAccess = normalizeAdminAccess(session?.profile?.allowed_paths);
+  const myCommissionData = calculateAdminCommissions(
+    transactions,
+    session?.user?.id,
+    session?.profile?.full_name,
+    companyInfo.adminFee || 10000,
+    userAccess.commissions || []
+  );
+  const [showCommissionHistoryModal, setShowCommissionHistoryModal] = useState(false);
 
   // Total successful transactions (including CS, needed for progress bar)
   const totalSuccessTrx = filteredTransactions.filter(t => 
@@ -403,14 +416,34 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
           </div>
         </div>
 
-        {/* Jasa Admin Card */}
-        <div className="bg-emerald-600 p-5 super-rounded text-white shadow-xl shadow-emerald-100 relative overflow-hidden">
+        {/* Jasa Admin / Komisi Card */}
+        <div className="bg-emerald-600 p-5 super-rounded text-white shadow-xl shadow-emerald-100 relative overflow-hidden flex flex-col justify-between">
           <div className="absolute -right-4 -top-4 w-20 h-20 bg-white opacity-10 rounded-full"></div>
-          <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest mb-1">Jasa Admin</p>
-          <p className="text-lg font-black leading-none">{formatRupiah(adminIncome)}</p>
-          <div className="mt-4 flex items-center gap-1 text-[8px] bg-white/20 w-fit px-2 py-0.5 rounded-full border border-white/10">
-             <TrendingUp size={8} />
-             <span>{successTrxForAdmin.length} Trx Sukses</span>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest">Jasa Kasir & Komisi</p>
+              {myCommissionData.history.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowCommissionHistoryModal(true)}
+                  className="text-[9px] font-bold bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors"
+                >
+                  <History size={10} /> Riwayat ({myCommissionData.history.length})
+                </button>
+              )}
+            </div>
+            <p className="text-lg font-black leading-none">{formatRupiah(adminIncome)}</p>
+          </div>
+          
+          <div className="mt-3 pt-2 border-t border-white/15 flex items-center justify-between text-[9px] text-emerald-100">
+            <span className="flex items-center gap-1">
+              <TrendingUp size={9} /> {successTrxForAdmin.length} Trx
+            </span>
+            <div className="flex items-center gap-2 font-bold">
+              <span>Cair: <b className="text-white">{formatRupiah(myCommissionData.totalPaid)}</b></span>
+              <span>·</span>
+              <span>Pending: <b className="text-amber-200">{formatRupiah(myCommissionData.pendingBalance)}</b></span>
+            </div>
           </div>
         </div>
 
@@ -614,6 +647,75 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
           </div>
         )}
       </div>
+
+      {/* Modal Riwayat Pencairan Komisi */}
+      {showCommissionHistoryModal && (
+        <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowCommissionHistoryModal(false)}>
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 relative space-y-4" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setShowCommissionHistoryModal(false)}
+              aria-label="Tutup"
+              className="absolute top-4 right-4 p-1.5 text-gray-400 hover:bg-gray-100 rounded-full"
+            >
+              <X size={18} />
+            </button>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <DollarSign size={20} />
+                </span>
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">Riwayat Pencairan Komisi</h3>
+                  <p className="text-xs text-gray-500">Pencairan komisi jasa kasir yang dikirim Super Admin</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
+              <div className="p-2 bg-white rounded-lg shadow-xs">
+                <p className="text-[9px] font-bold text-gray-400 uppercase">Total Diterima</p>
+                <p className="text-sm font-black text-emerald-600">{formatRupiah(myCommissionData.totalPaid)}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg shadow-xs">
+                <p className="text-[9px] font-bold text-gray-400 uppercase">Sisa Pending</p>
+                <p className="text-sm font-black text-amber-600">{formatRupiah(myCommissionData.pendingBalance)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Daftar Pengiriman</p>
+              {myCommissionData.history.length === 0 ? (
+                <p className="text-xs text-gray-400 italic text-center py-6 bg-gray-50 rounded-xl">Belum ada riwayat transfer.</p>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {myCommissionData.history.map((item) => (
+                    <div key={item.id} className="p-3 bg-white border border-gray-100 rounded-xl shadow-xs flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-gray-800 truncate">{item.notes || 'Pencairan Komisi'}</p>
+                        <p className="text-[10px] text-gray-400">
+                          {new Date(item.sent_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {item.payment_method ? ` · ${item.payment_method}` : ''}
+                        </p>
+                        {item.sent_by_name && (
+                          <p className="text-[9px] text-gray-400">Oleh: <span className="font-semibold text-gray-600">{item.sent_by_name}</span></p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-black text-emerald-600">+{formatRupiah(item.amount)}</p>
+                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
+                          ✅ DITRANSFER
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
