@@ -60,13 +60,31 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
   // 3. Remaining Target
   const remainingTarget = totalPotentialTarget - grossRevenue;
 
-  // 4. Admin Fee Income (Jasa Kasir) — HANYA transaksi yang benar-benar dikerjakan akun yang sedang
-  // login (lewat cashierId, cadangan cocokkan nama). Transaksi yang dikerjakan superadmin atau admin
-  // lain tidak pernah ikut terhitung sebagai jasa admin ini.
-  const successTrxForAdmin = filteredTransactions.filter(t =>
-    (t.status === 'LUNAS' || t.type === 'instansi') && t.payment_method !== 'CS'
-      && isOwnTransaction(t, session?.user?.id, session?.profile?.full_name)
-  );
+  // 4. Admin Fee Income (Jasa Kasir) — Sesuai aturan:
+  // - Superadmin & CS: tidak ada komisi (Rp 0).
+  // - Admin Wahyu: diatribusikan transaksi kasir toko non-CS (general retail).
+  // - Admin lain: hanya transaksi masing-masing.
+  const isWahyu = (session?.profile?.full_name || '').toLowerCase().includes('wahyu');
+  const isSuperadminSession = session?.profile?.role === 'superadmin';
+
+  const successTrxForAdmin = filteredTransactions.filter(t => {
+    const isPaid = t.status === 'LUNAS' || t.type === 'instansi';
+    const isCS = t.payment_method === 'CS' || 
+                 (t.cashier_name || '').toLowerCase().includes('cs') ||
+                 (t.cashierName || '').toLowerCase().includes('cs');
+    if (!isPaid || isCS) return false;
+    if (isSuperadminSession) return false;
+
+    if (isWahyu) {
+      const isSpecificOtherAdmin = t.cashier_id && t.cashier_id !== session?.user?.id && 
+                                   t.cashier_name && !t.cashier_name.toLowerCase().includes('wahyu') &&
+                                   !t.cashier_name.toLowerCase().includes('admin');
+      if (isSpecificOtherAdmin) return false;
+      return true;
+    }
+
+    return isOwnTransaction(t, session?.user?.id, session?.profile?.full_name);
+  });
   const adminIncome = successTrxForAdmin.length * (companyInfo.adminFee || 10000);
 
   // Komisi komprehensif & riwayat payout dari Super Admin
@@ -76,7 +94,8 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
     session?.user?.id,
     session?.profile?.full_name,
     companyInfo.adminFee || 10000,
-    userAccess.commissions || []
+    userAccess.commissions || [],
+    session?.profile?.role
   );
   const [showCommissionHistoryModal, setShowCommissionHistoryModal] = useState(false);
 
