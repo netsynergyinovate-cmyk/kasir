@@ -48,6 +48,53 @@ describe('calculateAdminCommissions', () => {
     expect(result.earnedTrxCount).toBe(1);
     expect(result.totalEarned).toBe(10000);
   });
+  it('returns 0 commission for superadmin role regardless of transactions', () => {
+    const transactions = [
+      { id: 't1', status: 'LUNAS', type: 'retail', price: 100000, cashier_name: 'Super Admin' }
+    ];
+    const result = calculateAdminCommissions(transactions, 'super-1', 'Super Admin', 10000, [], 'superadmin');
+    expect(result.earnedTrxCount).toBe(0);
+    expect(result.totalEarned).toBe(0);
+    expect(result.pendingBalance).toBe(0);
+  });
+
+  it('excludes CS transactions and CS cashier from commission calculation', () => {
+    const transactions = [
+      { id: 't1', status: 'LUNAS', type: 'retail', price: 100000, payment_method: 'CS', cashier_name: 'Wahyu' },
+      { id: 't2', status: 'LUNAS', type: 'retail', price: 100000, payment_method: 'CASH', cashier_name: 'CS NET.SI' },
+      { id: 't3', status: 'LUNAS', type: 'retail', price: 100000, payment_method: 'CASH', cashier_name: 'Wahyu' }
+    ];
+    const result = calculateAdminCommissions(transactions, 'adm-wahyu', 'Wahyu', 10000, [], 'admin');
+    expect(result.earnedTrxCount).toBe(1);
+    expect(result.totalEarned).toBe(10000);
+  });
+
+  it('attributes general store cashier transactions to Admin Wahyu', () => {
+    // 13 retail transactions without specific cashier_id or with Wahyu / Admin
+    const transactions = Array.from({ length: 13 }, (_, i) => ({
+      id: `trx-${i}`,
+      status: 'LUNAS',
+      type: 'retail',
+      payment_method: 'CASH',
+      cashier_name: i < 5 ? 'Wahyu' : 'Admin'
+    }));
+    const result = calculateAdminCommissions(transactions, 'adm-wahyu', 'Wahyu', 10000, [], 'admin');
+    expect(result.earnedTrxCount).toBe(13);
+    expect(result.totalEarned).toBe(130000);
+    expect(result.pendingBalance).toBe(130000);
+  });
+
+  it('does not attribute other specific admins transactions to Wahyu', () => {
+    const transactions = [
+      { id: 't1', status: 'LUNAS', type: 'retail', payment_method: 'CASH', cashier_id: 'adm-budi', cashier_name: 'Budi' },
+      { id: 't2', status: 'LUNAS', type: 'retail', payment_method: 'CASH', cashier_name: 'Wahyu' },
+    ];
+    const resultWahyu = calculateAdminCommissions(transactions, 'adm-wahyu', 'Wahyu', 10000, [], 'admin');
+    expect(resultWahyu.earnedTrxCount).toBe(1);
+
+    const resultBudi = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, [], 'admin');
+    expect(resultBudi.earnedTrxCount).toBe(1);
+  });
 });
 
 describe('createCommissionPayout', () => {
@@ -84,3 +131,5 @@ describe('createCommissionPayout', () => {
     expect(payout.sent_by_name).toBe('Super Admin');
   });
 });
+
+

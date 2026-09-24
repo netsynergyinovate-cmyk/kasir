@@ -8,11 +8,44 @@ import { normalizeAdminAccess } from './permissions';
  * - totalPaid: Total komisi yang sudah ditransfer oleh superadmin
  * - pendingBalance: Sisa komisi yang belum dicairkan (minimal 0)
  */
-export function calculateAdminCommissions(transactions = [], adminId = '', adminName = '', adminFee = 10000, commissionHistory = []) {
+export function calculateAdminCommissions(
+  transactions = [], 
+  adminId = '', 
+  adminName = '', 
+  adminFee = 10000, 
+  commissionHistory = [],
+  adminRole = 'admin'
+) {
+  // Superadmin tidak pernah mendapatkan komisi
+  if (adminRole === 'superadmin') {
+    return {
+      earnedTrxCount: 0,
+      totalEarned: 0,
+      totalPaid: 0,
+      pendingBalance: 0,
+      history: [],
+    };
+  }
+
+  const isWahyu = (adminName || '').toLowerCase().includes('wahyu');
+
   const matchingTrx = transactions.filter((t) => {
     const isPaid = t.status === 'LUNAS' || t.type === 'instansi';
-    const notCS = t.payment_method !== 'CS';
-    return isPaid && notCS && isOwnTransaction(t, adminId, adminName);
+    const isCS = t.payment_method === 'CS' || 
+                 (t.cashier_name || '').toLowerCase().includes('cs') ||
+                 (t.cashierName || '').toLowerCase().includes('cs');
+    if (!isPaid || isCS) return false;
+
+    // Jika admin adalah Wahyu, sertakan transaksi kasir umum / toko yang belum spesifik
+    if (isWahyu) {
+      const isSpecificOtherAdmin = t.cashier_id && t.cashier_id !== adminId && 
+                                   t.cashier_name && !t.cashier_name.toLowerCase().includes('wahyu') &&
+                                   !t.cashier_name.toLowerCase().includes('admin');
+      if (isSpecificOtherAdmin) return false;
+      return true;
+    }
+
+    return isOwnTransaction(t, adminId, adminName);
   });
 
   const totalEarned = matchingTrx.length * (Number(adminFee) || 10000);
@@ -97,3 +130,4 @@ export async function recordCommissionPayout(admin, payoutRecord) {
 
   return updatedPayload;
 }
+
