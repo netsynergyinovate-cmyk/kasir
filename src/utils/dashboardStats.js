@@ -168,3 +168,47 @@ export function methodBreakdown(transactions, date) {
 
   return [...byMethod.values()].sort((a, b) => b.revenue - a.revenue);
 }
+
+export const daysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+
+// Proyeksi pendapatan sampai akhir bulan memakai laju rata-rata harian sejauh ini (run-rate).
+export function projectMonthRevenue(revenue, now = new Date()) {
+  return Math.round((revenue / now.getDate()) * daysInMonth(now));
+}
+
+const normalizeName = (value) => (value || '').trim().toLowerCase();
+
+const customerMonthlyPrice = (customer, packages) => {
+  const own = Number(customer.price);
+  if (own > 0) return own;
+  const pkg = packages.find((p) => normalizeName(p.name) === normalizeName(customer.package));
+  return pkg ? Number(pkg.price) || 0 : 0;
+};
+
+// Rincian penagihan bulan berjalan untuk pelanggan aktif: jumlah + nominal yang sudah masuk dan yang masih
+// tertunggak (tagihan = harga pelanggan, atau harga paketnya bila harga pelanggan kosong).
+export function paymentBreakdown(customers, transactions, packages = [], now = new Date()) {
+  const active = customers.filter((customer) => customer.status === 'aktif');
+  const paidTransactions = transactions.filter(
+    (trx) => trx.type === 'retail' && trx.status === 'LUNAS' && inMonth(trx, now.getFullYear(), now.getMonth())
+  );
+  const paidNames = new Set(paidTransactions.map((trx) => normalizeName(trx.customerName || trx.customer_name)));
+  const activeNames = new Set(active.map((customer) => normalizeName(customer.name)));
+
+  const paidCustomers = active.filter((customer) => paidNames.has(normalizeName(customer.name)));
+  const unpaidCustomers = active.filter((customer) => !paidNames.has(normalizeName(customer.name)));
+
+  const paidAmount = paidTransactions
+    .filter((trx) => activeNames.has(normalizeName(trx.customerName || trx.customer_name)))
+    .reduce((sum, trx) => sum + Number(trx.price || 0), 0);
+  const unpaidAmount = unpaidCustomers.reduce((sum, customer) => sum + customerMonthlyPrice(customer, packages), 0);
+
+  return {
+    active: active.length,
+    paid: paidCustomers.length,
+    unpaid: unpaidCustomers.length,
+    paidPercent: active.length > 0 ? Math.round((paidCustomers.length / active.length) * 100) : 0,
+    paidAmount,
+    unpaidAmount,
+  };
+}

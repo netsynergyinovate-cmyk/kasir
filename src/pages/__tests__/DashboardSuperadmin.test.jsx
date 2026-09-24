@@ -41,7 +41,9 @@ describe('DashboardSuperadmin', () => {
   );
 
   it('greets the superadmin by name', () => {
-    expect(html).toContain('Halo, Super Administrator');
+    expect(html).toMatch(/Selamat (pagi|siang|sore|malam),/);
+    expect(html).toContain('Super Administrator');
+    expect(html).toContain('WIB');
   });
 
   it('shows the superadmin-only sections', () => {
@@ -85,15 +87,30 @@ describe('DashboardSuperadmin', () => {
   });
 
   it('renders executive financial overview and quick actions', () => {
-    expect(html).toContain('Omset Kotor Toko');
-    expect(html).toContain('Hak Komisi Kasir');
-    expect(html).toContain('Laba Bersih Toko');
+    expect(html).toContain('Finansial Eksekutif');
+    expect(html).toContain('Omset Kotor');
+    expect(html).toContain('ARPU');
+    expect(html).toContain('Hak Komisi');
+    expect(html).toContain('Laba Bersih');
+    expect(html).toContain('Kolektibilitas');
+    expect(html).toContain('Proyeksi Kas');
+    expect(html).toContain('Aksi Cepat');
     expect(html).toContain('Kasir Baru');
     expect(html).toContain('Pelanggan');
     expect(html).toContain('Kelola Komisi');
     expect(html).toContain('Rute &amp; Live');
     expect(html).toContain('WA Tagihan');
     expect(html).toContain('Pengaturan');
+  });
+
+  it('shows collection status, target and the 7-day chart', () => {
+    expect(html).toContain('Status Pembayaran Bulan Ini');
+    expect(html).toContain('Penagihan');
+    expect(html).toContain('Target Sisa');
+    expect(html).toContain('Omset 7 Hari Terakhir');
+    // 2 pelanggan aktif, keduanya belum bayar (transaksi tanpa jenis retail) => tautan ke daftar belum bayar
+    expect(html).toContain('/customers?tab=belum_bayar');
+    expect(html).toContain('/customers?tab=sudah_bayar');
   });
 
   it('renders cashier commission details and direct transfer button', () => {

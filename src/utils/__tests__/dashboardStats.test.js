@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction, weeklyRevenue } from '../dashboardStats';
+import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction, weeklyRevenue, projectMonthRevenue, daysInMonth, paymentBreakdown } from '../dashboardStats';
 
 describe('getGreeting', () => {
   it('returns the Indonesian greeting for each part of the day', () => {
@@ -246,5 +246,57 @@ describe('isOwnTransaction', () => {
 
   it('never counts a transaction as this admin\'s own when it has neither cashierId nor a matching name (e.g. done by superadmin)', () => {
     expect(isOwnTransaction({ cashierName: 'Super Administrator' }, 'u1', null)).toBe(false);
+  });
+});
+
+describe('projectMonthRevenue & daysInMonth', () => {
+  it('projects month-end revenue from the daily run-rate', () => {
+    // hari ke-10 dari 30 hari: 1jt terkumpul, laju 100rb/hari => 3jt
+    expect(projectMonthRevenue(1000000, new Date(2026, 8, 10))).toBe(3000000);
+    expect(daysInMonth(new Date(2026, 1, 5))).toBe(28);
+    expect(daysInMonth(new Date(2028, 1, 5))).toBe(29);
+  });
+
+  it('returns 0 for a month with no revenue yet', () => {
+    expect(projectMonthRevenue(0, new Date(2026, 8, 1))).toBe(0);
+  });
+});
+
+describe('paymentBreakdown', () => {
+  const now = new Date(2026, 8, 24, 10, 0, 0);
+  const thisMonth = new Date(2026, 8, 3, 10, 0, 0).toISOString();
+  const lastMonth = new Date(2026, 7, 3, 10, 0, 0).toISOString();
+  const customers = [
+    { id: 'a', name: 'Ani', status: 'aktif', price: 200000 },
+    { id: 'b', name: 'Budi', status: 'aktif', package: 'Home 20M' },
+    { id: 'c', name: 'Citra', status: 'aktif', price: 150000 },
+    { id: 'd', name: 'Dedi', status: 'isolir', price: 999000 },
+  ];
+  const packages = [{ name: 'Home 20M', price: 250000 }];
+  const transactions = [
+    { type: 'retail', status: 'LUNAS', customerName: 'ani', price: 200000, date: thisMonth },
+    { type: 'retail', status: 'LUNAS', customerName: 'Citra', price: 150000, date: lastMonth },
+    { type: 'retail', status: 'LUNAS', customerName: 'Dedi', price: 999000, date: thisMonth },
+  ];
+
+  it('counts only active customers and matches names case-insensitively', () => {
+    const result = paymentBreakdown(customers, transactions, packages, now);
+    expect(result.active).toBe(3);
+    expect(result.paid).toBe(1);
+    expect(result.unpaid).toBe(2);
+    expect(result.paidPercent).toBe(33);
+  });
+
+  it('sums paid amount for active customers only (isolir payments are not counted)', () => {
+    expect(paymentBreakdown(customers, transactions, packages, now).paidAmount).toBe(200000);
+  });
+
+  it('sums unpaid amount using customer price, falling back to package price', () => {
+    // Budi: harga paket 250rb, Citra: bayar bulan lalu saja => 150rb
+    expect(paymentBreakdown(customers, transactions, packages, now).unpaidAmount).toBe(400000);
+  });
+
+  it('handles no active customers', () => {
+    expect(paymentBreakdown([], [], [], now)).toEqual({ active: 0, paid: 0, unpaid: 0, paidPercent: 0, paidAmount: 0, unpaidAmount: 0 });
   });
 });
