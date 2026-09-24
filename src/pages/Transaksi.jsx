@@ -435,7 +435,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                   key={amt} 
                   type="button" 
                   onClick={() => handleQuickPay(amt)}
-                  className="py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-bold text-gray-600 active:bg-blue-600 active:text-white transition-all shadow-sm"
+                  className="py-2.5 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 border border-gray-100 rounded-xl text-[10px] font-bold text-gray-600 active:scale-95 active:bg-blue-600 active:text-white transition-all shadow-xs tap-bounce"
                 >
                   {formatRupiah(amt)}
                 </button>
@@ -457,7 +457,11 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
         <button
           type="submit"
           disabled={!selectedCustomerData || !activePackage || isSubmitting}
-          className="w-full bg-blue-600 text-white font-black text-lg py-4 rounded-2xl mt-4 shadow-xl shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95"
+          className={`w-full text-white font-black text-lg py-4 rounded-2xl mt-4 shadow-xl disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95 ${
+            selectedCustomerData && activePackage
+              ? 'bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 shadow-blue-300 animate-pulse-glow hover:scale-[1.01]'
+              : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'
+          }`}
         >
           <Printer size={20} /> {!selectedCustomerData ? 'Pilih Pelanggan Dulu' : (isSubmitting ? 'Menyamakan Nomor Invoice...' : 'Cetak Struk (58mm)')}
         </button>

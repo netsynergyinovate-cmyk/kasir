@@ -1108,8 +1108,8 @@ const Pelanggan = ({
 
       {/* 5. Detail Modal Pelanggan (Kecil, Rapi & Ringkas) */}
       {selectedDetailCust && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-3 animate-backdrop">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-sheet-up sm:animate-pop-in flex flex-col max-h-[90vh]">
             
             {/* Modal Header: Ringkas & Bersih */}
             <div className="bg-blue-600 px-4 py-3 text-white flex justify-between items-center shrink-0">
@@ -1307,8 +1307,8 @@ const Pelanggan = ({
 
       {/* 6. WhatsApp Message Template Modal */}
       {waModalCust && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-3 animate-backdrop">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-sheet-up sm:animate-pop-in flex flex-col max-h-[85vh]">
             <div className="bg-emerald-600 px-4 py-3 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
                 <MessageSquare size={16} />

@@ -27,8 +27,8 @@ const VisitModal = ({ customer, onClose, onSave, initialOutcome = 'tidak_ada_di_
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-      <form onSubmit={submit} className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 space-y-4 relative">
+    <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-backdrop">
+      <form onSubmit={submit} className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 space-y-4 relative animate-sheet-up sm:animate-pop-in">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 p-1.5 text-gray-400 hover:bg-gray-100 rounded-full"><X size={18} /></button>
         <div>
           <h3 className="text-lg font-black text-gray-900">Catat Kunjungan</h3>

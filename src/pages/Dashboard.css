@@ -4,12 +4,24 @@
 
 .card-gradient {
   background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.25);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+}
+
+.card-gradient:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px -5px rgba(37, 99, 235, 0.35);
 }
 
 .highlight-card {
   background: linear-gradient(to right, #f0fdf4, #ecfdf5);
   border: 1px solid #d1fae5;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.highlight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px -4px rgba(16, 185, 129, 0.15);
 }
 
 .super-rounded {
@@ -19,7 +31,13 @@
 .stat-card {
   background: white;
   border: 1px solid #f1f5f9;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.05), 0 1px 4px -1px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.08);
 }
 
 .nav-button {
@@ -29,7 +47,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-button:not(:disabled):hover {
+  background-color: #f1f5f9;
+  transform: scale(1.05);
 }
 
 .nav-button:not(:disabled):active {
@@ -39,4 +62,31 @@
 .nav-button:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* Quick Action Item Styling */
+.quick-action-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: 1rem;
+  background: white;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.quick-action-tile:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.08);
+  border-color: #e2e8f0;
+}
+
+.quick-action-tile:active {
+  transform: translateY(0) scale(0.94);
 }

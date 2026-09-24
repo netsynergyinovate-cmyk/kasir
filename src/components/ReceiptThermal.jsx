@@ -326,7 +326,7 @@ const ReceiptThermal = ({ transaction, customer, companyInfo, session, onClose, 
   `;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md print:bg-white print:p-0 flex flex-col no-print-overlay">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md print:bg-white print:p-0 flex flex-col no-print-overlay animate-backdrop">
       <style>{printStyles}</style>
 
       <header className="shrink-0 flex items-center justify-between px-4 py-3 print:hidden no-print">
@@ -346,7 +346,7 @@ const ReceiptThermal = ({ transaction, customer, companyInfo, session, onClose, 
 
       <div className="flex-1 min-h-0 overflow-y-auto print:overflow-visible">
       <div className="w-full flex justify-center py-3 px-4 print:p-0 print:m-0"> 
-        <div ref={receiptRef} className="print-container bg-white w-full max-w-[300px] relative flex flex-col font-mono text-black print:m-0 print:w-[58mm] print:shadow-none shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden h-fit">
+        <div ref={receiptRef} className="print-container bg-white w-full max-w-[300px] relative flex flex-col font-mono text-black print:m-0 print:w-[58mm] print:shadow-none shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-sm overflow-hidden h-fit animate-pop-in">
           
           <div className="h-3 w-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSI1Ij48cG9seWdvbiBwb2ludHM9IjAsNSA1LDAgMTAsNSIgZmlsbD0id2hpdGUiLz48L3N2Zz4=')] bg-repeat-x absolute -top-[1px] left-0 z-10 print:hidden"></div>
 

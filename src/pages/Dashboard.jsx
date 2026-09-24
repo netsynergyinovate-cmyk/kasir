@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X } from 'lucide-react';
+import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Zap, Navigation2, Sparkles } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { formatDueReminderMessage } from '../utils/whatsappTemplates';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
@@ -269,12 +269,123 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
         </div>
       )}
 
+      {/* Quick Action Grid (Aksi Cepat) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between ml-1">
+          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+            <Sparkles size={12} className="text-amber-500" />
+            <span>Aksi Cepat</span>
+          </h2>
+          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+            Pintasan Kasir
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {/* 1. Transaksi Baru */}
+          <Link
+            to="/pos"
+            className="quick-action-tile group"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-200 group-hover:scale-110 transition-transform">
+              <Zap size={20} className="fill-white" />
+            </div>
+            <span className="text-[11px] font-black text-gray-800 mt-2">Kasir Baru</span>
+            <span className="text-[8px] font-bold text-blue-600">Bayar / Voucher</span>
+          </Link>
+
+          {/* 2. Pelanggan */}
+          <Link
+            to="/customers"
+            className="quick-action-tile group"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-200 group-hover:scale-110 transition-transform">
+              <Users size={20} />
+            </div>
+            <span className="text-[11px] font-black text-gray-800 mt-2">Pelanggan</span>
+            <span className="text-[8px] font-bold text-emerald-600">{totalCustomers} Terdaftar</span>
+          </Link>
+
+          {/* 3. Komisi Kasir */}
+          <button
+            type="button"
+            onClick={() => setShowCommissionHistoryModal(true)}
+            className="quick-action-tile group text-center"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-200 group-hover:scale-110 transition-transform relative">
+              <DollarSign size={20} />
+              {myCommissionData.pendingBalance > 0 && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full animate-ping" />
+              )}
+            </div>
+            <span className="text-[11px] font-black text-gray-800 mt-2">Komisi Saya</span>
+            <span className={`text-[8px] font-bold ${myCommissionData.pendingBalance > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+              {myCommissionData.pendingBalance > 0 ? formatRupiah(myCommissionData.pendingBalance) : 'Riwayat'}
+            </span>
+          </button>
+
+          {/* 4. Rute Lapangan */}
+          <Link
+            to={canManageRoute || session?.profile?.role === 'superadmin' ? '/rute' : '/'}
+            onClick={(e) => {
+              if (!canManageRoute && session?.profile?.role !== 'superadmin') {
+                e.preventDefault();
+                const routeEl = document.querySelector('.route-overview-container') || document.querySelector('section');
+                if (routeEl) routeEl.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            className="quick-action-tile group"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-violet-500 text-white flex items-center justify-center shadow-md shadow-purple-200 group-hover:scale-110 transition-transform">
+              <Navigation2 size={20} />
+            </div>
+            <span className="text-[11px] font-black text-gray-800 mt-2">Rute Peta</span>
+            <span className="text-[8px] font-bold text-purple-600">Teknisi & Tagih</span>
+          </Link>
+
+          {/* 5. Pengingat WA */}
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('reminder-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+              else if (reminderList.length > 0) handleSendBatchReminders();
+              else alert('Tidak ada pelanggan yang mendekati jatuh tempo saat ini.');
+            }}
+            className="quick-action-tile group"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-green-200 group-hover:scale-110 transition-transform relative">
+              <MessageCircle size={20} />
+              {reminderList.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full border-2 border-white">
+                  {reminderList.length}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] font-black text-gray-800 mt-2">Kirim WA</span>
+            <span className="text-[8px] font-bold text-green-600">Pengingat Tagihan</span>
+          </button>
+
+          {/* 6. Riwayat Transaksi */}
+          <Link
+            to="/history"
+            className="quick-action-tile group"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-slate-700 to-gray-800 text-white flex items-center justify-center shadow-md shadow-gray-300 group-hover:scale-110 transition-transform">
+              <History size={20} />
+            </div>
+            <span className="text-[11px] font-black text-gray-800 mt-2">Riwayat</span>
+            <span className="text-[8px] font-bold text-gray-500">Cetak & Bukti</span>
+          </Link>
+        </div>
+      </div>
+
       {/* Peta + jalur rute kunjungan dan tujuan berikutnya */}
       <RouteOverview customers={customers} transactions={transactions} visits={visits} onAddVisit={onAddVisit} canManageRoute={canManageRoute} origin={origin} myPosition={myPosition} locationStatus={locationStatus} adminLocations={adminLocations} onRetryLocation={onRetryLocation} />
 
       {/* Pengingat Tagihan (due-date reminders, always real-time) */}
       {reminderList.length > 0 && (
-        <div>
+        <div id="reminder-section">
           <div className="flex items-center justify-between mb-2 ml-1">
             <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
               <span>⏰ Pengingat Tagihan & Isolir</span>
@@ -650,8 +761,8 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
 
       {/* Modal Riwayat Pencairan Komisi */}
       {showCommissionHistoryModal && (
-        <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowCommissionHistoryModal(false)}>
-          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 relative space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-backdrop" onClick={() => setShowCommissionHistoryModal(false)}>
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 relative space-y-4 animate-sheet-up sm:animate-pop-in" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setShowCommissionHistoryModal(false)}

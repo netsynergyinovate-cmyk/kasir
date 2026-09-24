@@ -88,8 +88,8 @@ const AddCustomerModal = ({ show, packages = [], companyInfo, onClose, onAdd }) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-backdrop">
+      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-sheet-up sm:animate-pop-in max-h-[90vh] flex flex-col">
         <div className="bg-blue-600 p-4 flex justify-between items-center text-white shrink-0">
           <div className="flex items-center gap-2">
             <Wifi size={20} />

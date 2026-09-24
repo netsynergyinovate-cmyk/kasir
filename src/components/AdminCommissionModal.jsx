@@ -75,8 +75,8 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
   };
 
   return (
-    <div className="fixed inset-0 z-[70] bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 relative space-y-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[70] bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-backdrop" onClick={onClose}>
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 relative space-y-5 animate-sheet-up sm:animate-pop-in" onClick={(e) => e.stopPropagation()}>
         <button type="button" onClick={onClose} aria-label="Tutup" className="absolute top-4 right-4 p-1.5 text-gray-400 hover:bg-gray-100 rounded-full transition-colors">
           <X size={18} />
         </button>
@@ -230,3 +230,4 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
 };
 
 export default AdminCommissionModal;
+

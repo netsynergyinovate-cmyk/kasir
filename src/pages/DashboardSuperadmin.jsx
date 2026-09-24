@@ -214,7 +214,7 @@ const DashboardSuperadmin = (props) => {
 
         {/* KPI: bulan ini vs bulan lalu */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="col-span-2 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm card-interactive">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                 <Wallet size={12} /> Pendapatan {MONTHS[now.getMonth()]} (lunas)
@@ -225,7 +225,7 @@ const DashboardSuperadmin = (props) => {
             <p className="text-[11px] text-gray-500 mt-0.5">{previousMonthLabel}: {formatRupiah(comparison.previous.revenue)}</p>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm card-interactive">
             <div className="flex items-center justify-between gap-1">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><Receipt size={12} /> Transaksi</p>
               <TrendBadge change={comparison.countChange} />
@@ -234,7 +234,7 @@ const DashboardSuperadmin = (props) => {
             <p className="text-[11px] text-gray-500">{previousMonthLabel}: {comparison.previous.count}</p>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm card-interactive">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1"><CheckCircle size={12} /> Sudah bayar</p>
             <p className="text-xl font-black text-emerald-600 mt-1">{payment.paid}<span className="text-sm text-gray-400 font-bold"> / {payment.active}</span></p>
             <div className="h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden">

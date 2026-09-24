@@ -3,8 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Search, Calendar, Filter, FileText, Building2, ChevronRight, Trash2,
   RefreshCw, Camera, AlertTriangle, CheckCircle2, Clock, CreditCard,
-  User, Globe, Zap, Tag, Check, Layers
+  User, Globe, Zap, Tag, Check, Layers, MessageCircle
 } from 'lucide-react';
+
 import { supabase } from '../lib/supabase';
 import { formatRupiah, getInvoiceNumber } from '../utils/format';
 import { runsnetCodeOf, describeRunsnetStatus, isRunsnetMismatch } from '../utils/runsnetStatus';
@@ -131,6 +132,12 @@ const History = ({
     });
   }, [transactions, searchQuery, selectedMonth, selectedYear, selectedDay]);
 
+  const isWhatsAppPayment = (trx) => {
+    const method = (trx.paymentMethod || trx.payment_method || '').toLowerCase();
+    const cashier = (trx.cashierName || trx.cashier_name || '').toLowerCase();
+    return method.includes('wa') || method.includes('whatsapp') || cashier.includes('whatsapp') || cashier.includes('bot');
+  };
+
   // Statistik untuk data tanggal terpilih
   const totalIncome = useMemo(
     () => dateFilteredTransactions.reduce((acc, curr) => acc + (Number(curr.price) || 0), 0),
@@ -138,6 +145,10 @@ const History = ({
   );
   const lunasCount = useMemo(
     () => dateFilteredTransactions.filter((t) => t.status === 'LUNAS').length,
+    [dateFilteredTransactions]
+  );
+  const waCount = useMemo(
+    () => dateFilteredTransactions.filter(isWhatsAppPayment).length,
     [dateFilteredTransactions]
   );
   const kasbonCount = useMemo(
@@ -156,11 +167,13 @@ const History = ({
   // 2. Filter lanjutan berdasarkan Tab Status
   const displayedTransactions = useMemo(() => {
     if (statusTab === 'lunas') return dateFilteredTransactions.filter((t) => t.status === 'LUNAS' && t.type !== 'instansi');
+    if (statusTab === 'whatsapp') return dateFilteredTransactions.filter(isWhatsAppPayment);
     if (statusTab === 'kasbon') return dateFilteredTransactions.filter((t) => t.status === 'KASBON');
     if (statusTab === 'mismatch') return dateFilteredTransactions.filter((t) => isRunsnetMismatch(t, runsnetStatuses[runsnetCodeOf(t)]));
     if (statusTab === 'instansi') return dateFilteredTransactions.filter((t) => t.type === 'instansi');
     return dateFilteredTransactions;
   }, [dateFilteredTransactions, statusTab, runsnetStatuses]);
+
 
   // Ambil daftar kode invoice untuk dicek statusnya ke Runsnet
   const codes = useMemo(
@@ -203,10 +216,26 @@ const History = ({
 
   useEffect(() => {
     let cancelled = false;
-    supabase.from('runsnet_proofs').select('transaction_id').then(({ data }) => {
-      if (!cancelled && data) setProofIds(new Set(data.map((r) => r.transaction_id)));
-    });
-    return () => { cancelled = true; };
+    const fetchProofs = () => {
+      supabase.from('runsnet_proofs').select('transaction_id').then(({ data }) => {
+        if (!cancelled && data) setProofIds(new Set(data.map((r) => r.transaction_id)));
+      });
+    };
+    fetchProofs();
+
+    const handleProofUpdate = (e) => {
+      if (e?.detail?.transactionId) {
+        setProofIds((prev) => new Set([...prev, e.detail.transactionId]));
+      } else {
+        fetchProofs();
+      }
+    };
+    window.addEventListener('kasir:proof-updated', handleProofUpdate);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('kasir:proof-updated', handleProofUpdate);
+    };
   }, []);
 
   const recheck = async () => setRefreshTick((n) => n + 1);
@@ -377,10 +406,16 @@ const History = ({
         </div>
 
         {/* Baris Ringkasan Cepat */}
-        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/20 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-white/20 text-center">
           <div className="bg-white/10 rounded-2xl p-2.5 backdrop-blur-xs">
             <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider">Lunas</p>
             <p className="text-base font-black mt-0.5">{lunasCount}</p>
+          </div>
+          <div className={`rounded-2xl p-2.5 backdrop-blur-xs ${waCount > 0 ? 'bg-emerald-500/80 text-white font-black' : 'bg-white/10 text-white'}`}>
+            <p className="text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1">
+              <MessageCircle size={11} className="shrink-0" /> WA Auto
+            </p>
+            <p className="text-base font-black mt-0.5">{waCount}</p>
           </div>
           <div className="bg-white/10 rounded-2xl p-2.5 backdrop-blur-xs">
             <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider">Kasbon</p>
@@ -471,6 +506,20 @@ const History = ({
           </button>
           <button
             type="button"
+            onClick={() => setStatusTab('whatsapp')}
+            className={`flex-1 min-w-[90px] py-2 rounded-xl text-center transition-all flex items-center justify-center gap-1 ${
+              statusTab === 'whatsapp'
+                ? 'bg-emerald-600 text-white shadow-xs font-black'
+                : waCount > 0
+                  ? 'bg-emerald-50 text-emerald-800 font-bold'
+                  : 'text-gray-500'
+            }`}
+          >
+            <MessageCircle size={12} className="shrink-0" />
+            <span>WA Auto ({waCount})</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setStatusTab('kasbon')}
             className={`flex-1 min-w-[70px] py-2 rounded-xl text-center transition-all ${statusTab === 'kasbon' ? 'bg-white text-amber-700 shadow-xs' : 'text-gray-500'}`}
           >
@@ -498,6 +547,7 @@ const History = ({
           </button>
         </div>
       </div>
+
 
       {/* Kotak Status Sinkronisasi Runsnet Global */}
       {codes.length > 0 && (
@@ -556,11 +606,14 @@ const History = ({
             const isSyncing = syncingId === trx.id;
             const checkedAtCard = checkedTimes[trx.id];
             const pppoe = trx.pppoeId || trx.pppoe_id;
+            const isWaTrx = isWhatsAppPayment(trx);
 
             return (
               <div
                 key={trx.id}
-                className="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all p-4 space-y-3 relative overflow-hidden"
+                className={`bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all p-4 space-y-3 relative overflow-hidden card-interactive ${
+                  isWaTrx ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-gray-100'
+                }`}
               >
                 {/* Baris Atas: Nomor Invoice, Badge Status, Kasir, & Aksi Hapus */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-gray-100">
@@ -591,23 +644,30 @@ const History = ({
                         )}
                       </div>
                     )}
-                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide ${
+                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide flex items-center gap-1 ${
                       trx.type === 'instansi'
                         ? 'bg-purple-100 text-purple-700'
-                        : trx.status === 'LUNAS'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-amber-100 text-amber-800'
+                        : isWaTrx
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : trx.status === 'LUNAS'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
                     }`}>
-                      {trx.type === 'instansi' ? 'INSTANSI' : trx.status}
+                      {isWaTrx && <MessageCircle size={11} className="shrink-0" />}
+                      <span>{trx.type === 'instansi' ? 'INSTANSI' : isWaTrx ? 'LUNAS (WA BOT)' : trx.status}</span>
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    {trx.cashierName && (
-                      <span className="text-[10px] text-gray-500 font-bold flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg">
-                        <User size={11} className="text-gray-400" /> {trx.cashierName}
+                    {(trx.cashierName || trx.cashier_name) && (
+                      <span className={`text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-lg ${
+                        isWaTrx ? 'text-emerald-800 bg-emerald-50 border border-emerald-200' : 'text-gray-500 bg-gray-50'
+                      }`}>
+                        {isWaTrx ? <MessageCircle size={11} className="text-emerald-600" /> : <User size={11} className="text-gray-400" />}
+                        <span>{trx.cashierName || trx.cashier_name}</span>
                       </span>
                     )}
+
                     {role === 'superadmin' && (
                       <button
                         type="button"
@@ -637,7 +697,7 @@ const History = ({
                     </div>
                     <div className="min-w-0 flex-1 space-y-1">
                       <p className="font-black text-gray-900 text-sm sm:text-base leading-tight truncate">
-                        {trx.type === 'instansi' ? trx.instansiName : trx.customerName}
+                        {trx.type === 'instansi' ? (trx.instansiName || trx.instansi_name) : (trx.customerName || trx.customer_name)}
                       </p>
 
                       {/* Tanggal & Jam Lengkap */}
@@ -648,9 +708,9 @@ const History = ({
 
                       {/* Chip Metadata: Nama Paket, PPPoE, Metode Bayar */}
                       <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                        {(trx.packageName || trx.serviceName) && (
+                        {(trx.packageName || trx.serviceName || trx.package_name) && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
-                            <Tag size={10} /> {trx.packageName || trx.serviceName}
+                            <Tag size={10} /> {trx.packageName || trx.serviceName || trx.package_name}
                           </span>
                         )}
                         {pppoe && (
@@ -658,10 +718,16 @@ const History = ({
                             <Globe size={10} /> PPPoE: {pppoe}
                           </span>
                         )}
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
-                          <CreditCard size={10} /> {trx.paymentMethod || trx.payment_method || 'Tunai'}
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          isWaTrx
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {isWaTrx ? <MessageCircle size={10} className="text-emerald-600" /> : <CreditCard size={10} />}
+                          <span>{trx.paymentMethod || trx.payment_method || 'Tunai'}</span>
                         </span>
                       </div>
+
                     </div>
                   </div>
 
@@ -736,7 +802,7 @@ const History = ({
                     <div className="flex items-center justify-between text-[11px]">
                       <span className={`inline-flex items-center gap-1 font-bold ${hasProof ? 'text-emerald-700' : 'text-gray-400'}`}>
                         <Camera size={13} />
-                        {hasProof ? 'Bukti screenshot tersimpan ✓' : 'Belum ada bukti screenshot'}
+                        {hasProof ? (isWaTrx ? 'Foto bukti transfer WhatsApp tersimpan ✓' : 'Bukti screenshot tersimpan ✓') : 'Belum ada bukti screenshot'}
                       </span>
                     </div>
 
@@ -797,13 +863,16 @@ const History = ({
                         className={`flex-1 min-w-[110px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold active:scale-95 transition-all ${
                           hasProof
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                            : isWaTrx
+                              ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 shadow-xs'
+                              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                         }`}
                       >
-                        <Camera size={13} />
-                        <span>{hasProof ? 'Lihat Bukti' : 'Unggah Bukti'}</span>
+                        <Camera size={13} className={!hasProof && isWaTrx ? 'text-amber-600' : ''} />
+                        <span>{hasProof ? (isWaTrx ? 'Lihat Bukti WA 📸' : 'Lihat Bukti') : (isWaTrx ? '📎 Lampirkan Foto WA' : 'Unggah Bukti')}</span>
                       </button>
                     </div>
+
                   </div>
                 )}
               </div>
