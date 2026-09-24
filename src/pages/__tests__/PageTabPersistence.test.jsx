@@ -184,4 +184,28 @@ describe('Page and Tab Persistence across Refresh & Reopening', () => {
     root.unmount();
     container.remove();
   });
+
+  it('Settings page initializes on watbiz tab and renders WhatsApp gateway log UI', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={['/settings?tab=watbiz']}>
+          <Settings
+            packages={[]}
+            companyInfo={{ watbizToken: 'test-token', watbizEnabled: true }}
+            session={{ user: { id: 'u1' }, profile: { role: 'superadmin' } }}
+          />
+        </MemoryRouter>
+      );
+    });
+
+    expect(container.textContent).toContain('Integrasi WhatsApp (Watbiz)');
+    expect(container.textContent).toContain('Log & Riwayat WhatsApp Gateway');
+
+    root.unmount();
+    container.remove();
+  });
 });

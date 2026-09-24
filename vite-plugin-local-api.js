@@ -4,7 +4,8 @@ import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import { loadEnv } from 'vite';
 
-// Memetakan /api/x/y ke <apiDir>/x/y.js. Mengembalikan null untuk path yang tidak boleh dilayani
+// Memetakan /api/x/y ke <apiDir>/x/y.js atau <apiDir>/x/index.js.
+// Mengembalikan null untuk path yang tidak boleh dilayani
 // (traversal, atau file/folder privat berawalan underscore seperti _lib).
 export function resolveApiFile(urlPath, apiDir) {
   const rest = urlPath.split('?')[0].replace(/^\/api\//, '');
@@ -13,8 +14,28 @@ export function resolveApiFile(urlPath, apiDir) {
   const parts = rest.split('/').filter(Boolean);
   if (parts.length === 0 || parts.some((part) => part.startsWith('_'))) return null;
 
-  const file = path.join(apiDir, ...parts) + '.js';
-  return file.startsWith(apiDir + path.sep) ? file : null;
+  // 1. Cek langsung file .js jika ada di disk
+  const directFile = path.join(apiDir, ...parts) + '.js';
+  if (fs.existsSync && fs.existsSync(directFile) && directFile.startsWith(apiDir + path.sep)) {
+    return directFile;
+  }
+
+  // 2. Cek index.js jika path adalah direktori (misal /api/watbiz -> <apiDir>/watbiz/index.js)
+  const indexFile = path.join(apiDir, ...parts, 'index.js');
+  if (fs.existsSync && fs.existsSync(indexFile) && indexFile.startsWith(apiDir + path.sep)) {
+    return indexFile;
+  }
+
+  // 3. Cek sub-route rewrite (misal /api/watbiz/webhook -> <apiDir>/watbiz/index.js)
+  if (parts.length > 1) {
+    const parentIndex = path.join(apiDir, parts[0], 'index.js');
+    if (fs.existsSync && fs.existsSync(parentIndex) && parentIndex.startsWith(apiDir + path.sep)) {
+      return parentIndex;
+    }
+  }
+
+  // Fallback default: directFile (agar path matching dasar tetap konsisten)
+  return directFile.startsWith(apiDir + path.sep) ? directFile : null;
 }
 
 const readJsonBody = (req) =>

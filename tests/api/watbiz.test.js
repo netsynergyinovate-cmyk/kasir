@@ -12,6 +12,8 @@ vi.mock('../../api/_lib/supabaseAdmin.js', () => ({
 vi.mock('../../api/_lib/watbizClient.js', () => ({
   sendWatbizMessage: vi.fn(),
   sendWatbizMedia: vi.fn(),
+  registerWatbizWebhook: vi.fn(),
+  getWatbizProfile: vi.fn(),
 }));
 
 vi.mock('../../api/_lib/paymentSync.js', () => ({
@@ -20,7 +22,8 @@ vi.mock('../../api/_lib/paymentSync.js', () => ({
 
 import { verifySuperadmin, verifyStaff } from '../../api/_lib/verifySuperadmin.js';
 import { getServiceClient } from '../../api/_lib/supabaseAdmin.js';
-import { sendWatbizMessage } from '../../api/_lib/watbizClient.js';
+import { sendWatbizMessage, registerWatbizWebhook, getWatbizProfile } from '../../api/_lib/watbizClient.js';
+
 import { syncPayment } from '../../api/_lib/paymentSync.js';
 import handler from '../../api/watbiz/index.js';
 
@@ -96,7 +99,93 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
     });
   });
 
+  describe('Action: register-webhook', () => {
+    it('requires superadmin authentication', async () => {
+      verifySuperadmin.mockResolvedValue({ error: { status: 401, message: 'Unauthorized' } });
+      const res = makeRes();
+      await handler({ method: 'POST', body: { action: 'register-webhook' } }, res);
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('requires token and webhookUrl', async () => {
+      verifySuperadmin.mockResolvedValue({
+        adminClient: {
+          from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }) })
+        }
+      });
+      const res1 = makeRes();
+      await handler({ method: 'POST', body: { action: 'register-webhook', token: '' } }, res1);
+      expect(res1.statusCode).toBe(400);
+
+      const res2 = makeRes();
+      await handler({ method: 'POST', body: { action: 'register-webhook', token: 'token-123', webhookUrl: '' } }, res2);
+      expect(res2.statusCode).toBe(400);
+    });
+
+    it('registers webhook URL via Watbiz API v2 and records log', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ error: null });
+      verifySuperadmin.mockResolvedValue({
+        adminClient: { from: () => ({ insert: mockInsert }) }
+      });
+      registerWatbizWebhook.mockResolvedValue({ ok: true, status: 200, body: { status: 'success' } });
+
+      const res = makeRes();
+      await handler({
+        method: 'POST',
+        body: {
+          action: 'register-webhook',
+          token: '51dad347-d267-4254-9858-3e3b19c76c53',
+          webhookUrl: 'https://kasir-psi.vercel.app/api/watbiz'
+        }
+      }, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(registerWatbizWebhook).toHaveBeenCalledWith('51dad347-d267-4254-9858-3e3b19c76c53', 'https://kasir-psi.vercel.app/api/watbiz');
+      expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
+        phone_number: 'WEBHOOK_CONFIG',
+        status: 'success'
+      }));
+    });
+  });
+
+  describe('Action: get-webhook', () => {
+    it('requires staff authentication', async () => {
+      verifyStaff.mockResolvedValue({ error: { status: 401, message: 'Unauthorized' } });
+      const res = makeRes();
+      await handler({ method: 'POST', body: { action: 'get-webhook' } }, res);
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('returns registered webhook url from Watbiz profile', async () => {
+      verifyStaff.mockResolvedValue({
+        adminClient: {
+          from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { watbiz_token: 'token-prof' } }) }) }) })
+        }
+      });
+      getWatbizProfile.mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: {
+          data: {
+            webhook_url: 'https://kasir-psi.vercel.app/api/watbiz',
+            name: 'Device-1',
+            credit: 1500,
+            whatsapp_credit: 988
+          }
+        }
+      });
+
+      const res = makeRes();
+      await handler({ method: 'POST', body: { action: 'get-webhook' } }, res);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.webhookUrl).toBe('https://kasir-psi.vercel.app/api/watbiz');
+      expect(res.body.credit).toBe(1500);
+    });
+  });
+
   describe('Action: send-invoice', () => {
+
     it('requires staff authentication', async () => {
       verifyStaff.mockResolvedValue({ error: { status: 401, message: 'Unauthorized' } });
       const res = makeRes();
@@ -227,7 +316,9 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
 
   describe('Inbound Webhook (Auto-Payment & Auto-Konfirmasi)', () => {
     it('skips when no valid phone number in payload', async () => {
-      getServiceClient.mockReturnValue({});
+      getServiceClient.mockReturnValue({
+        from: () => ({ insert: vi.fn().mockResolvedValue({ error: null }) })
+      });
       const res = makeRes();
       await handler({
         method: 'POST',
@@ -239,7 +330,7 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
       expect(res.body.message).toMatch(/No valid sender phone/i);
     });
 
-    it('automatically processes payment when registered customer sends payment proof image or text', async () => {
+    it('demands photo proof and does NOT pay when customer sends text claiming payment without image', async () => {
       const mockCustomer = {
         id: 'cust-101',
         custid: 'CUST-101',
@@ -251,10 +342,79 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
         status: 'isolir'
       };
 
-      const mockInsertTrx = vi.fn().mockReturnValue({
-        select: () => ({ single: () => Promise.resolve({ data: { id: 'trx-auto-1', price: 200000 }, error: null }) })
+      const mockInsertTrx = vi.fn();
+      const mockUpdateCust = vi.fn();
+      const mockInsertLog = vi.fn().mockResolvedValue({ error: null });
+
+      const mockAdminClient = {
+        from: (table) => {
+          if (table === 'company_settings') {
+            return {
+              select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { watbiz_token: 'token-bot', watbiz_enabled: true } }) }) })
+            };
+          }
+          if (table === 'watbiz_logs') {
+            return { insert: mockInsertLog };
+          }
+          if (table === 'customers') {
+            return {
+              select: () => ({
+                ilike: () => Promise.resolve({ data: [mockCustomer], error: null })
+              }),
+              update: mockUpdateCust
+            };
+          }
+          if (table === 'transactions') {
+            return { insert: mockInsertTrx };
+          }
+          return { select: vi.fn(), insert: vi.fn(), update: vi.fn() };
+        }
+      };
+
+      getServiceClient.mockReturnValue(mockAdminClient);
+      sendWatbizMessage.mockResolvedValue({ ok: true, status: 200, body: {} });
+
+      const res = makeRes();
+      await handler({
+        method: 'POST',
+        url: '/api/watbiz/webhook',
+        body: {
+          from: '6281234567890',
+          text: 'Halo admin kasir, saya sudah transfer tagihan internet'
+        }
+      }, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.status).toBe('proof_photo_required');
+      expect(res.body.customer).toBe('Ahmad Fauzi');
+
+      // Memastikan transaksi TIDAK dibuat dan status pelanggan TIDAK berubah
+      expect(mockInsertTrx).not.toHaveBeenCalled();
+      expect(mockUpdateCust).not.toHaveBeenCalled();
+
+      // Memastikan pesan minta foto bukti transfer dikirim via WhatsApp
+      expect(sendWatbizMessage).toHaveBeenCalledWith('token-bot', {
+        number: '6281234567890',
+        message: expect.stringMatching(/FOTO STRUK TRANSFER/i)
       });
+    });
+
+    it('automatically processes payment when registered customer sends payment proof image', async () => {
+      const mockCustomer = {
+        id: 'cust-101',
+        custid: 'CUST-101',
+        name: 'Ahmad Fauzi',
+        phone: '081234567890',
+        package: 'NET HOME 20 Mbps',
+        price: 200000,
+        due_date: 25,
+        status: 'isolir'
+      };
+
+      const mockInsertTrx = vi.fn().mockResolvedValue({ error: null });
       const mockUpdateCust = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+      const mockInsertProof = vi.fn().mockResolvedValue({ error: null });
       const mockInsertLog = vi.fn().mockResolvedValue({ error: null });
 
       const mockAdminClient = {
@@ -287,6 +447,9 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
               insert: mockInsertTrx
             };
           }
+          if (table === 'runsnet_proofs') {
+            return { insert: mockInsertProof };
+          }
           return { select: vi.fn(), insert: vi.fn(), update: vi.fn() };
         }
       };
@@ -311,6 +474,19 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
       expect(res.body.status).toBe('auto_payment_success');
       expect(res.body.customer).toBe('Ahmad Fauzi');
 
+      // Memastikan transaksi tersimpan dengan metode Transfer WA dan kasir bot
+      expect(mockInsertTrx).toHaveBeenCalledWith([expect.objectContaining({
+        status: 'LUNAS',
+        payment_method: 'Transfer WA',
+        cashier_name: 'WhatsApp Bot (Auto)'
+      })]);
+
+      // Memastikan bukti foto tersimpan ke runsnet_proofs pada kolom `image`
+      expect(mockInsertProof).toHaveBeenCalledWith(expect.objectContaining({
+        image: 'https://example.com/bukti-transfer.jpg',
+        uploaded_by_name: 'WhatsApp Pelanggan'
+      }));
+
       // Memastikan status pelanggan diperbarui menjadi 'aktif'
       expect(mockUpdateCust).toHaveBeenCalledWith(expect.objectContaining({ status: 'aktif' }));
 
@@ -323,5 +499,104 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
         message: expect.stringMatching(/PEMBAYARAN OTOMATIS DIVERIFIKASI/i)
       });
     });
+
+    it('automatically handles WhatsApp privacy LID (@lid) and matches customer by push_name, generating digital receipt SVG', async () => {
+      const mockCustomer = {
+        id: 'cust-202',
+        custid: 'CUST-202',
+        name: 'JEFRI NET SYNERGY',
+        phone: '085169690961',
+        package: 'NET HOME 20 Mbps',
+        price: 250000,
+        due_date: 20,
+        status: 'isolir'
+      };
+
+      const mockInsertTrx = vi.fn().mockResolvedValue({ error: null });
+      const mockUpdateCust = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+      const mockInsertProof = vi.fn().mockResolvedValue({ error: null });
+      const mockInsertLog = vi.fn().mockResolvedValue({ error: null });
+
+      const mockAdminClient = {
+        from: (table) => {
+          if (table === 'company_settings') {
+            return {
+              select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { watbiz_token: 'token-bot', watbiz_enabled: true } }) }) })
+            };
+          }
+          if (table === 'watbiz_logs') {
+            return { insert: mockInsertLog };
+          }
+          if (table === 'customers') {
+            return {
+              select: () => Promise.resolve({ data: [mockCustomer], error: null }),
+              update: mockUpdateCust
+            };
+          }
+          if (table === 'transactions') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  gte: () => ({
+                    eq: () => Promise.resolve({ data: [], error: null })
+                  })
+                })
+              }),
+              insert: mockInsertTrx
+            };
+          }
+          if (table === 'runsnet_proofs') {
+            return { insert: mockInsertProof };
+          }
+          return { select: vi.fn(), insert: vi.fn(), update: vi.fn() };
+        }
+      };
+
+      getServiceClient.mockReturnValue(mockAdminClient);
+      sendWatbizMessage.mockResolvedValue({ ok: true, status: 200, body: {} });
+
+      const res = makeRes();
+      await handler({
+        method: 'POST',
+        url: '/api/watbiz/webhook',
+        body: {
+          device: '9884_IQOO_Z10',
+          from: '156191435051118@lid',
+          push_name: 'Jefri Afriansyah Maulana',
+          type: 'image',
+          body: '',
+          message_id: 'AC532A564D57AA75156A4F5CBCFD6B07',
+          timestamp: 1790227104
+        }
+      }, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.status).toBe('auto_payment_success');
+      expect(res.body.customer).toBe('JEFRI NET SYNERGY');
+
+      // Memastikan nomor balasan yang dipakai adalah nomor telepon asli pelanggan, BUKAN LID
+      expect(sendWatbizMessage).toHaveBeenCalledWith('token-bot', {
+        number: '6285169690961',
+        message: expect.stringMatching(/PEMBAYARAN OTOMATIS DIVERIFIKASI/i)
+      });
+
+      // Memastikan transaksi dicatat lunas
+      expect(mockInsertTrx).toHaveBeenCalledWith([expect.objectContaining({
+        status: 'LUNAS',
+        customer_name: 'JEFRI NET SYNERGY',
+        payment_method: 'Transfer WA'
+      })]);
+
+      // Memastikan sistem TIDAK membuat gambar palsu/rekaan ke runsnet_proofs saat webhook tanpa biner
+      expect(mockInsertProof).not.toHaveBeenCalled();
+
+      // Memastikan log mencatat kebutuhan lampiran foto asli
+      expect(mockInsertLog).toHaveBeenCalledWith(expect.objectContaining({
+        kind: 'auto_payment',
+        response_detail: expect.stringContaining('"needsPhotoAttachment":true')
+      }));
+    });
   });
+
 });

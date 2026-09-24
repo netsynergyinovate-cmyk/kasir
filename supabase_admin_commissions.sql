@@ -42,3 +42,4 @@ create policy "Superadmin can manage commissions"
       where admin_profiles.id = auth.uid() and admin_profiles.role = 'superadmin'
     )
   );
+

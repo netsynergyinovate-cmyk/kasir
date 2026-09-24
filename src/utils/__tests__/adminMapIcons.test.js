@@ -36,7 +36,6 @@ describe('adminMapIcons', () => {
   it('generates deterministic color from string', () => {
     const color1 = getDeterministicColor('Budi Santoso');
     const color2 = getDeterministicColor('Budi Santoso');
-    const color3 = getDeterministicColor('Ahmad Dahlan');
     expect(color1).toBe(color2);
     expect(typeof color1).toBe('string');
     expect(color1).toMatch(/^#/);
@@ -86,3 +85,4 @@ describe('adminMapIcons', () => {
     expect(iconSelf.options.html).toContain('Posisi Anda');
   });
 });
+

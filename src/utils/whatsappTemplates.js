@@ -1,4 +1,4 @@
-import { formatRupiah } from './format';
+import { formatRupiah } from './format.js';
 
 /**
  * Normalisasi nomor HP ke format WhatsApp internasional Indonesia (628xxx).
@@ -6,7 +6,16 @@ import { formatRupiah } from './format';
  */
 export function cleanPhoneNumber(phone) {
   if (!phone) return '';
-  let cleaned = String(phone).replace(/[^0-9]/g, '');
+  let str = String(phone).trim();
+  // Buang suffix domain WhatsApp (@s.whatsapp.net, @c.us, @g.us)
+  if (str.includes('@')) {
+    str = str.split('@')[0];
+  }
+  // Buang device index multidevice (misal: 628123456789:28 -> 628123456789)
+  if (str.includes(':')) {
+    str = str.split(':')[0];
+  }
+  let cleaned = str.replace(/[^0-9]/g, '');
   if (!cleaned) return '';
 
   if (cleaned.startsWith('0')) {
@@ -140,15 +149,20 @@ export function formatAutoPaymentConfirmedMessage(cust = {}, trx = {}, companyIn
 -----------------------------------
 
 Halo Bapak/Ibu *${custName}*,
-Terima kasih! Bukti transfer pembayaran internet Anda telah kami terima dan *otomatis diverifikasi LUNAS* oleh sistem:
+Terima kasih atas pembayaran Anda! 🙏
 
+Bukti transfer pembayaran internet Anda telah kami terima dan *otomatis diverifikasi LUNAS* oleh sistem kami:
+
+📋 *RINCIAN PEMBAYARAN:*
 • *No. Invoice:* \`${invNumber}\`
 • *Waktu Verifikasi:* ${dateFormatted}
 • *Paket Layanan:* *${pkg}*
-• *Nominal:* *${nominal}*
+• *Total Tagihan:* *${nominal}*
 • *Metode:* Transfer WhatsApp (Verifikasi Otomatis)
-• *Status Layanan:* ✅ *AKTIF NORMAL*
+• *Status Transaksi:* ✅ *LUNAS*
+• *Status Layanan:* 🟢 *AKTIF NORMAL*
 
+-----------------------------------
 Layanan internet Anda tetap aktif dan tidak akan mengalami isolir. Terima kasih telah mempercayai layanan *${compName}*! 🙏`;
 }
 
@@ -160,14 +174,16 @@ export function formatAlreadyPaidMessage(cust = {}, companyInfo = {}) {
   const custName = cust.name || 'Pelanggan';
   const lastDate = cust.last_payment_date ? formatDateTimeIndo(cust.last_payment_date) : 'bulan ini';
 
-  return `ℹ️ *INFORMASI STATUS PEMBAYARAN*
+  return `✅ *STATUS PEMBAYARAN TERKONFIRMASI*
 *${compName.toUpperCase()}*
 -----------------------------------
 
 Halo Bapak/Ibu *${custName}*,
-Tagihan internet Anda untuk bulan berjalan sudah tercatat *LUNAS* sebelumnya (${lastDate}).
+Terima kasih atas pembayaran Anda! 🙏
 
-Status layanan internet Anda saat ini adalah *AKTIF*. Tidak ada tagihan tertunggak untuk periode ini. Terima kasih! 🙏`;
+Tagihan internet Anda untuk bulan berjalan sudah tercatat *LUNAS* (${lastDate}).
+
+Status layanan internet Anda saat ini adalah 🟢 *AKTIF NORMAL*. Tidak ada tagihan tertunggak dan koneksi Anda aman dari isolir. Terima kasih telah mempercayai layanan *${compName}*!`;
 }
 
 /**
@@ -181,3 +197,28 @@ export function formatUnregisteredNumberMessage(phone = '', companyInfo = {}) {
 
 Jika Anda adalah pelanggan kami dan baru saja melakukan pembayaran, mohon hubungi admin kami${compPhone ? ` di ${compPhone}` : ''} dengan menyertakan Nama Lengkap dan ID PPPoE/Pelanggan Anda agar dapat kami catat. Terima kasih! 🙏`;
 }
+
+/**
+ * Template jika pelanggan mengirim konfirmasi sudah bayar tapi belum menyertakan foto struk/bukti transfer
+ */
+export function formatProofPhotoRequiredMessage(cust = {}, companyInfo = {}) {
+  const compName = companyInfo.name || 'PT Net Synergy Inovate';
+  const custName = cust.name || 'Pelanggan';
+
+  return `📸 *VERIFIKASI BUKTI TRANSFER PEMBAYARAN*
+*${compName.toUpperCase()}*
+-----------------------------------
+
+Halo Bapak/Ibu *${custName}*,
+Terima kasih telah mengonfirmasi pembayaran Anda! 🙏
+
+Untuk memproses dan memverifikasi pembayaran Anda secara otomatis di sistem kasir kami, *mohon kirimkan FOTO STRUK TRANSFER* atau *screenshot bukti transfer* pembayaran Anda di sini ya 📸.
+
+Setelah foto bukti transfer kami terima:
+✅ Sistem akan langsung memverifikasi transaksi Anda
+✅ Status tagihan otomatis tercatat *LUNAS*
+✅ Koneksi internet Anda tetap *AKTIF NORMAL* tanpa kendala isolir
+
+Terima kasih atas kerja samanya! 🙏`;
+}
+
