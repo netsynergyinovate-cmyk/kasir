@@ -55,6 +55,19 @@ describe('DashboardSuperadmin', () => {
     expect(html).toContain('Hari Ini');
     expect(html).toContain('Kemarin');
     expect(html).toContain('Pilih Tanggal');
+
+    // Also verify payment breakdown renders with today's transactions without runtime error
+    const todayHtml = renderWithRouter(
+      <DashboardSuperadmin
+        session={{ profile: { full_name: 'Super Administrator', role: 'superadmin' } }}
+        transactions={[{ id: 't3', date: now.toISOString(), price: 50000, status: 'LUNAS', type: 'retail', cashier_name: 'Budi', payment_method: 'QRIS' }]}
+        customers={customers}
+        packages={packages}
+        companyInfo={{ adminName: 'CS PT NET.SI', adminFee: 10000 }}
+      />
+    );
+    expect(todayHtml).toContain('Uang masuk per metode');
+    expect(todayHtml).toContain('QRIS');
   });
 
   it('offers the daily cash ledger and no separate 7-day slider', () => {

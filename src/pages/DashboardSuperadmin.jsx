@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { 
   TrendingUp, TrendingDown, Minus, Wallet, CalendarDays, BookOpen, ChevronDown, 
   Receipt, CheckCircle, AlertCircle, Trophy, Clock, Smartphone, MapPin, ShieldCheck,
-  Zap, Users, Settings, Send, MessageCircle, DollarSign, Sparkles, Navigation2, Folder
+  Zap, Users, Settings, Send, MessageCircle, DollarSign, Sparkles, Navigation2, Folder,
+  CreditCard
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatRupiah, formatRupiahCompact } from '../utils/format';
