@@ -22,12 +22,12 @@ async function watbizRequest(path, token, payload, method = 'POST') {
   let body = raw;
   try { body = JSON.parse(raw); } catch { /* Watbiz kadang balas teks polos, bukan JSON */ }
 
-  const isOk = response.ok && (
+  // Hanya sinyal sukses eksplisit yang dianggap berhasil; HTTP 200 polos tanpa penanda bisa jadi pesan gagal terkirim.
+  const isOk = response.ok && !body?.error && (
     body?.status === 'success' ||
     body?.status === true ||
     body?.status === 200 ||
-    body?.success === true ||
-    (response.status === 200 && !body?.error && body?.message !== 'Error')
+    body?.success === true
   );
   return { ok: isOk, status: response.status, body };
 }

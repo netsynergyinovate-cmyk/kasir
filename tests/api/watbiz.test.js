@@ -1,4 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import process from 'node:process';
+import process from 'node:process';
 
 vi.mock('../../api/_lib/verifySuperadmin.js', () => ({
   verifySuperadmin: vi.fn(),
@@ -145,6 +147,53 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
         phone_number: 'WEBHOOK_CONFIG',
         status: 'success'
       }));
+    });
+  });
+
+  describe('Action: register-webhook (secret)', () => {
+    afterEach(() => {
+      delete process.env.WATBIZ_WEBHOOK_SECRET;
+    });
+
+    it('appends the webhook secret to the registered URL but never logs it', async () => {
+      process.env.WATBIZ_WEBHOOK_SECRET = 'rahasia-123';
+      const mockInsert = vi.fn().mockResolvedValue({ error: null });
+      verifySuperadmin.mockResolvedValue({ adminClient: { from: () => ({ insert: mockInsert }) } });
+      registerWatbizWebhook.mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: { status: 'success', webhook_url: 'https://app.example/api/watbiz?secret=rahasia-123' }
+      });
+
+      const res = makeRes();
+      await handler({
+        method: 'POST',
+        body: { action: 'register-webhook', token: 'tok', webhookUrl: 'https://app.example/api/watbiz' }
+      }, res);
+
+      expect(registerWatbizWebhook).toHaveBeenCalledWith('tok', 'https://app.example/api/watbiz?secret=rahasia-123');
+      const logged = mockInsert.mock.calls[0][0];
+      expect(JSON.stringify(logged)).not.toContain('rahasia-123');
+      expect(JSON.stringify(res.body)).not.toContain('rahasia-123');
+    });
+
+    it('hides the secret from get-webhook output', async () => {
+      process.env.WATBIZ_WEBHOOK_SECRET = 'rahasia-123';
+      verifyStaff.mockResolvedValue({
+        adminClient: {
+          from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { watbiz_token: 'tok' } }) }) }) })
+        }
+      });
+      getWatbizProfile.mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: { data: { webhook_url: 'https://app.example/api/watbiz?secret=rahasia-123' } }
+      });
+
+      const res = makeRes();
+      await handler({ method: 'POST', body: { action: 'get-webhook' } }, res);
+      expect(res.body.webhookUrl).toBe('https://app.example/api/watbiz?secret=***');
+      expect(JSON.stringify(res.body)).not.toContain('rahasia-123');
     });
   });
 
@@ -315,6 +364,40 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
   });
 
   describe('Inbound Webhook (Auto-Payment & Auto-Konfirmasi)', () => {
+    beforeEach(() => {
+      process.env.WATBIZ_WEBHOOK_SECRET = 'test-secret';
+    });
+
+    afterEach(() => {
+      delete process.env.WATBIZ_WEBHOOK_SECRET;
+    });
+
+    it('rejects webhook with missing or wrong secret and never touches the database', async () => {
+      const res1 = makeRes();
+      await handler({ method: 'POST', url: '/api/watbiz/webhook', body: { from: '6281234567890', type: 'image', media_url: 'https://x/y.jpg' } }, res1);
+      expect(res1.statusCode).toBe(401);
+
+      const res2 = makeRes();
+      await handler({ method: 'POST', url: '/api/watbiz/webhook?secret=salah', body: { from: '6281234567890', type: 'image', media_url: 'https://x/y.jpg' } }, res2);
+      expect(res2.statusCode).toBe(401);
+
+      expect(getServiceClient).not.toHaveBeenCalled();
+    });
+
+    it('accepts secret via x-webhook-secret header', async () => {
+      getServiceClient.mockReturnValue({ from: () => ({ insert: vi.fn().mockResolvedValue({ error: null }) }) });
+      const res = makeRes();
+      await handler({ method: 'POST', url: '/api/watbiz/webhook', headers: { 'x-webhook-secret': 'test-secret' }, body: { text: 'Halo' } }, res);
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('fails closed with 503 when WATBIZ_WEBHOOK_SECRET is not configured', async () => {
+      delete process.env.WATBIZ_WEBHOOK_SECRET;
+      const res = makeRes();
+      await handler({ method: 'POST', url: '/api/watbiz/webhook?secret=apa-saja', body: { from: '6281234567890', type: 'image' } }, res);
+      expect(res.statusCode).toBe(503);
+      expect(getServiceClient).not.toHaveBeenCalled();
+    });
     it('skips when no valid phone number in payload', async () => {
       getServiceClient.mockReturnValue({
         from: () => ({ insert: vi.fn().mockResolvedValue({ error: null }) })
@@ -322,7 +405,7 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
       const res = makeRes();
       await handler({
         method: 'POST',
-        url: '/api/watbiz/webhook',
+        url: '/api/watbiz/webhook?secret=test-secret',
         body: { text: 'Halo' }
       }, res);
 
@@ -377,7 +460,7 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
       const res = makeRes();
       await handler({
         method: 'POST',
-        url: '/api/watbiz/webhook',
+        url: '/api/watbiz/webhook?secret=test-secret',
         body: {
           from: '6281234567890',
           text: 'Halo admin kasir, saya sudah transfer tagihan internet'
@@ -460,7 +543,7 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
       const res = makeRes();
       await handler({
         method: 'POST',
-        url: '/api/watbiz/webhook',
+        url: '/api/watbiz/webhook?secret=test-secret',
         body: {
           from: '6281234567890',
           type: 'image',
@@ -500,7 +583,7 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
       });
     });
 
-    it('automatically handles WhatsApp privacy LID (@lid) and matches customer by push_name, generating digital receipt SVG', async () => {
+    it('does NOT auto-pay when sender (@lid) only matches a customer by push_name; logs for manual review', async () => {
       const mockCustomer = {
         id: 'cust-202',
         custid: 'CUST-202',
@@ -558,7 +641,7 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
       const res = makeRes();
       await handler({
         method: 'POST',
-        url: '/api/watbiz/webhook',
+        url: '/api/watbiz/webhook?secret=test-secret',
         body: {
           device: '9884_IQOO_Z10',
           from: '156191435051118@lid',
@@ -572,29 +655,20 @@ describe('Watbiz Dispatcher API (/api/watbiz)', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.body.ok).toBe(true);
-      expect(res.body.status).toBe('auto_payment_success');
+      expect(res.body.status).toBe('manual_review_required');
       expect(res.body.customer).toBe('JEFRI NET SYNERGY');
 
-      // Memastikan nomor balasan yang dipakai adalah nomor telepon asli pelanggan, BUKAN LID
-      expect(sendWatbizMessage).toHaveBeenCalledWith('token-bot', {
-        number: '6285169690961',
-        message: expect.stringMatching(/PEMBAYARAN OTOMATIS DIVERIFIKASI/i)
-      });
-
-      // Memastikan transaksi dicatat lunas
-      expect(mockInsertTrx).toHaveBeenCalledWith([expect.objectContaining({
-        status: 'LUNAS',
-        customer_name: 'JEFRI NET SYNERGY',
-        payment_method: 'Transfer WA'
-      })]);
-
-      // Memastikan sistem TIDAK membuat gambar palsu/rekaan ke runsnet_proofs saat webhook tanpa biner
+      // Tidak ada transaksi, tidak ada perubahan status pelanggan, tidak ada balasan WA ke nomor tebakan
+      expect(mockInsertTrx).not.toHaveBeenCalled();
+      expect(mockUpdateCust).not.toHaveBeenCalled();
       expect(mockInsertProof).not.toHaveBeenCalled();
+      expect(syncPayment).not.toHaveBeenCalled();
+      expect(sendWatbizMessage).not.toHaveBeenCalled();
 
-      // Memastikan log mencatat kebutuhan lampiran foto asli
+      // Admin melihat entri "perlu verifikasi manual" di log
       expect(mockInsertLog).toHaveBeenCalledWith(expect.objectContaining({
-        kind: 'auto_payment',
-        response_detail: expect.stringContaining('"needsPhotoAttachment":true')
+        kind: 'inbound_manual_review',
+        status: 'manual_review_required'
       }));
     });
   });

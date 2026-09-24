@@ -1,4 +1,5 @@
 import process from 'node:process';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { verifyStaff, verifySuperadmin } from '../_lib/verifySuperadmin.js';
 import { getServiceClient } from '../_lib/supabaseAdmin.js';
 import { sendWatbizMessage, registerWatbizWebhook, getWatbizProfile } from '../_lib/watbizClient.js';
@@ -14,6 +15,46 @@ import {
 import { formatRupiah } from '../../src/utils/format.js';
 
 const TEST_MESSAGE = 'Tes koneksi Watbiz dari KAsir berhasil ✅';
+
+// Webhook inbound bisa membuat transaksi LUNAS otomatis, jadi wajib diautentikasi dengan secret bersama.
+// Secret dikirim Watbiz lewat query `?secret=` di URL webhook (ditambahkan otomatis saat register-webhook)
+// atau header `x-webhook-secret`.
+function checkWebhookSecret(req) {
+  const expected = process.env.WATBIZ_WEBHOOK_SECRET || '';
+  if (!expected) {
+    return { ok: false, status: 503, error: 'WATBIZ_WEBHOOK_SECRET belum dikonfigurasi di server.' };
+  }
+
+  let provided = req.headers?.['x-webhook-secret'] || req.query?.secret || '';
+  if (!provided && req.url) {
+    try {
+      provided = new URL(req.url, 'http://localhost').searchParams.get('secret') || '';
+    } catch { /* URL tidak valid: anggap tanpa secret */ }
+  }
+
+  const digest = (v) => createHash('sha256').update(String(v)).digest();
+  if (!timingSafeEqual(digest(provided), digest(expected))) {
+    return { ok: false, status: 401, error: 'Webhook secret tidak valid.' };
+  }
+  return { ok: true };
+}
+
+// Secret tidak boleh muncul di log maupun respons yang bisa dilihat staff.
+function redactSecret(value) {
+  const secret = process.env.WATBIZ_WEBHOOK_SECRET || '';
+  const text = typeof value === 'string' ? value : JSON.stringify(value ?? null);
+  return secret ? text.split(secret).join('***') : text;
+}
+
+function redactBody(body) {
+  return typeof body === 'string' ? redactSecret(body) : JSON.parse(redactSecret(body));
+}
+
+function withWebhookSecret(webhookUrl) {
+  const secret = process.env.WATBIZ_WEBHOOK_SECRET || '';
+  if (!secret || /[?&]secret=/.test(webhookUrl)) return webhookUrl;
+  return `${webhookUrl}${webhookUrl.includes('?') ? '&' : '?'}secret=${encodeURIComponent(secret)}`;
+}
 
 /**
  * Ekstraksi mendalam URL media/foto dari segala macam format webhook (Watbiz, Baileys, Meta, WPPConnect)
@@ -283,6 +324,12 @@ export default async function handler(req, res) {
   // 2. INBOUND WEBHOOK (Diterima dari Watbiz saat pelanggan mengirim pesan/bukti)
   // =========================================================================
   if (isWebhook && (!action || action === 'webhook')) {
+    const secretCheck = checkWebhookSecret(req);
+    if (!secretCheck.ok) {
+      res.status(secretCheck.status).json({ error: secretCheck.error });
+      return;
+    }
+
     let adminClient;
     try {
       adminClient = getServiceClient();
@@ -296,6 +343,8 @@ export default async function handler(req, res) {
 
     // Cari data pelanggan lebih awal untuk log yang lengkap
     let customer = null;
+    // 'phone' = nomor pengirim cocok dengan nomor terdaftar; 'name' = hanya kemiripan nama (tidak boleh auto-bayar)
+    let matchedBy = null;
     const isLid = Boolean(rawSender && String(rawSender).includes('@lid')) || (senderPhone && senderPhone.length >= 14);
 
     // 1. Coba cari berdasarkan nomor telepon jika bukan LID murni
@@ -327,6 +376,7 @@ export default async function handler(req, res) {
           (senderPhone.length >= 8 && cleanDb.endsWith(senderPhone.slice(-8)))
         );
       }) || null;
+      if (customer) matchedBy = 'phone';
     }
 
     // 2. Jika belum cocok (atau jika pengirim adalah WhatsApp LID), cari berdasarkan nama / push_name
@@ -353,6 +403,7 @@ export default async function handler(req, res) {
                 // Atau token nama unik cocok
                 return sTokens.some((st) => cTokens.includes(st));
               }) || null;
+              if (customer) matchedBy = 'name';
             }
           }
 
@@ -362,6 +413,7 @@ export default async function handler(req, res) {
             if (foundPhone) {
               const cleanFound = cleanPhoneNumber(foundPhone[0]);
               customer = allCustomers.find((c) => cleanPhoneNumber(c.phone) === cleanFound) || null;
+              if (customer) matchedBy = 'phone';
             }
             if (!customer) {
               customer = allCustomers.find((c) => {
@@ -369,6 +421,7 @@ export default async function handler(req, res) {
                 const cFirst = c.name.split(' ')[0].toLowerCase();
                 return cFirst.length >= 3 && text.toLowerCase().includes(cFirst);
               }) || null;
+              if (customer) matchedBy = 'name';
             }
           }
         }
@@ -450,8 +503,8 @@ export default async function handler(req, res) {
     // =========================================================================
     if (!isImage) {
       const isClaimingPayment =
-        /(sudah|udah|sdh|telah|bukti|struk|nota|resi)?\s*(bayar|transfer|tf|lunas|pembayaran|tagihan|trf|terbayar)/i.test(text) ||
-        /(ini|kirim|upload)\s*(bukti|struk|nota|foto|resi)/i.test(text);
+        /\b(bayar|transfer|tf|lunas|pembayaran|tagihan|trf|terbayar)\b/i.test(text) ||
+        /\b(ini|kirim|upload)\s*(bukti|struk|nota|foto|resi)\b/i.test(text);
 
       if (isClaimingPayment) {
         // Balas minta kirimkan FOTO bukti pembayaran
@@ -491,12 +544,41 @@ export default async function handler(req, res) {
       }
 
       // Balas panduan jika pelanggan hanya menyapa biasa
-      if (watbizEnabled && watbizToken && effectivePhone && /halo|hai|p|pagi|siang|malam|assalamualaikum|tes/i.test(text)) {
+      if (watbizEnabled && watbizToken && effectivePhone && /\b(halo|hai|p|pagi|siang|malam|assalamualaikum|tes)\b/i.test(text)) {
         const helpMsg = `Halo Bapak/Ibu *${customer.name}*!\n\nAda yang bisa kami bantu dari *${settings?.name || 'PT Net Synergy Inovate'}*?\n\nUntuk konfirmasi pembayaran internet bulanan, silakan langsung kirimkan *FOTO BUKTI STRUK TRANSFER* Anda di sini 📸. Sistem kami akan otomatis memverifikasi dan memperbarui status layanan internet Anda. Terima kasih! 🙏`;
         await sendWatbizMessage(watbizToken, { number: effectivePhone, message: helpMsg }).catch(() => {});
       }
 
       res.status(200).json({ ok: true, status: 'message_received_non_payment' });
+      return;
+    }
+
+    // Kecocokan hanya lewat nama (mis. pengirim @lid) tidak cukup untuk membayarkan tagihan otomatis:
+    // foto tidak diverifikasi, jadi salah orang = pelanggan lain tercatat LUNAS. Serahkan ke admin.
+    if (matchedBy !== 'phone') {
+      try {
+        await adminClient.from('watbiz_logs').insert({
+          phone_number: effectivePhone || senderPhone || 'NO_PHONE',
+          message: `[Perlu Verifikasi Manual] Foto bukti dari "${senderName || 'tanpa nama'}" cocok nama dengan ${customer.name}`,
+          kind: 'inbound_manual_review',
+          status: 'manual_review_required',
+          sender_name: 'WhatsApp Bot (Auto)',
+          response_detail: JSON.stringify({
+            customerName: customer.name,
+            senderName: senderName || null,
+            mediaUrl: realMediaUrl,
+            whatsappMessageId: messageId || null,
+            matchedBy,
+          }),
+        });
+      } catch { /* log opsional */ }
+
+      res.status(200).json({
+        ok: true,
+        status: 'manual_review_required',
+        customer: customer.name,
+        message: 'Pengirim hanya cocok lewat nama; pembayaran tidak diproses otomatis',
+      });
       return;
     }
 
@@ -769,7 +851,7 @@ export default async function handler(req, res) {
 
     let result;
     try {
-      result = await registerWatbizWebhook(finalToken, webhookUrl);
+      result = await registerWatbizWebhook(finalToken, withWebhookSecret(webhookUrl));
     } catch (err) {
       result = { ok: false, status: 0, body: { error: err.message } };
     }
@@ -780,14 +862,14 @@ export default async function handler(req, res) {
         message: `Daftar Webhook Watbiz: ${webhookUrl}`,
         kind: 'test',
         status: result.ok ? 'success' : 'failed',
-        response_detail: typeof result.body === 'string' ? result.body.slice(0, 500) : JSON.stringify(result.body).slice(0, 500),
+        response_detail: redactSecret(result.body).slice(0, 500),
         sender_name: staff.callerId || null,
       });
     } catch (logErr) {
       console.error('Gagal mencatat watbiz_logs:', logErr.message);
     }
 
-    res.status(200).json(result);
+    res.status(200).json({ ...result, body: redactBody(result.body) });
     return;
   }
 
@@ -814,14 +896,15 @@ export default async function handler(req, res) {
       result = { ok: false, status: 0, body: { error: err.message } };
     }
 
+    const safeBody = redactBody(result.body);
     res.status(200).json({
       ok: result.ok,
       status: result.status,
-      webhookUrl: result.body?.data?.webhook_url || null,
-      device: result.body?.data?.name || null,
-      credit: result.body?.data?.credit ?? null,
-      whatsappCredit: result.body?.data?.whatsapp_credit ?? null,
-      raw: result.body,
+      webhookUrl: safeBody?.data?.webhook_url || null,
+      device: safeBody?.data?.name || null,
+      credit: safeBody?.data?.credit ?? null,
+      whatsappCredit: safeBody?.data?.whatsapp_credit ?? null,
+      raw: safeBody,
     });
     return;
   }
