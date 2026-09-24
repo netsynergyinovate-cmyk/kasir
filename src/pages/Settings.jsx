@@ -6,7 +6,7 @@ import {
   Key, Globe, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send,
   Zap, Clock, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users, MessageCircle,
   Copy, Check, Webhook, ExternalLink, ZoomIn, X, ChevronDown, ChevronUp, FileText,
-  ImagePlus
+  ImagePlus, Loader2
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { supabase } from '../lib/supabase';
