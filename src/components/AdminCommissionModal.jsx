@@ -22,7 +22,8 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
     admin.id,
     admin.full_name,
     companyInfo.adminFee || 10000,
-    currentAccess.commissions || []
+    currentAccess.commissions || [],
+    admin.role
   );
 
   const [amount, setAmount] = useState(commissionData.pendingBalance > 0 ? String(commissionData.pendingBalance) : '');

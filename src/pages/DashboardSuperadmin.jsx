@@ -1,8 +1,16 @@
-import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, Minus, Wallet, CalendarDays, BookOpen, ChevronDown, Receipt, CheckCircle, AlertCircle, Trophy, Clock, Smartphone, MapPin, ShieldCheck } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { 
+  TrendingUp, TrendingDown, Minus, Wallet, CalendarDays, BookOpen, ChevronDown, 
+  Receipt, CheckCircle, AlertCircle, Trophy, Clock, Smartphone, MapPin, ShieldCheck,
+  Zap, Users, Settings, Send, MessageCircle, DollarSign, Sparkles, Navigation2
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatRupiah, formatRupiahCompact } from '../utils/format';
 import { getGreeting, compareMonths, cashierPerformance, paymentSummary, formatRelativeTime, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, weeklyRevenue } from '../utils/dashboardStats';
+import { calculateStoreFinancialOverview, calculateAdminCommissions } from '../utils/commissions';
+import { normalizeAdminAccess } from '../utils/permissions';
+import AdminCommissionModal from '../components/AdminCommissionModal';
 import Dashboard from './Dashboard';
 
 const MONTHS = [
@@ -32,36 +40,39 @@ const TrendBadge = ({ change }) => {
 const DashboardSuperadmin = (props) => {
   const { transactions = [], customers = [], session, companyInfo = {} } = props;
   const [accounts, setAccounts] = useState([]);
+  const [allAccounts, setAllAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [roleByName, setRoleByName] = useState(new Map());
+  const [selectedCommissionAdmin, setSelectedCommissionAdmin] = useState(null);
   const [dayMode, setDayMode] = useState('today');
   const [customDate, setCustomDate] = useState('');
   const [showLedger, setShowLedger] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const fetchAccounts = useCallback(() => {
     supabase
       .from('admin_profiles')
-      .select('id, full_name, email, role, last_login_at, last_login_device, last_login_location')
+      .select('id, full_name, email, role, allowed_paths, last_login_at, last_login_device, last_login_location')
       .order('last_login_at', { ascending: false, nullsFirst: false })
       .limit(6)
       .then(({ data, error }) => {
-        if (cancelled) return;
         if (!error && data) setAccounts(data);
         setAccountsLoading(false);
       });
 
-    // Daftar lengkap (tidak dibatasi 6) hanya untuk mencocokkan nama kasir -> role, dipakai
-    // membedakan "Jasa Admin" (komisi) dari transaksi milik superadmin di daftar Performa Kasir.
+    // Daftar lengkap untuk kalkulasi komisi seluruh admin & pencocokan nama
     supabase
       .from('admin_profiles')
-      .select('full_name, role')
+      .select('id, full_name, email, role, allowed_paths')
       .then(({ data, error }) => {
-        if (cancelled || error || !data) return;
+        if (error || !data) return;
+        setAllAccounts(data);
         setRoleByName(new Map(data.map((p) => [p.full_name, p.role])));
       });
-    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    fetchAccounts();
+  }, [fetchAccounts]);
 
   const now = new Date();
   const monthLabel = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
@@ -84,6 +95,19 @@ const DashboardSuperadmin = (props) => {
   const payment = paymentSummary(customers, transactions, now);
   const paidPercent = payment.active > 0 ? Math.round((payment.paid / payment.active) * 100) : 0;
 
+  const effectiveAccounts = allAccounts.length > 0 
+    ? allAccounts 
+    : cashiers
+        .filter(c => !((c.name || '').toLowerCase().includes('cs') || roleByName.get(c.name) === 'superadmin'))
+        .map(c => ({ id: c.name, full_name: c.name, role: 'admin', allowed_paths: {} }));
+
+  const financialOverview = calculateStoreFinancialOverview(
+    transactions,
+    effectiveAccounts,
+    companyInfo.adminFee || 10000,
+    now
+  );
+
   return (
     <div className="pb-32 animate-in fade-in duration-300">
       <div className="p-4 space-y-6">
@@ -100,6 +124,182 @@ const DashboardSuperadmin = (props) => {
             <p className="text-xs text-indigo-100 mt-1 flex items-center gap-1.5">
               <ShieldCheck size={14} /> Ringkasan operasional {monthLabel}
             </p>
+          </div>
+        </div>
+
+        {/* Executive Financial & Commission Hub */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5 ml-1">
+              <Sparkles size={12} className="text-indigo-600" /> Ringkasan Finansial Eksekutif
+            </h2>
+            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+              Bulan {monthLabel}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Card 1: Omset Kotor Toko */}
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm card-interactive relative overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                  <DollarSign size={13} className="text-indigo-600" /> Omset Kotor Toko
+                </span>
+                <TrendBadge change={comparison.revenueChange} />
+              </div>
+              <p className="text-xl font-black text-gray-900 mt-1">{formatRupiah(financialOverview.grossRevenue)}</p>
+              <p className="text-[10px] text-gray-500 mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
+                <span>{comparison.current.count} trx lunas</span>
+                <span className="font-semibold text-indigo-600">Total Kotor</span>
+              </p>
+            </div>
+
+            {/* Card 2: Hak Komisi Kasir */}
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm card-interactive relative overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1">
+                  <Trophy size={13} /> Hak Komisi Kasir
+                </span>
+                <span className="text-[9px] font-bold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-md">
+                  {effectiveAccounts.filter(a => a.role !== 'superadmin').length || 1} Kasir
+                </span>
+              </div>
+              <p className="text-xl font-black text-amber-600 mt-1">{formatRupiah(financialOverview.totalCommissionLiability)}</p>
+              <p className="text-[10px] text-gray-500 mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
+                <span>Hak Jasa Kasir</span>
+                <span className="font-semibold text-gray-700">{formatRupiah(companyInfo.adminFee || 10000)}/trx</span>
+              </p>
+            </div>
+
+            {/* Card 3: Pencairan Komisi (Sudah Cair vs Sisa Pending) */}
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm card-interactive relative overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1">
+                  <Wallet size={13} /> Komisi Dicairkan
+                </span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${financialOverview.pendingCommissionBalance > 0 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                  {financialOverview.pendingCommissionBalance > 0 ? 'Ada Pending' : 'Semua Lunas'}
+                </span>
+              </div>
+              <p className="text-xl font-black text-emerald-600 mt-1">{formatRupiah(financialOverview.totalCommissionPaid)}</p>
+              <p className="text-[10px] text-gray-500 mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
+                <span>Pending:</span>
+                <span className="font-black text-amber-600">{formatRupiah(financialOverview.pendingCommissionBalance)}</span>
+              </p>
+            </div>
+
+            {/* Card 4: Estimasi Laba Bersih Toko */}
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm card-interactive relative overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1">
+                  <ShieldCheck size={13} /> Laba Bersih Toko
+                </span>
+                <span className="text-[9px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-md">
+                  Setelah Komisi
+                </span>
+              </div>
+              <p className="text-xl font-black text-indigo-900 mt-1">{formatRupiah(financialOverview.netStoreProfit)}</p>
+              <p className="text-[10px] text-gray-500 mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
+                <span>Margin Toko</span>
+                <span className="font-semibold text-emerald-600">
+                  {financialOverview.grossRevenue > 0 ? `${Math.round((financialOverview.netStoreProfit / financialOverview.grossRevenue) * 100)}%` : '100%'}
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Executive Quick Actions */}
+        <div className="space-y-2.5">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1.5">
+            <Zap size={12} className="text-amber-500" /> Aksi Cepat Superadmin
+          </p>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
+            {/* 1. Kasir Baru */}
+            <Link
+              to="/pos"
+              className="quick-action-tile group bg-white p-3 rounded-2xl border border-gray-100 shadow-sm hover:border-blue-200 transition-all text-center flex flex-col items-center"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-200 group-hover:scale-110 transition-transform">
+                <Zap size={18} className="fill-white" />
+              </div>
+              <span className="text-[11px] font-black text-gray-800 mt-2">Kasir Baru</span>
+              <span className="text-[8px] font-bold text-blue-600">POS / Retail</span>
+            </Link>
+
+            {/* 2. Pelanggan */}
+            <Link
+              to="/customers"
+              className="quick-action-tile group bg-white p-3 rounded-2xl border border-gray-100 shadow-sm hover:border-emerald-200 transition-all text-center flex flex-col items-center"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-200 group-hover:scale-110 transition-transform">
+                <Users size={18} />
+              </div>
+              <span className="text-[11px] font-black text-gray-800 mt-2">Pelanggan</span>
+              <span className="text-[8px] font-bold text-emerald-600">{customers.length} Terdaftar</span>
+            </Link>
+
+            {/* 3. Kelola Komisi */}
+            <button
+              type="button"
+              onClick={() => {
+                const defaultTarget = effectiveAccounts.find(a => a.role !== 'superadmin') || {
+                  id: 'adm-wahyu',
+                  full_name: 'Admin Wahyu',
+                  role: 'admin',
+                  allowed_paths: {}
+                };
+                setSelectedCommissionAdmin(defaultTarget);
+              }}
+              className="quick-action-tile group bg-white p-3 rounded-2xl border border-gray-100 shadow-sm hover:border-amber-200 transition-all text-center flex flex-col items-center cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-200 group-hover:scale-110 transition-transform relative">
+                <DollarSign size={18} />
+                {financialOverview.pendingCommissionBalance > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full animate-ping" />
+                )}
+              </div>
+              <span className="text-[11px] font-black text-gray-800 mt-2">Kelola Komisi</span>
+              <span className="text-[8px] font-bold text-amber-600">
+                {financialOverview.pendingCommissionBalance > 0 ? 'Pencairan' : 'Riwayat'}
+              </span>
+            </button>
+
+            {/* 4. Rute Lapangan */}
+            <Link
+              to="/rute"
+              className="quick-action-tile group bg-white p-3 rounded-2xl border border-gray-100 shadow-sm hover:border-purple-200 transition-all text-center flex flex-col items-center"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-violet-500 text-white flex items-center justify-center shadow-md shadow-purple-200 group-hover:scale-110 transition-transform">
+                <Navigation2 size={18} />
+              </div>
+              <span className="text-[11px] font-black text-gray-800 mt-2">Rute &amp; Live</span>
+              <span className="text-[8px] font-bold text-purple-600">Pelacakan</span>
+            </Link>
+
+            {/* 5. WA Pengingat */}
+            <Link
+              to="/customers"
+              className="quick-action-tile group bg-white p-3 rounded-2xl border border-gray-100 shadow-sm hover:border-green-200 transition-all text-center flex flex-col items-center"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-green-200 group-hover:scale-110 transition-transform">
+                <MessageCircle size={18} />
+              </div>
+              <span className="text-[11px] font-black text-gray-800 mt-2">WA Tagihan</span>
+              <span className="text-[8px] font-bold text-green-600">{payment.unpaid} Belum Bayar</span>
+            </Link>
+
+            {/* 6. Pengaturan Toko */}
+            <Link
+              to="/settings"
+              className="quick-action-tile group bg-white p-3 rounded-2xl border border-gray-100 shadow-sm hover:border-gray-300 transition-all text-center flex flex-col items-center"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-slate-600 to-gray-700 text-white flex items-center justify-center shadow-md shadow-gray-200 group-hover:scale-110 transition-transform">
+                <Settings size={18} />
+              </div>
+              <span className="text-[11px] font-black text-gray-800 mt-2">Pengaturan</span>
+              <span className="text-[8px] font-bold text-gray-500">Toko &amp; Paket</span>
+            </Link>
           </div>
         </div>
 
@@ -253,39 +453,99 @@ const DashboardSuperadmin = (props) => {
 
         {/* Performa per kasir + komisi yang harus dibayar ke tiap admin */}
         <div>
-          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 flex items-center gap-1.5">
-            <Trophy size={12} /> Performa Kasir · {MONTHS[now.getMonth()]}
-          </h2>
+          <div className="flex items-center justify-between mb-3 ml-1">
+            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+              <Trophy size={12} /> Performa Kasir &amp; Hak Komisi · {MONTHS[now.getMonth()]}
+            </h2>
+            <span className="text-[10px] font-bold text-gray-400">
+              Fee Kasir: {formatRupiah(companyInfo.adminFee || 10000)}/trx
+            </span>
+          </div>
           <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
             {cashiers.length === 0 ? (
               <p className="text-xs text-gray-400 italic text-center py-2">Belum ada transaksi bulan ini.</p>
             ) : (
               cashiers.map((cashier, index) => {
                 const role = roleByName.get(cashier.name);
-                const commission = cashier.count * (companyInfo.adminFee || 10000);
+                const isSuper = role === 'superadmin';
+                const isCS = (cashier.name || '').toLowerCase().includes('cs');
+
+                // Cari data admin jika ada, atau buat fallback admin object
+                const matchedAdmin = effectiveAccounts.find(
+                  (a) => (a.full_name || '').toLowerCase() === cashier.name.toLowerCase()
+                ) || {
+                  id: cashier.name,
+                  full_name: cashier.name,
+                  role: isSuper ? 'superadmin' : 'admin',
+                  allowed_paths: {},
+                };
+
+                const currentAccess = normalizeAdminAccess(matchedAdmin.allowed_paths);
+                const comm = calculateAdminCommissions(
+                  transactions,
+                  matchedAdmin.id,
+                  cashier.name,
+                  companyInfo.adminFee || 10000,
+                  currentAccess.commissions || [],
+                  isSuper ? 'superadmin' : 'admin'
+                );
+
                 return (
-                  <div key={cashier.name}>
+                  <div key={cashier.name} className="p-3 bg-gray-50/70 hover:bg-gray-50 rounded-xl border border-gray-100 transition-colors space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-bold text-gray-800 truncate">
-                        <span className="text-gray-400 mr-1.5">#{index + 1}</span>{cashier.name}
-                        {role === 'superadmin' && <span className="ml-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">Super Admin</span>}
-                      </p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs font-black text-gray-400 w-5">#{index + 1}</span>
+                        <p className="text-xs font-bold text-gray-800 truncate">{cashier.name}</p>
+                        {isSuper && (
+                          <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                            👑 Super Admin (Non-Komisi)
+                          </span>
+                        )}
+                        {!isSuper && isCS && (
+                          <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                            💬 Layanan CS (Non-Komisi)
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs font-black text-gray-900 shrink-0">{formatRupiah(cashier.revenue)}</p>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
+
+                    <div className="h-1.5 bg-gray-200/80 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
                         style={{ width: `${topRevenue > 0 ? Math.max(4, Math.round((cashier.revenue / topRevenue) * 100)) : 0}%` }}
                       />
                     </div>
-                    <p className="text-[11px] text-gray-500 mt-1 flex items-center justify-between">
-                      <span>{cashier.count} transaksi</span>
-                      {role === 'superadmin' ? (
-                        <span className="text-gray-400 italic">Tidak dapat komisi</span>
+
+                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-gray-200/50">
+                      <span className="text-gray-500 font-medium">{cashier.count} transaksi lunas</span>
+                      {isSuper ? (
+                        <span className="text-gray-400 italic">Rp 0 (Super Admin)</span>
+                      ) : isCS ? (
+                        <span className="text-gray-400 italic">Rp 0 (Kanal CS)</span>
                       ) : (
-                        <span className="font-bold text-emerald-600">Komisi: {formatRupiah(commission)}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-700">
+                            Komisi: <b className="text-emerald-600 font-black">{formatRupiah(comm.totalEarned)}</b>
+                          </span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-gray-500">
+                            Cair: <b className="text-emerald-700">{formatRupiah(comm.totalPaid)}</b>
+                          </span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-gray-500">
+                            Sisa: <b className="text-amber-600 font-black">{formatRupiah(comm.pendingBalance)}</b>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCommissionAdmin(matchedAdmin)}
+                            className="ml-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                          >
+                            <Send size={10} /> Transfer Komisi
+                          </button>
+                        </div>
                       )}
-                    </p>
+                    </div>
                   </div>
                 );
               })
@@ -341,6 +601,21 @@ const DashboardSuperadmin = (props) => {
       </div>
 
       <Dashboard {...props} hideHeader canManageRoute />
+
+      {/* Modal Transfer Komisi Kasir */}
+      {selectedCommissionAdmin && (
+        <AdminCommissionModal
+          admin={selectedCommissionAdmin}
+          transactions={transactions}
+          companyInfo={companyInfo}
+          session={session}
+          onClose={() => setSelectedCommissionAdmin(null)}
+          onSaved={() => {
+            fetchAccounts();
+            setSelectedCommissionAdmin(null);
+          }}
+        />
+      )}
     </div>
   );
 };

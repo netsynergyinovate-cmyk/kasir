@@ -70,6 +70,22 @@ describe('DashboardSuperadmin', () => {
     expect(html).not.toContain('Halo, <span');
     expect(html).toContain('Pendapatan');
   });
+
+  it('renders executive financial overview and quick actions', () => {
+    expect(html).toContain('Omset Kotor Toko');
+    expect(html).toContain('Hak Komisi Kasir');
+    expect(html).toContain('Laba Bersih Toko');
+    expect(html).toContain('Kasir Baru');
+    expect(html).toContain('Pelanggan');
+    expect(html).toContain('Kelola Komisi');
+    expect(html).toContain('Rute &amp; Live');
+    expect(html).toContain('WA Tagihan');
+    expect(html).toContain('Pengaturan');
+  });
+
+  it('renders cashier commission details and direct transfer button', () => {
+    expect(html).toContain('Transfer Komisi');
+  });
 });
 
 describe('Dashboard (admin)', () => {
