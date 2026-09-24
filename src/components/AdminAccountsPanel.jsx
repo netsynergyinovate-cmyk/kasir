@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2, ShieldCheck, Crown, Mail } from 'lucide-react';
+import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2, ShieldCheck, Crown, Mail, DollarSign } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import AdminAccessModal from './AdminAccessModal';
+import AdminCommissionModal from './AdminCommissionModal';
+import { normalizeAdminAccess } from '../utils/permissions';
+import { calculateAdminCommissions } from '../utils/commissions';
+import { MAP_ICON_TYPES, MAP_ICON_COLORS, getDeterministicColor } from '../utils/adminMapIcons';
+import { formatRupiah } from '../utils/format';
 
 const ACCOUNT_COLUMNS = 'id, full_name, email, role, device_id, device_label, allowed_paths, last_login_at, last_login_device, last_login_location, last_login_ip';
 
@@ -12,7 +17,7 @@ const formatLastLogin = (iso) => {
 
 const initialsOf = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
-const AdminAccountsPanel = () => {
+const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) => {
   const [accounts, setAccounts] = useState([]);
   const [invites, setInvites] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,6 +29,7 @@ const AdminAccountsPanel = () => {
   const [resettingId, setResettingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [accessAdmin, setAccessAdmin] = useState(null);
+  const [commissionAdmin, setCommissionAdmin] = useState(null);
 
   const fetchAll = () => Promise.all([
     supabase
@@ -167,12 +173,34 @@ const AdminAccountsPanel = () => {
           <div className="space-y-2.5">
             {accounts.map((acc) => {
               const isSuper = acc.role === 'superadmin';
+              const access = normalizeAdminAccess(acc.allowed_paths);
+              const mapConfig = access.map_icon || {};
+              const iconType = mapConfig.type || (isSuper ? 'crown' : 'motor');
+              const matchedType = MAP_ICON_TYPES.find((t) => t.id === iconType) || MAP_ICON_TYPES[0];
+              const themeColor = mapConfig.color || getDeterministicColor(acc.id || acc.full_name);
+              const customInitials = mapConfig.label || initialsOf(acc.full_name);
+
+              const commData = !isSuper
+                ? calculateAdminCommissions(transactions, acc.id, acc.full_name, companyInfo?.adminFee || 10000, access.commissions || [])
+                : null;
+
               return (
                 <div key={acc.id} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
                   <div className="p-3.5 flex items-center gap-3">
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0 ${isSuper ? 'bg-gradient-to-tr from-purple-600 to-indigo-600' : 'bg-gradient-to-tr from-blue-600 to-sky-500'}`}>
-                      {initialsOf(acc.full_name)}
+                    {/* Custom Map-Style Avatar */}
+                    <div
+                      className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0 relative shadow-sm"
+                      style={{ background: isSuper ? 'linear-gradient(to top right, #9333ea, #4f46e5)' : themeColor }}
+                    >
+                      <span className="text-base">{isSuper ? '👑' : matchedType.iconText}</span>
+                      <span
+                        className="absolute -top-1.5 -right-1.5 text-[8px] font-black px-1 py-0.2 rounded-full border bg-white shadow-xs"
+                        style={{ color: themeColor, borderColor: themeColor }}
+                      >
+                        {isSuper ? '👑' : customInitials}
+                      </span>
                     </div>
+
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <p className="text-sm font-black text-gray-900 truncate">{acc.full_name}</p>
@@ -186,6 +214,20 @@ const AdminAccountsPanel = () => {
                       {isSuper ? 'Super Admin' : 'Admin'}
                     </span>
                   </div>
+
+                  {/* Commission Summary Chip for Admin */}
+                  {!isSuper && commData && (
+                    <div className="mx-3.5 mb-2.5 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-[10px]">
+                      <span className="font-bold text-gray-500">Komisi:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-emerald-600">Cair: {formatRupiah(commData.totalPaid)}</span>
+                        <span>·</span>
+                        <span className={`font-black ${commData.pendingBalance > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                          Pending: {formatRupiah(commData.pendingBalance)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="px-3.5 pb-3.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-400">
                     <span className="flex items-center gap-1"><Clock size={11} className="shrink-0" />{formatLastLogin(acc.last_login_at)}</span>
@@ -203,7 +245,7 @@ const AdminAccountsPanel = () => {
                         <Lock size={12} className="shrink-0" />
                         {acc.device_label ? <>Terkunci ke <b className="text-gray-700">{acc.device_label}</b></> : 'Belum terkunci ke device manapun'}
                       </p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-4 gap-2">
                         <button
                           type="button"
                           onClick={() => setAccessAdmin(acc)}
@@ -211,6 +253,14 @@ const AdminAccountsPanel = () => {
                         >
                           <ShieldCheck size={15} />
                           Akses
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCommissionAdmin(acc)}
+                          className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:scale-95 transition-all"
+                        >
+                          <DollarSign size={15} />
+                          Komisi
                         </button>
                         <button
                           type="button"
@@ -294,6 +344,17 @@ const AdminAccountsPanel = () => {
         <AdminAccessModal
           admin={accessAdmin}
           onClose={() => setAccessAdmin(null)}
+          onSaved={loadAdmins}
+        />
+      )}
+
+      {commissionAdmin && (
+        <AdminCommissionModal
+          admin={commissionAdmin}
+          transactions={transactions}
+          companyInfo={companyInfo}
+          session={session}
+          onClose={() => setCommissionAdmin(null)}
           onSaved={loadAdmins}
         />
       )}

@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building2, Wifi, Trash2, Bluetooth, BluetoothConnected,
-  BluetoothOff, AlertCircle, Printer, User, LogOut, Image, ChevronRight,
+  BluetoothOff, AlertCircle, AlertTriangle, Printer, User, LogOut, Image, ChevronRight,
   Key, Globe, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send,
   Zap, Clock, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users, MessageCircle,
-  Copy, Check, Webhook
+  Copy, Check, Webhook, ExternalLink, ZoomIn, X, ChevronDown, ChevronUp, FileText,
+  ImagePlus
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { supabase } from '../lib/supabase';
@@ -15,17 +16,44 @@ import RunsnetSyncPanel from '../components/RunsnetSyncPanel';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { resizeImageFile } from '../utils/imageResize';
 
+const parseLogDetail = (detail) => {
+  if (!detail) return {};
+  if (typeof detail === 'object') return detail;
+  try {
+    return JSON.parse(detail);
+  } catch {
+    return { raw: String(detail) };
+  }
+};
+
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
   btDevice, isConnecting, connectBluetooth, disconnectBluetooth, reconnectBluetooth, savedDeviceName,
-  deferredPrompt, onInstall, onSyncEbilling, onUpdateMyName, session
+  deferredPrompt, onInstall, onSyncEbilling, onUpdateMyName, session,
+  customers = [], transactions = []
 }) => {
   const [newPkgName, setNewPkgName] = useState('');
   const [newPkgPrice, setNewPkgPrice] = useState('');
   const [myName, setMyName] = useState('');
   const [savingMyName, setSavingMyName] = useState(false);
   const [myNameError, setMyNameError] = useState(null);
-  const [localCompany, setLocalCompany] = useState(companyInfo);
+  const [localCompany, setLocalCompany] = useState(() => ({
+    ...companyInfo,
+    watbizToken: companyInfo?.watbizToken || (typeof window !== 'undefined' ? localStorage.getItem('watbiz_token') : '') || '51dad347-d267-4254-9858-3e3b19c76c53',
+    watbizEnabled: companyInfo?.watbizEnabled ?? (typeof window !== 'undefined' ? localStorage.getItem('watbiz_enabled') !== 'false' : true),
+  }));
+
+  useEffect(() => {
+    if (companyInfo) {
+      setLocalCompany((prev) => ({
+        ...prev,
+        ...companyInfo,
+        watbizToken: companyInfo.watbizToken || prev.watbizToken || (typeof window !== 'undefined' ? localStorage.getItem('watbiz_token') : '') || '51dad347-d267-4254-9858-3e3b19c76c53',
+        watbizEnabled: companyInfo.watbizEnabled ?? prev.watbizEnabled ?? true,
+      }));
+    }
+  }, [companyInfo]);
+
   const [showApiKey, setShowApiKey] = useState(false);
   const [isTestingApi, setIsTestingApi] = useState(false);
   const [isSyncingCust, setIsSyncingCust] = useState(false);
@@ -56,11 +84,146 @@ const Settings = ({
   const [watbizTestResult, setWatbizTestResult] = useState(null);
   const [watbizLogs, setWatbizLogs] = useState([]);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [isRegisteringWebhook, setIsRegisteringWebhook] = useState(false);
+  const [registerWebhookResult, setRegisterWebhookResult] = useState(null);
+  const [registeredWebhookUrl, setRegisteredWebhookUrl] = useState(null);
+  const [isLoadingWebhookStatus, setIsLoadingWebhookStatus] = useState(false);
 
-  const loadWatbizLogs = async () => {
-    const { data } = await supabase.from('watbiz_logs').select('*').order('sent_at', { ascending: false }).limit(30);
-    if (data) setWatbizLogs(data);
+  // Simulasi Webhook Lokal (Auto-payment test langsung dari localhost)
+  const [simCustomerPhone, setSimCustomerPhone] = useState('');
+  const [simType, setSimType] = useState('photo'); // 'photo' | 'text'
+  const [simProofFile, setSimProofFile] = useState(null);
+  const [simProofPreview, setSimProofPreview] = useState(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simResult, setSimResult] = useState(null);
+
+  const defaultWebhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/watbiz` : '';
+  const isLocalhost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.startsWith('192.168.') ||
+    window.location.hostname.startsWith('10.')
+  );
+
+  const [webhookUrlInput, setWebhookUrlInput] = useState(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('kasir_watbiz_webhook_url') : '';
+    // Jika tersimpan localhost tapi sekarang diakses di domain publik hasil deploy, otomatis gunakan domain publik aktif
+    const isPublic = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    if (saved && (saved.includes('localhost') || saved.includes('127.0.0.1')) && isPublic) {
+      return defaultWebhookUrl;
+    }
+    return saved || defaultWebhookUrl;
+  });
+
+  // Otomatis ganti ke domain publik jika berpindah dari localhost ke deploy publik
+  useEffect(() => {
+    if (!isLocalhost && webhookUrlInput && (webhookUrlInput.includes('localhost') || webhookUrlInput.includes('127.0.0.1'))) {
+      setWebhookUrlInput(defaultWebhookUrl);
+      localStorage.setItem('kasir_watbiz_webhook_url', defaultWebhookUrl);
+    }
+  }, [isLocalhost, defaultWebhookUrl, webhookUrlInput]);
+
+  const [logFilter, setLogFilter] = useState('all');
+  const [expandedLogId, setExpandedLogId] = useState(null);
+  const [previewImageModal, setPreviewImageModal] = useState(null);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+  const loadWatbizLogs = async (showLoading = false) => {
+    if (showLoading) setIsLoadingLogs(true);
+    try {
+      const query = supabase.from('watbiz_logs').select('*');
+      const res = typeof query?.order === 'function'
+        ? await query.order('sent_at', { ascending: false }).limit(60)
+        : await query;
+      if (res?.data) setWatbizLogs(res.data);
+    } catch (err) {
+      console.warn('Gagal memuat watbiz_logs:', err);
+    } finally {
+      if (showLoading) setIsLoadingLogs(false);
+    }
   };
+
+  const handleUploadRealProof = async (e, log) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const resized = await resizeImageFile(file, 1000, { type: 'image/jpeg', quality: 0.85 });
+      const detail = parseLogDetail(log.response_detail);
+      detail.mediaUrl = resized;
+      detail.needsPhotoAttachment = false;
+
+      // 1. Cari transactionId jika belum ada di log
+      let trxId = detail.transactionId;
+      if (!trxId) {
+        const custName = detail.customerName || log.sender_name;
+        if (custName) {
+          const { data: matchedTrx } = await supabase.from('transactions')
+            .select('id, invoice_number, price')
+            .ilike('customer_name', `%${custName.trim()}%`)
+            .order('date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (matchedTrx?.id) {
+            trxId = matchedTrx.id;
+            detail.transactionId = trxId;
+            if (!detail.invoice) detail.invoice = matchedTrx.invoice_number;
+            if (!detail.nominal) detail.nominal = matchedTrx.price;
+          }
+        }
+      }
+
+      // 2. Simpan foto asli ke watbiz_logs
+      await supabase.from('watbiz_logs').update({
+        response_detail: JSON.stringify(detail)
+      }).eq('id', log.id);
+
+      // 3. Jika ada transaksi terkait, simpan ke runsnet_proofs
+      if (trxId) {
+        await supabase.from('runsnet_proofs').upsert({
+          transaction_id: trxId,
+          image: resized,
+          uploaded_by_name: session?.profile?.full_name || 'Admin WhatsApp',
+          created_at: new Date().toISOString()
+        }, { onConflict: 'transaction_id' });
+      }
+
+      window.dispatchEvent(new CustomEvent('kasir:proof-updated', { detail: { transactionId: trxId } }));
+      await loadWatbizLogs(true);
+      alert('Foto bukti asli dari WhatsApp pelanggan berhasil disimpan ke database!');
+    } catch (err) {
+      alert('Gagal mengunggah foto bukti: ' + err.message);
+    }
+  };
+
+  const fetchRegisteredWebhook = async () => {
+    if (!session?.access_token) return;
+    setIsLoadingWebhookStatus(true);
+    try {
+      const res = await fetch('/api/watbiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: 'get-webhook' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setRegisteredWebhookUrl(data.webhookUrl || null);
+      }
+    } catch {}
+    setIsLoadingWebhookStatus(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'watbiz') {
+      loadWatbizLogs(true);
+      fetchRegisteredWebhook();
+      const interval = setInterval(() => {
+        loadWatbizLogs(false);
+      }, 8000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
 
   const currentUser = session?.user;
   const isSuper = session?.profile?.role === 'superadmin';
@@ -126,6 +289,131 @@ const Settings = ({
     }
     setIsTestingWatbiz(false);
   };
+
+  // Mendaftarkan Webhook URL otomatis ke sistem Watbiz via API v2 (POST /api/v2/webhook)
+  const handleRegisterWebhook = async () => {
+    if (!localCompany.watbizToken) {
+      setRegisterWebhookResult({ success: false, message: 'Isi token API Watbiz terlebih dahulu.' });
+      return;
+    }
+    const targetUrl = (webhookUrlInput || '').trim() || defaultWebhookUrl;
+    if (!targetUrl) {
+      setRegisterWebhookResult({ success: false, message: 'URL Webhook wajib diisi.' });
+      return;
+    }
+
+    if (targetUrl.includes('localhost') || targetUrl.includes('127.0.0.1')) {
+      const proceed = window.confirm(
+        '⚠️ Perhatian: URL mengarah ke LOCALHOST. Server Watbiz di cloud internet tidak dapat mengirim webhook ke komputer lokal Anda tanpa tunnel (seperti ngrok/Cloudflare) atau domain publik hasil deploy.\n\nTetap lanjutkan mendaftarkan URL ini?'
+      );
+      if (!proceed) return;
+    }
+
+    setIsRegisteringWebhook(true);
+    setRegisterWebhookResult(null);
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const response = await fetch('/api/watbiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSession?.access_token}` },
+        body: JSON.stringify({
+          action: 'register-webhook',
+          token: localCompany.watbizToken,
+          webhookUrl: targetUrl
+        }),
+      });
+      const result = await response.json();
+      if (response.ok && result.ok) {
+        localStorage.setItem('kasir_watbiz_webhook_url', targetUrl);
+        setRegisteredWebhookUrl(targetUrl);
+        setRegisterWebhookResult({
+          success: true,
+          message: `Webhook berhasil didaftarkan ke Watbiz API! (${targetUrl})`,
+          detail: typeof result.body === 'string' ? result.body : JSON.stringify(result.body)
+        });
+      } else {
+        setRegisterWebhookResult({
+          success: false,
+          message: result.error || result.body?.message || 'Watbiz menolak pendaftaran webhook.',
+          detail: JSON.stringify(result.body || result)
+        });
+      }
+      loadWatbizLogs();
+    } catch (err) {
+      setRegisterWebhookResult({ success: false, message: 'Gagal menghubungi server: ' + err.message });
+    }
+    setIsRegisteringWebhook(false);
+  };
+
+  // Uji Simulasi Webhook Lokal (Auto-payment test langsung dari localhost tanpa tunnel)
+  const handleSimulateWebhook = async () => {
+    const targetPhone = simCustomerPhone.trim();
+    if (!targetPhone) {
+      setSimResult({ success: false, message: 'Pilih pelanggan atau masukkan nomor WhatsApp terlebih dahulu.' });
+      return;
+    }
+    setIsSimulating(true);
+    setSimResult(null);
+    try {
+      const payload = {
+        action: 'webhook',
+        phone: targetPhone,
+        message: simType === 'photo' 
+          ? 'Halo admin, saya sudah transfer pembayaran internet bulanan. Mohon dicek ya 🙏' 
+          : 'Halo admin kasir, tagihan internet saya sudah lunas dibayar via transfer',
+        media_url: simType === 'photo' ? (simProofFile || null) : null,
+        type: simType === 'photo' ? 'image' : 'text',
+      };
+
+      const response = await fetch('/api/watbiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      if (response.ok && result.ok) {
+        if (result.status === 'proof_photo_required') {
+          setSimResult({
+            success: true,
+            status: result.status,
+            isProofRequired: true,
+            message: `Verifikasi Ketat Berhasil (Pembayaran Ditolak): Pesan teks dari ${result.customer || targetPhone} tidak menyertakan foto struk. Bot WhatsApp otomatis membalas meminta kirim foto bukti transfer dan kasir TIDAK mencatat pembayaran.`,
+            transaction: null,
+            replySent: result.replySent,
+          });
+        } else {
+          setSimResult({
+            success: true,
+            status: result.status,
+            isProofRequired: false,
+            message: `Simulasi Auto-Payment Berhasil: Bukti foto struk diverifikasi, transaksi LUNAS dicatat untuk ${result.customer || targetPhone}, status pelanggan AKTIF, dan pesan konfirmasi WhatsApp terkirim!`,
+            transaction: result.transaction,
+            replySent: result.replySent,
+          });
+
+          // Beritahu App.jsx agar daftar transaksi & status pelanggan langsung ter-update di UI tanpa perlu refresh
+          if (result.transaction) {
+            window.dispatchEvent(new CustomEvent('kasir:auto-payment-success', {
+              detail: { transaction: result.transaction, customerName: result.customer }
+            }));
+          }
+        }
+      } else {
+        setSimResult({
+          success: false,
+          message: result.error || 'Simulasi ditolak server lokal.',
+          detail: typeof result === 'object' ? JSON.stringify(result) : String(result),
+        });
+      }
+      loadWatbizLogs();
+    } catch (err) {
+      setSimResult({ success: false, message: 'Gagal menghubungi server lokal: ' + err.message });
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
 
   // Sync local state & load API Key guarantee from localStorage
   useEffect(() => {
@@ -841,31 +1129,312 @@ const Settings = ({
                   <Webhook size={13} className="text-emerald-600" />
                   <span>Webhook URL (Auto-Payment & Auto-Konfirmasi)</span>
                 </label>
-                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                  Aktif
-                </span>
+                {isLocalhost ? (
+                  <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                    ⚠️ Mode Lokal (Localhost)
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                    🌐 Domain Publik Aktif
+                  </span>
+                )}
               </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/watbiz`}
-                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-700 select-all"
-                />
+
+              {/* Status URL Webhook yang Terdaftar di Server Watbiz */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase shrink-0">Status di Watbiz:</span>
+                  {isLoadingWebhookStatus ? (
+                    <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                      <RefreshCw size={11} className="animate-spin text-blue-600 shrink-0" />
+                      <span>Memeriksa server Watbiz...</span>
+                    </span>
+                  ) : registeredWebhookUrl ? (
+                    <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 truncate flex items-center gap-1">
+                      <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                      <span className="truncate" title={registeredWebhookUrl}>Terdaftar: {registeredWebhookUrl}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                      <AlertTriangle size={12} className="text-amber-600 shrink-0" />
+                      <span>Belum terdaftar di Watbiz</span>
+                    </span>
+                  )}
+                </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/watbiz`;
-                    navigator.clipboard.writeText(url);
-                    setCopiedWebhook(true);
-                    setTimeout(() => setCopiedWebhook(false), 2000);
-                  }}
-                  className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0"
+                  onClick={fetchRegisteredWebhook}
+                  disabled={isLoadingWebhookStatus}
+                  className="shrink-0 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                  title="Cek ulang status webhook dari Watbiz"
                 >
-                  {copiedWebhook ? <Check size={14} /> : <Copy size={14} />}
-                  <span>{copiedWebhook ? 'Tersalin' : 'Salin'}</span>
+                  <RefreshCw size={12} className={isLoadingWebhookStatus ? 'animate-spin' : ''} />
                 </button>
               </div>
+
+
+              <div className="space-y-1">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={webhookUrlInput}
+                    onChange={(e) => {
+                      setWebhookUrlInput(e.target.value);
+                      localStorage.setItem('kasir_watbiz_webhook_url', e.target.value);
+                    }}
+                    placeholder="https://domain-anda.vercel.app/api/watbiz"
+                    className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-800 focus:border-emerald-500 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(webhookUrlInput || defaultWebhookUrl);
+                      setCopiedWebhook(true);
+                      setTimeout(() => setCopiedWebhook(false), 2000);
+                    }}
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0"
+                  >
+                    {copiedWebhook ? <Check size={14} /> : <Copy size={14} />}
+                    <span>{copiedWebhook ? 'Tersalin' : 'Salin'}</span>
+                  </button>
+                </div>
+
+                {webhookUrlInput !== defaultWebhookUrl && defaultWebhookUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWebhookUrlInput(defaultWebhookUrl);
+                      localStorage.setItem('kasir_watbiz_webhook_url', defaultWebhookUrl);
+                    }}
+                    className="text-[10px] text-blue-600 hover:underline font-bold flex items-center gap-1 ml-1"
+                  >
+                    <span>↺ Pasang domain aktif ini ({defaultWebhookUrl})</span>
+                  </button>
+                )}
+              </div>
+
+              {isLocalhost && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-[11px] text-amber-900 space-y-1">
+                  <p className="font-bold flex items-center gap-1">
+                    <span>⚠️ Informasi Menjalankan di Lokal:</span>
+                  </p>
+                  <p className="leading-relaxed text-[10px]">
+                    Server Watbiz di internet <strong>tidak bisa mengirim pesan ke localhost secara langsung</strong>. Agar webhook berfungsi:
+                  </p>
+                  <ul className="list-disc pl-4 text-[10px] space-y-0.5">
+                    <li>Saat di lokal, Anda bisa menggunakan tunnel seperti <strong>ngrok</strong> (masukkan URL ngrok di atas).</li>
+                    <li>Setelah <strong>deploy ke Vercel</strong>, buka aplikasi di URL Vercel Anda, dan klik tombol daftar di bawah. URL akan <strong>otomatis berganti ke domain Vercel Anda</strong>!</li>
+                  </ul>
+                </div>
+              )}
+
+              <div className="pt-0.5">
+                <button
+                  type="button"
+                  onClick={handleRegisterWebhook}
+                  disabled={isRegisteringWebhook}
+                  className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+                >
+                  {isRegisteringWebhook ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span>Mendaftarkan Webhook ke Watbiz Server...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Webhook size={14} />
+                      <span>Daftarkan Webhook Otomatis ke Watbiz API</span>
+                    </>
+                  )}
+                </button>
+
+                {registerWebhookResult && (
+                  <div className={`mt-2 p-3 rounded-xl text-xs font-medium space-y-1 ${registerWebhookResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                    <div className="flex items-center gap-2 font-bold">
+                      {registerWebhookResult.success ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" /> : <XCircle size={15} className="shrink-0 text-red-600" />}
+                      <span>{registerWebhookResult.message}</span>
+                    </div>
+                    {registerWebhookResult.detail && <p className="text-[10px] opacity-75 pl-5 truncate font-mono">{registerWebhookResult.detail}</p>}
+                  </div>
+                )}
+              </div>
+
+              {/* Simulator Webhook Lokal (Auto-Payment & Auto-Konfirmasi) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-slate-800">
+                    <Zap size={14} className="text-amber-500 fill-amber-500" />
+                    <span>🧪 Uji Simulasi Webhook Lokal (Auto-Payment)</span>
+                  </div>
+                  <span className="text-[9px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full">
+                    {isLocalhost ? 'Mode Lokal Tanpa Tunnel' : 'Uji Langsung Server'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Coba alur pesan masuk WhatsApp dari pelanggan langsung di server kasir: sistem akan mendeteksi nomor pelanggan, mencatat transaksi lunas, membuka isolir (update status ke aktif), dan mengirim balasan bukti bayar.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      Pilih Pelanggan Uji Coba:
+                    </label>
+                    <select
+                      value={simCustomerPhone}
+                      onChange={(e) => setSimCustomerPhone(e.target.value)}
+                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none focus:border-emerald-500"
+                    >
+                      <option value="">-- Pilih dari database ({customers?.length || 0} pelanggan) --</option>
+                      {customers?.filter(c => c.phone)?.slice(0, 50)?.map(c => (
+                        <option key={c.id} value={c.phone}>
+                          {c.name} ({c.phone}) - {c.status || 'aktif'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      Atau Ketik Nomor WhatsApp:
+                    </label>
+                    <input
+                      type="text"
+                      value={simCustomerPhone}
+                      onChange={(e) => setSimCustomerPhone(e.target.value)}
+                      placeholder="Contoh: 628123456789"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-800 outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-700 pt-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Skenario Masuk:</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="simType"
+                      value="photo"
+                      checked={simType === 'photo'}
+                      onChange={() => setSimType('photo')}
+                      className="accent-emerald-600"
+                    />
+                    <span>📸 Foto Bukti Struk Transfer</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="simType"
+                      value="text"
+                      checked={simType === 'text'}
+                      onChange={() => setSimType('text')}
+                      className="accent-emerald-600"
+                    />
+                    <span>💬 Pesan Teks ("Sudah bayar kak")</span>
+                  </label>
+                </div>
+
+                {simType === 'photo' && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-700">Lampirkan File Foto Struk Asli (Opsional untuk Pengujian):</span>
+                      {simProofPreview && (
+                        <button
+                          type="button"
+                          onClick={() => { setSimProofFile(null); setSimProofPreview(null); }}
+                          className="text-[10px] text-red-600 hover:underline font-bold"
+                        >
+                          Hapus Foto
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {simProofPreview ? (
+                        <img src={simProofPreview} alt="Preview Foto Struk" className="w-14 h-14 object-cover rounded-lg border border-emerald-300 shadow-xs" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg border border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 text-[10px] text-center font-bold p-1">
+                          Foto Struk
+                        </div>
+                      )}
+                      <label className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-lg border border-slate-300 cursor-pointer shadow-xs transition-colors flex items-center gap-1.5">
+                        <ImagePlus size={13} className="text-emerald-600" />
+                        <span>{simProofPreview ? 'Ganti Foto Struk Asli' : 'Pilih Foto Struk Asli'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            if (f) {
+                              const res = await resizeImageFile(f, 1000, { type: 'image/jpeg', quality: 0.85 });
+                              setSimProofFile(res);
+                              setSimProofPreview(res);
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                      </label>
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Jika file foto struk dipilih, foto asli ini akan langsung dikirimkan ke webhook dan tersimpan permanen di database.
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSimulateWebhook}
+                  disabled={isSimulating}
+                  className="w-full py-2.5 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+                >
+                  {isSimulating ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span>Menjalankan Simulasi Webhook Lokal...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={14} />
+                      <span>Jalankan Simulasi Webhook Lokal</span>
+                    </>
+                  )}
+                </button>
+
+                {simResult && (
+                  <div className={`p-3 rounded-xl text-xs font-medium space-y-1.5 ${
+                    !simResult.success
+                      ? 'bg-red-50 text-red-800 border border-red-200'
+                      : simResult.isProofRequired
+                        ? 'bg-amber-50 text-amber-900 border border-amber-300'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  }`}>
+                    <div className="flex items-center gap-2 font-bold">
+                      {!simResult.success ? (
+                        <XCircle size={16} className="shrink-0 text-red-600" />
+                      ) : simResult.isProofRequired ? (
+                        <AlertTriangle size={16} className="shrink-0 text-amber-600" />
+                      ) : (
+                        <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
+                      )}
+                      <span>{simResult.message}</span>
+                    </div>
+                    {simResult.transaction && (
+                      <p className="text-[10px] text-emerald-700 pl-6 font-mono">
+                        ✓ Transaksi ID: {simResult.transaction.id} | Jumlah: {formatRupiah(simResult.transaction.price || simResult.transaction.amount_paid)} | Status: {simResult.transaction.status}
+                      </p>
+                    )}
+                    {simResult.isProofRequired && (
+                      <p className="text-[10px] text-amber-800 pl-6 font-medium">
+                        🛡️ Pengamanan Aktif: Pembayaran tidak akan diproses tanpa foto struk asli dari pelanggan. Bot membalas meminta foto bukti transfer.
+                      </p>
+                    )}
+                    {simResult.detail && typeof simResult.detail === 'string' && (
+                      <p className="text-[10px] opacity-75 pl-6 truncate font-mono">{simResult.detail}</p>
+                    )}
+                  </div>
+                )}
+
+              </div>
+
               <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl p-3 text-[11px] text-emerald-900 space-y-1.5">
                 <p className="font-bold flex items-center gap-1 text-emerald-950">
                   <span>💡 Otomasi Webhook Aktif:</span>
@@ -894,69 +1463,350 @@ const Settings = ({
               </div>
             </div>
 
-            {/* Riwayat Pesan WhatsApp */}
-            <div className="pt-4 border-t border-gray-100 space-y-3">
-              <div className="flex items-center justify-between">
+            {/* Riwayat & Log WhatsApp Gateway (Lengkap dengan Foto Bukti Klien & Detail Transaksi) */}
+            <div className="pt-5 border-t border-gray-100 space-y-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Server size={16} className="text-emerald-600" />
-                  <h4 className="text-xs font-black text-gray-700 uppercase tracking-wider">Riwayat WhatsApp</h4>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Server size={16} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider">
+                        Log & Riwayat WhatsApp Gateway
+                      </h4>
+                      <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Realtime Live
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500">
+                      Seluruh pesan, foto bukti pembayaran dari klien, dan auto-payment tercatat transparan.
+                    </p>
+                  </div>
                 </div>
-                {watbizLogs.length > 0 && (
+
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={async () => {
-                      if (!window.confirm('Bersihkan semua riwayat pesan WhatsApp?')) return;
-                      await supabase.from('watbiz_logs').delete().neq('id', 0);
-                      loadWatbizLogs();
-                    }}
-                    className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-2 py-1 rounded-md transition-colors"
+                    onClick={() => loadWatbizLogs(true)}
+                    disabled={isLoadingLogs}
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    title="Segarkan data log WhatsApp"
                   >
-                    Hapus Log
+                    <RefreshCw size={12} className={isLoadingLogs ? 'animate-spin text-emerald-600' : ''} />
+                    <span>Segarkan</span>
                   </button>
-                )}
+
+                  {watbizLogs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!window.confirm('Bersihkan semua riwayat pesan & log WhatsApp?')) return;
+                        await supabase.from('watbiz_logs').delete().neq('id', 0);
+                        loadWatbizLogs(true);
+                      }}
+                      className="px-2.5 py-1.5 text-[11px] font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <Trash2 size={12} />
+                      <span>Hapus Log</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {watbizLogs.length > 0 ? (
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                  {watbizLogs.map((log) => {
-                    const kindBadge = {
-                      invoice: { text: 'Bukti Transaksi', bg: 'bg-blue-100 text-blue-700' },
-                      reminder: { text: 'Pengingat Tagihan', bg: 'bg-amber-100 text-amber-700' },
-                      auto_payment: { text: 'Auto-Payment Bot', bg: 'bg-purple-100 text-purple-700' },
-                      inbound: { text: 'Pesan Masuk WA', bg: 'bg-cyan-100 text-cyan-700' },
-                      test: { text: 'Tes Koneksi', bg: 'bg-gray-100 text-gray-600' }
-                    }[log.kind] || { text: log.kind || 'WA', bg: 'bg-gray-100 text-gray-600' };
+              {/* Filter Tabs Log */}
+              {watbizLogs.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors ${
+                      logFilter === 'all'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Semua ({watbizLogs.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('proof')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors ${
+                      logFilter === 'proof'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                    }`}
+                  >
+                    <span>📸 Foto Bukti ({watbizLogs.filter((l) => l.kind === 'inbound_proof' || Boolean(parseLogDetail(l.response_detail).mediaUrl)).length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('auto_payment')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors ${
+                      logFilter === 'auto_payment'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
+                    }`}
+                  >
+                    <span>⚡ Auto-Payment ({watbizLogs.filter((l) => l.kind === 'auto_payment').length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('invoice')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors ${
+                      logFilter === 'invoice'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                    }`}
+                  >
+                    <span>🧾 Struk Transaksi ({watbizLogs.filter((l) => l.kind === 'invoice').length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('request')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors ${
+                      logFilter === 'request'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                    }`}
+                  >
+                    <span>🛡️ Minta Foto ({watbizLogs.filter((l) => l.kind === 'inbound_request_proof').length})</span>
+                  </button>
+                </div>
+              )}
 
-                    return (
-                      <div key={log.id} className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-emerald-700">{log.phone_number}</span>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${kindBadge.bg}`}>
-                              {kindBadge.text}
-                            </span>
+              {/* Daftar Log WhatsApp */}
+              {watbizLogs.length > 0 ? (
+                <div className="space-y-3 max-h-[550px] overflow-y-auto pr-1">
+                  {watbizLogs
+                    .filter((log) => {
+                      const detail = parseLogDetail(log.response_detail);
+                      const hasMedia = log.kind === 'inbound_proof' || Boolean(detail.mediaUrl);
+                      if (logFilter === 'proof') return hasMedia;
+                      if (logFilter === 'auto_payment') return log.kind === 'auto_payment';
+                      if (logFilter === 'invoice') return log.kind === 'invoice';
+                      if (logFilter === 'request') return log.kind === 'inbound_request_proof';
+                      return true;
+                    })
+                    .map((log) => {
+                      const detail = parseLogDetail(log.response_detail);
+                      const mediaUrl = detail.mediaUrl || detail.image || detail.imageUrl || (
+                        typeof log.message === 'string' && log.message.includes('http') && (log.message.includes('.jpg') || log.message.includes('.png') || log.message.includes('.jpeg'))
+                          ? log.message.match(/https?:\/\/[^\s]+/)?.[0]
+                          : null
+                      );
+                      const isExpanded = expandedLogId === log.id;
+
+                      const kindBadge = {
+                        inbound_proof: { text: '📸 Foto Bukti Masuk', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+                        auto_payment: { text: '⚡ Auto-Payment Bot', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
+                        invoice: { text: '🧾 Bukti Transaksi', bg: 'bg-blue-100 text-blue-800 border-blue-200' },
+                        reminder: { text: '⏰ Pengingat Tagihan', bg: 'bg-amber-100 text-amber-800 border-amber-200' },
+                        inbound_request_proof: { text: '🛡️ Minta Foto Struk', bg: 'bg-amber-100 text-amber-800 border-amber-200' },
+                        inbound: { text: '💬 Pesan Masuk WA', bg: 'bg-cyan-100 text-cyan-800 border-cyan-200' },
+                        test: { text: '🧪 Tes Koneksi', bg: 'bg-gray-100 text-gray-700 border-gray-200' }
+                      }[log.kind] || { text: log.kind || 'WA', bg: 'bg-gray-100 text-gray-700 border-gray-200' };
+
+                      return (
+                        <div
+                          key={log.id}
+                          className={`p-3.5 bg-white border rounded-2xl shadow-xs transition-all space-y-2.5 ${
+                            log.kind === 'inbound_proof' || mediaUrl
+                              ? 'border-emerald-200 hover:border-emerald-300 ring-1 ring-emerald-50'
+                              : log.kind === 'auto_payment'
+                                ? 'border-purple-200 hover:border-purple-300 ring-1 ring-purple-50'
+                                : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          {/* Header Bar Log */}
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono font-bold text-slate-800 text-[11px] bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                                {log.phone_number}
+                              </span>
+                              {(detail.customerName || log.sender_name) && (
+                                <span className="text-[11px] font-bold text-slate-700">
+                                  👤 {detail.customerName || log.sender_name}
+                                </span>
+                              )}
+                              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${kindBadge.bg}`}>
+                                {kindBadge.text}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                              <span className="font-mono">
+                                {new Date(log.sent_at || log.created_at).toLocaleString('id-ID', {
+                                  day: '2-digit', month: 'short', year: 'numeric',
+                                  hour: '2-digit', minute: '2-digit', second: '2-digit'
+                                })} WIB
+                              </span>
+                              <span className={`font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                                log.status === 'success' || log.status === 'received'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : log.status === 'payment_saved_wa_pending'
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                              }`}>
+                                {log.status === 'success' || log.status === 'received' ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
+                                {log.status === 'received' ? 'Diterima' : log.status === 'success' ? 'Sukses' : log.status === 'payment_saved_wa_pending' ? 'Lunas (WA Pending)' : 'Gagal'}
+                              </span>
+                            </div>
                           </div>
-                          <span className="font-mono text-gray-400 text-[10px]">{new Date(log.sent_at).toLocaleString('id-ID')}</span>
+
+                          {/* Isi Pesan WhatsApp */}
+                          <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-wrap">
+                            {log.message}
+                          </div>
+
+                          {/* TAMPILAN FOTO / GAMBAR BUKTI PEMBAYARAN DARI KLIEN */}
+                          {mediaUrl ? (
+                            <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl flex items-start gap-3">
+                              <div
+                                onClick={() => setPreviewImageModal({
+                                  url: mediaUrl,
+                                  title: `Foto Bukti Transfer: ${detail.customerName || log.phone_number}`,
+                                  phone: log.phone_number,
+                                  time: log.sent_at || log.created_at
+                                })}
+                                className="relative group cursor-pointer shrink-0 rounded-xl overflow-hidden border border-emerald-300 bg-white shadow-xs hover:shadow-md transition-all w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center"
+                                title="Klik untuk memperbesar foto bukti"
+                              >
+                                <img
+                                  src={mediaUrl}
+                                  alt="Foto Bukti Pembayaran"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    if (e.target.parentElement) {
+                                      e.target.parentElement.innerHTML = '<div class="text-[9px] text-slate-400 p-2 text-center font-bold">Foto Bukti WhatsApp</div>';
+                                    }
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] font-bold gap-1">
+                                  <ZoomIn size={13} />
+                                  <span>Perbesar</span>
+                                </div>
+                              </div>
+
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-1.5 text-emerald-950 font-bold text-xs">
+                                  <Image size={14} className="text-emerald-700 shrink-0" />
+                                  <span>Foto Bukti Asli Pembayaran</span>
+                                </div>
+                                <p className="text-[11px] text-emerald-800 leading-snug">
+                                  Foto fisik bukti transfer tersimpan permanen di database dan terhubung ke riwayat transaksi.
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewImageModal({
+                                      url: mediaUrl,
+                                      title: `Foto Bukti Transfer: ${detail.customerName || log.phone_number}`,
+                                      phone: log.phone_number,
+                                      time: log.sent_at || log.created_at
+                                    })}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg shadow-xs transition-colors"
+                                  >
+                                    <ZoomIn size={11} />
+                                    <span>Lihat Foto Penuh</span>
+                                  </button>
+                                  <a
+                                    href={mediaUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[10px] rounded-lg border border-slate-200 transition-colors"
+                                  >
+                                    <ExternalLink size={11} />
+                                    <span>Buka di Tab Baru</span>
+                                  </a>
+                                  <label className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded-lg border border-indigo-200 cursor-pointer transition-colors">
+                                    <ImagePlus size={11} />
+                                    <span>Ganti Foto Asli</span>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => handleUploadRealProof(e, log)}
+                                      className="sr-only"
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (log.kind === 'inbound_proof' || detail.isImage) && (
+                            <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 text-amber-950 font-bold text-xs">
+                                  <Image size={14} className="text-amber-700 shrink-0" />
+                                  <span>Foto Bukti Diterima di WhatsApp</span>
+                                  {detail.whatsappMessageId && (
+                                    <span className="font-mono text-[10px] text-amber-600 font-normal">
+                                      (ID: {detail.whatsappMessageId.slice(0, 16)}...)
+                                    </span>
+                                  )}
+                                </div>
+                                <label className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer active:scale-95 transition-all">
+                                  <ImagePlus size={13} />
+                                  <span>📎 Unggah Foto Asli dari WA</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => handleUploadRealProof(e, log)}
+                                    className="sr-only"
+                                  />
+                                </label>
+                              </div>
+                              <p className="text-[11px] text-amber-800 leading-snug">
+                                Pelanggan telah mengirim foto bukti pembayaran ke nomor WhatsApp Anda. Karena gateway Watbiz hanya mengirimkan notifikasi tanpa file gambar fisik, silakan klik <strong>Unggah Foto Asli dari WA</strong> untuk melampirkan file foto yang Anda terima di WhatsApp agar tersimpan permanen di database transaksi.
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Rincian Transaksi jika Auto-Payment */}
+                          {(detail.transactionId || detail.invoice || detail.nominal) && (
+                            <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-2.5 text-[11px] text-purple-950 flex flex-wrap items-center justify-between gap-2 font-mono">
+                              <div>
+                                <span className="font-bold text-purple-900 font-sans">No. Invoice: </span>
+                                <span>{detail.invoice || detail.transactionId}</span>
+                              </div>
+                              {detail.nominal && (
+                                <div className="font-bold text-emerald-700 font-sans">
+                                  Total: {formatRupiah(detail.nominal)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Footer & Detail Teknis Payload JSON */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
+                            <div>
+                              {log.sender_name && (
+                                <span>Pengirim/Kasir: <strong className="text-slate-600">{log.sender_name}</strong></span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                              className="text-slate-500 hover:text-slate-800 font-medium flex items-center gap-1 hover:underline"
+                            >
+                              <span>Detail Teknis Payload JSON</span>
+                              {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                            </button>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="mt-2 bg-slate-900 text-emerald-400 p-2.5 rounded-xl font-mono text-[10px] overflow-x-auto max-h-48 border border-slate-800">
+                              <pre>{JSON.stringify(detail, null, 2)}</pre>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between text-xs gap-2">
-                          <span className="text-gray-600 font-medium truncate flex-1">{log.message}</span>
-                          <span className={`shrink-0 font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${log.status === 'success' || log.status === 'received' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                            {log.status === 'success' || log.status === 'received' ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
-                            {log.status === 'received' ? 'Diterima' : log.status === 'success' ? 'Sukses' : 'Gagal'}
-                          </span>
-                        </div>
-                        {log.sender_name && (
-                          <p className="text-[10px] text-gray-400 italic border-t border-gray-100/60 pt-1 mt-1">
-                            Oleh {log.sender_name}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               ) : (
-                <div className="p-4 bg-gray-50 rounded-xl text-center text-xs text-gray-400 italic">
-                  Belum ada pesan terkirim. Riwayat otomatis tercatat setiap kali Test Ping / reminder dikirim.
+                <div className="p-6 bg-gray-50 rounded-2xl text-center text-xs text-gray-400 italic space-y-1">
+                  <p className="font-bold text-gray-600">Belum ada riwayat pesan WhatsApp.</p>
+                  <p>Log akan otomatis tercatat saat webhook menerima foto bukti transfer atau pesan dari klien.</p>
                 </div>
               )}
             </div>
@@ -964,8 +1814,68 @@ const Settings = ({
         </div>
         )}
 
+        {/* Modal Lightbox Foto Bukti Pembayaran */}
+        {previewImageModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+            onClick={() => setPreviewImageModal(null)}
+          >
+            <div
+              className="relative max-w-2xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden p-4 space-y-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Image size={18} className="text-emerald-600" />
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">{previewImageModal.title}</h4>
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      {new Date(previewImageModal.time).toLocaleString('id-ID')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImageModal(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="bg-slate-950 rounded-xl overflow-hidden max-h-[70vh] flex items-center justify-center p-2">
+                <img
+                  src={previewImageModal.url}
+                  alt="Bukti Transfer Penuh"
+                  className="max-h-[68vh] w-auto max-w-full object-contain rounded-lg"
+                />
+              </div>
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <span className="text-[11px] text-slate-500">Foto bukti tersimpan di database sistem kasir</span>
+                <div className="flex gap-2">
+                  <a
+                    href={previewImageModal.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors"
+                  >
+                    <ExternalLink size={13} />
+                    <span>Buka Tab Baru</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImageModal(null)}
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Tab: Akun Admin (khusus superadmin) */}
-        {isSuper && activeTab === 'admin' && <AdminAccountsPanel />}
+        {isSuper && activeTab === 'admin' && <AdminAccountsPanel transactions={transactions} companyInfo={localCompany} session={session} />}
 
         {/* Tab: Runsnet (khusus superadmin) */}
         {isSuper && activeTab === 'runsnet' && <RunsnetSyncPanel session={session} />}

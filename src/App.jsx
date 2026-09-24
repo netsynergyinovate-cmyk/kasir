@@ -47,8 +47,8 @@ const INIT_COMPANY = {
   apiMonitoringUrl: '',
   apiMonitoringKey: localStorage.getItem('api_monitoring_key') || '',
   apiMonitoringEnabled: localStorage.getItem('api_monitoring_enabled') === 'true',
-  watbizToken: '',
-  watbizEnabled: false,
+  watbizToken: localStorage.getItem('watbiz_token') || '51dad347-d267-4254-9858-3e3b19c76c53',
+  watbizEnabled: localStorage.getItem('watbiz_enabled') !== 'false',
   idleLockExemptSuperadmin: false
 };
 
@@ -339,9 +339,8 @@ export default function App() {
             appPin: settingsData.app_pin || null,
             apiMonitoringUrl: settingsData.api_monitoring_url || '',
             apiMonitoringKey: finalKey,
-            apiMonitoringEnabled: finalEnabled,
-            watbizToken: settingsData.watbiz_token || '',
-            watbizEnabled: settingsData.watbiz_enabled || false,
+            watbizToken: settingsData.watbiz_token || localStorage.getItem('watbiz_token') || '51dad347-d267-4254-9858-3e3b19c76c53',
+            watbizEnabled: settingsData.watbiz_enabled ?? (localStorage.getItem('watbiz_enabled') !== 'false'),
             idleLockExemptSuperadmin: settingsData.idle_lock_exempt_superadmin || false
           });
         }
@@ -358,6 +357,68 @@ export default function App() {
     requestNotificationPermission();
     requestLocationPermission();
   }, [session]);
+
+  // Realtime subscription untuk transaksi dan pelanggan baru (termasuk auto-payment dari WhatsApp bot)
+  useEffect(() => {
+    if (!session) return;
+    const channel = supabase
+      .channel('kasir-realtime-transactions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newTrx = payload.new;
+          setTransactions((prev) => {
+            if (prev.some((t) => t.id === newTrx.id)) return prev;
+            return [newTrx, ...prev];
+          });
+          const customerTitle = newTrx.customer_name || 'Pelanggan';
+          const nominal = formatRupiah(newTrx.price || newTrx.amount_paid);
+          showNotification('Pembayaran Diterima', `${customerTitle} - ${nominal} (LUNAS)`);
+        } else if (payload.eventType === 'UPDATE') {
+          setTransactions((prev) => prev.map((t) => (t.id === payload.new.id ? payload.new : t)));
+        } else if (payload.eventType === 'DELETE') {
+          setTransactions((prev) => prev.filter((t) => t.id === payload.old.id));
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, (payload) => {
+        if (payload.eventType === 'UPDATE') {
+          setCustomers((prev) => prev.map((c) => (c.id === payload.new.id ? { ...c, ...payload.new } : c)));
+        } else if (payload.eventType === 'INSERT') {
+          setCustomers((prev) => {
+            if (prev.some((c) => c.id === payload.new.id)) return prev;
+            return [payload.new, ...prev];
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
+  // Listener event lokal saat simulasi auto-payment dijalankan dari tab Settings
+  useEffect(() => {
+    const handleLocalAutoPayment = (e) => {
+      const { transaction, customerName } = e.detail || {};
+      if (transaction) {
+        setTransactions((prev) => {
+          if (prev.some((t) => t.id === transaction.id)) return prev;
+          return [transaction, ...prev];
+        });
+      }
+      if (customerName) {
+        setCustomers((prev) =>
+          prev.map((c) =>
+            c.name?.toLowerCase() === customerName.toLowerCase()
+              ? { ...c, status: 'aktif', last_payment_date: new Date().toISOString() }
+              : c
+          )
+        );
+      }
+    };
+    window.addEventListener('kasir:auto-payment-success', handleLocalAutoPayment);
+    return () => window.removeEventListener('kasir:auto-payment-success', handleLocalAutoPayment);
+  }, []);
 
   const PRINTER_SERVICES = [
     '000018f0-0000-1000-8000-00805f9b34fb',
@@ -824,6 +885,12 @@ export default function App() {
         watbiz_enabled: mergedSettings.watbizEnabled ?? false,
         idle_lock_exempt_superadmin: mergedSettings.idleLockExemptSuperadmin ?? false
       };
+      if (mergedSettings.watbizToken) {
+        localStorage.setItem('watbiz_token', mergedSettings.watbizToken);
+      }
+      if (mergedSettings.watbizEnabled !== undefined) {
+        localStorage.setItem('watbiz_enabled', mergedSettings.watbizEnabled ? 'true' : 'false');
+      }
       const { error } = await supabase.from('company_settings').upsert(payload);
       if (error) throw error;
     } catch (e) {
@@ -1036,13 +1103,14 @@ export default function App() {
               <History 
                 role={session?.profile?.role}
                 session={session}
-                transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name, packageName: t.package_name, serviceName: t.service_name, amountPaid: t.amount_paid, cashierName: t.cashier_name}))} 
+                transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name, packageName: t.package_name, serviceName: t.service_name, amountPaid: t.amount_paid, cashierName: t.cashier_name, paymentMethod: t.payment_method}))} 
                 setReceiptToView={setReceiptToView} 
                 setInstansiReceiptToView={setInstansiReceiptToView} 
                 onDeleteTransaction={handleDeleteTransactionDB}
                 onUpdateTransactionInvoice={handleUpdateTransactionInvoice}
               />
             } />
+
             <Route path="/customers" element={
               <Pelanggan
                 customers={customers}
@@ -1075,6 +1143,7 @@ export default function App() {
             <Route path="/settings" element={
               <Settings 
                 session={session}
+                customers={customers}
                 packages={packages} 
                 onAddPackage={handleAddPackageDB}
                 onDeletePackage={handleDeletePackageDB}
@@ -1090,6 +1159,7 @@ export default function App() {
                 onInstall={installApp}
                 onSyncEbilling={handleSyncCustomersFromEbilling}
                 onUpdateMyName={handleUpdateMyName}
+                transactions={transactions}
                 />
             } />
             <Route path="/pos" element={
