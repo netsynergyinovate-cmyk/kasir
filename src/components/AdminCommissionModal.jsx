@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Send, CheckCircle2, Loader2, DollarSign, CreditCard, History, AlertCircle } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
-import { calculateAdminCommissions, createCommissionPayout, recordCommissionPayout } from '../utils/commissions';
+import { calculateAdminCommissions, commissionByMonth, createCommissionPayout, recordCommissionPayout, monthKey, monthLabel, payoutPeriodKey } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
 
 const PAYMENT_METHODS = [
@@ -17,16 +17,37 @@ const PAYMENT_METHODS = [
 
 const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, session, onClose, onSaved }) => {
   const currentAccess = normalizeAdminAccess(admin.allowed_paths);
-  const commissionData = calculateAdminCommissions(
+  const commissionFee = companyInfo.adminFee || 10000;
+  // Komisi dihitung dan dicairkan PER BULAN; Superadmin memilih bulan yang sedang dibayar.
+  const [period, setPeriod] = useState(() => monthKey(new Date()));
+  const computeFor = (targetPeriod) => calculateAdminCommissions(
     transactions,
     admin.id,
     admin.full_name,
-    companyInfo.adminFee || 10000,
+    commissionFee,
     currentAccess.commissions || [],
-    admin.role
+    admin.role,
+    targetPeriod
   );
+  const commissionData = computeFor(period);
+  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const date = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
+    return monthKey(date);
+  });
+  if (!monthOptions.includes(period)) monthOptions.push(period);
+  const otherMonthsPending = commissionByMonth(transactions, admin.id, admin.full_name, commissionFee, admin.role, currentAccess.commissions || [])
+    .filter((month) => month.key !== period)
+    .reduce((sum, month) => sum + month.pending, 0);
 
   const [amount, setAmount] = useState(commissionData.pendingBalance > 0 ? String(commissionData.pendingBalance) : '');
+
+  const handlePeriodChange = (nextPeriod) => {
+    setPeriod(nextPeriod);
+    const next = computeFor(nextPeriod);
+    setAmount(next.pendingBalance > 0 ? String(next.pendingBalance) : '');
+    setErrorMsg('');
+    setSuccessMsg('');
+  };
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,8 +76,9 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
         adminName: admin.full_name,
         amount: numericAmount,
         paymentMethod,
-        notes: notes.trim() || `Pencairan komisi per ${new Date().toLocaleDateString('id-ID')}`,
+        notes: notes.trim() || `Pencairan komisi ${monthLabel(period)}`,
         sentByName: session?.profile?.full_name || 'Super Admin',
+        period,
       });
 
       await recordCommissionPayout(admin, payout);
@@ -94,24 +116,45 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
           </div>
         </div>
 
+        {/* Bulan komisi yang dibayar */}
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor="commission-period" className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Bulan komisi</label>
+          <select
+            id="commission-period"
+            value={period}
+            onChange={(e) => handlePeriodChange(e.target.value)}
+            className="p-2 bg-white border border-gray-200 rounded-xl outline-none text-xs font-bold text-gray-700"
+          >
+            {monthOptions.map((key) => (
+              <option key={key} value={key}>{monthLabel(key)}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Ringkasan Saldo Komisi */}
         <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50 border border-slate-100 rounded-2xl text-center">
           <div className="p-2 bg-white rounded-xl shadow-xs">
-            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Total Diperoleh</p>
+            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Hak Komisi</p>
             <p className="text-xs font-black text-gray-800 mt-0.5">{formatRupiah(commissionData.totalEarned)}</p>
             <p className="text-[9px] text-gray-400">{commissionData.earnedTrxCount} Trx</p>
           </div>
           <div className="p-2 bg-white rounded-xl shadow-xs">
             <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Sudah Cair</p>
             <p className="text-xs font-black text-emerald-600 mt-0.5">{formatRupiah(commissionData.totalPaid)}</p>
-            <p className="text-[9px] text-gray-400">{commissionData.history.length} x Transfer</p>
+            <p className="text-[9px] text-gray-400">{commissionData.periodHistory.length} x Transfer</p>
           </div>
           <div className="p-2 bg-white rounded-xl shadow-xs">
-            <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider">Sisa Pending</p>
+            <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wider">Belum Cair</p>
             <p className="text-xs font-black text-amber-600 mt-0.5">{formatRupiah(commissionData.pendingBalance)}</p>
             <p className="text-[9px] text-gray-400">Siap Ditransfer</p>
           </div>
         </div>
+
+        {otherMonthsPending > 0 && (
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+            Ada komisi belum cair di bulan lain sebesar <b>{formatRupiah(otherMonthsPending)}</b>. Pilih bulan tersebut di atas untuk mencairkannya.
+          </p>
+        )}
 
         {/* Form Kirim Komisi */}
         <form onSubmit={handleSubmit} className="space-y-3.5 bg-gray-50/70 p-4 rounded-2xl border border-gray-100">
@@ -175,7 +218,7 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Misal: Komisi Sep 2026"
+                placeholder={`Misal: Komisi ${monthLabel(period)}`}
                 className="w-full p-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs font-medium text-gray-800"
               />
             </div>
@@ -208,6 +251,7 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
                 <div key={item.id} className="p-2.5 bg-white border border-gray-100 rounded-xl flex items-center justify-between gap-3 shadow-xs">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-gray-800 truncate">{item.notes || 'Pencairan Komisi'}</p>
+                    <p className="text-[10px] font-semibold text-emerald-700">Untuk komisi {monthLabel(payoutPeriodKey(item))}</p>
                     <p className="text-[10px] text-gray-400 flex items-center gap-1.5 flex-wrap">
                       <span>{new Date(item.sent_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       <span>·</span>

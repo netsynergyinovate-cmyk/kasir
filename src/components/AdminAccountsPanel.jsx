@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import AdminAccessModal from './AdminAccessModal';
 import AdminCommissionModal from './AdminCommissionModal';
 import { normalizeAdminAccess } from '../utils/permissions';
-import { calculateAdminCommissions } from '../utils/commissions';
+import { calculateAdminCommissions, monthKey } from '../utils/commissions';
 import { MAP_ICON_TYPES, getDeterministicColor } from '../utils/adminMapIcons';
 import { formatRupiah } from '../utils/format';
 
@@ -181,7 +181,7 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
               const customInitials = mapConfig.label || initialsOf(acc.full_name);
 
               const commData = !isSuper
-                ? calculateAdminCommissions(transactions, acc.id, acc.full_name, companyInfo?.adminFee || 10000, access.commissions || [])
+                ? calculateAdminCommissions(transactions, acc.id, acc.full_name, companyInfo?.adminFee || 10000, access.commissions || [], acc.role, monthKey(new Date()))
                 : null;
 
               return (
@@ -220,10 +220,10 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
                     <div className="mx-3.5 mb-2.5 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-[10px]">
                       <span className="font-bold text-gray-500">Komisi:</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-emerald-600">Cair: {formatRupiah(commData.totalPaid)}</span>
+                        <span className="font-bold text-emerald-600">Cair bulan ini: {formatRupiah(commData.totalPaid)}</span>
                         <span>·</span>
                         <span className={`font-black ${commData.pendingBalance > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-                          Pending: {formatRupiah(commData.pendingBalance)}
+                          Belum cair: {formatRupiah(commData.pendingBalance)}
                         </span>
                       </div>
                     </div>

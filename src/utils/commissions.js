@@ -40,33 +40,57 @@ export function matchingCommissionTransactions(transactions = [], adminId = '', 
   });
 }
 
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// Kunci bulan 'YYYY-MM' dari Date / string tanggal (waktu lokal); null bila tidak valid.
+export function monthKey(raw) {
+  if (!raw) return null;
+  const date = raw instanceof Date ? raw : new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+}
+
+export function monthLabel(key) {
+  const match = /^(\d{4})-(\d{2})$/.exec(key || '');
+  return match ? `${MONTH_NAMES[Number(match[2]) - 1]} ${match[1]}` : 'Tanpa tanggal';
+}
+
+// Bulan komisi yang dibayar oleh sebuah pencairan: field `period` bila ada, jika tidak bulan tanggal kirimnya.
+export const payoutPeriodKey = (payout) => payout?.period || monthKey(payout?.sent_at);
+
 /**
- * Kalkulasi komisi admin:
- * - totalEarned: Jumlah transaksi lunas yang diproses admin * adminFee
- * - totalPaid: Total komisi yang sudah ditransfer oleh superadmin
- * - pendingBalance: Sisa komisi yang belum dicairkan (minimal 0)
+ * Kalkulasi komisi admin. Komisi dihitung PER BULAN bila `period` ('YYYY-MM') diberikan:
+ * - totalEarned: transaksi lunas bulan itu yang diproses admin * adminFee
+ * - totalPaid: pencairan Superadmin yang dicatat untuk bulan itu
+ * - pendingBalance: sisa yang belum dicairkan untuk bulan itu (minimal 0)
+ * Tanpa `period` seluruh transaksi dan pencairan dijumlahkan (total semua bulan).
  */
 export function calculateAdminCommissions(
-  transactions = [], 
-  adminId = '', 
-  adminName = '', 
-  adminFee = 10000, 
+  transactions = [],
+  adminId = '',
+  adminName = '',
+  adminFee = 10000,
   commissionHistory = [],
-  adminRole = 'admin'
+  adminRole = 'admin',
+  period = null
 ) {
   const feePerTransaction = Number(adminFee) || 10000;
-  const matchingTrx = matchingCommissionTransactions(transactions, adminId, adminName, adminRole);
+  const scopedTransactions = period
+    ? transactions.filter((t) => monthKey(t.date || t.created_at) === period)
+    : transactions;
+  const matchingTrx = matchingCommissionTransactions(scopedTransactions, adminId, adminName, adminRole);
   const instansiCount = matchingTrx.filter((t) => t.type === 'instansi').length;
 
   const totalEarned = matchingTrx.length * feePerTransaction;
   const validHistory = Array.isArray(commissionHistory) ? commissionHistory : [];
-  const totalPaid = validHistory
+  const periodHistory = period ? validHistory.filter((c) => payoutPeriodKey(c) === period) : validHistory;
+  const totalPaid = periodHistory
     .filter((c) => c.status === 'TERKIRIM')
     .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
   const pendingBalance = Math.max(0, totalEarned - totalPaid);
 
   return {
+    period,
     earnedTrxCount: matchingTrx.length,
     instansiCount,
     feePerTransaction,
@@ -75,30 +99,45 @@ export function calculateAdminCommissions(
     totalPaid,
     pendingBalance,
     history: validHistory,
+    periodHistory,
   };
 }
 
 /**
- * Rincian hak komisi per bulan (terbaru dulu): berapa transaksi dihitung dan berapa rupiahnya.
- * Total semua bulan = totalEarned dari calculateAdminCommissions.
+ * Rincian komisi per bulan (terbaru dulu): transaksi dihitung, hak komisi, yang sudah dicairkan untuk bulan itu,
+ * dan sisanya. Bulan yang hanya punya pencairan (tanpa transaksi) tetap muncul.
  */
-export function commissionByMonth(transactions = [], adminId = '', adminName = '', adminFee = 10000, adminRole = 'admin') {
+export function commissionByMonth(
+  transactions = [],
+  adminId = '',
+  adminName = '',
+  adminFee = 10000,
+  adminRole = 'admin',
+  commissionHistory = []
+) {
   const fee = Number(adminFee) || 10000;
   const buckets = new Map();
+  const bucketFor = (key) => {
+    if (!buckets.has(key)) buckets.set(key, { key, label: monthLabel(key), count: 0, amount: 0, paid: 0, pending: 0 });
+    return buckets.get(key);
+  };
 
   matchingCommissionTransactions(transactions, adminId, adminName, adminRole).forEach((t) => {
-    const rawDate = t.date || t.created_at;
-    const date = rawDate ? new Date(rawDate) : null;
-    const valid = date && !Number.isNaN(date.getTime());
-    const key = valid ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : 'unknown';
-    const label = valid ? `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}` : 'Tanpa tanggal';
-    const entry = buckets.get(key) || { key, label, count: 0, amount: 0 };
+    const entry = bucketFor(monthKey(t.date || t.created_at) || 'unknown');
     entry.count += 1;
     entry.amount += fee;
-    buckets.set(key, entry);
   });
 
-  return [...buckets.values()].sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0));
+  if (adminRole !== 'superadmin' && Array.isArray(commissionHistory)) {
+    commissionHistory
+      .filter((c) => c.status === 'TERKIRIM')
+      .forEach((c) => { bucketFor(payoutPeriodKey(c) || 'unknown').paid += Number(c.amount) || 0; });
+  }
+
+  const rank = (key) => (key === 'unknown' ? '' : key);
+  return [...buckets.values()]
+    .map((entry) => ({ ...entry, pending: Math.max(0, entry.amount - entry.paid) }))
+    .sort((x, y) => (rank(x.key) < rank(y.key) ? 1 : rank(x.key) > rank(y.key) ? -1 : 0));
 }
 
 /**
@@ -109,8 +148,8 @@ export function commissionRuleNotes({ feePerTransaction = 10000, usesStoreAttrib
     `Hak komisi = jumlah transaksi lunas atas akunmu × tarif Rp ${Math.floor(feePerTransaction).toLocaleString('id-ID')} per transaksi. Tarif ini ditetapkan Superadmin di Pengaturan.`,
     'Yang dihitung: transaksi berstatus LUNAS (retail) dan invoice instansi yang tercatat atas namamu.',
     'Yang tidak dihitung: transaksi belum lunas, transaksi Layanan CS, transaksi admin lain, dan transaksi Superadmin.',
-    'Angka ini akumulasi sejak awal, bukan per bulan. Rincian per bulan ada di bawah.',
-    'Pencairan dilakukan Superadmin lewat transfer dan dicatat di Riwayat. Sisa belum cair = hak komisi − total yang sudah dicairkan.',
+    'Komisi dihitung per bulan: hanya transaksi pada bulan itu. Bulan yang berbeda tidak dijumlahkan di angka utama.',
+    'Pencairan dilakukan Superadmin lewat transfer, dicatat untuk bulan yang dibayar, dan muncul di Riwayat. Belum cair = hak komisi bulan itu − yang sudah dicairkan untuk bulan itu.',
   ];
   if (storeAttribution) {
     notes.splice(2, 0, 'Untuk akun ini, transaksi kasir toko umum yang belum atas nama admin lain ikut dihitung.');
@@ -119,7 +158,7 @@ export function commissionRuleNotes({ feePerTransaction = 10000, usesStoreAttrib
 }
 
 /**
- * Membuat objek catatan transfer komisi baru.
+ * Membuat objek catatan transfer komisi baru. `period` ('YYYY-MM') = bulan komisi yang dibayar.
  */
 export function createCommissionPayout({
   adminId,
@@ -128,6 +167,7 @@ export function createCommissionPayout({
   paymentMethod = 'Transfer Bank',
   notes = '',
   sentByName = 'Super Admin',
+  period = null,
 }) {
   return {
     id: `COMM-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -139,6 +179,7 @@ export function createCommissionPayout({
     status: 'TERKIRIM',
     sent_by_name: sentByName,
     sent_at: new Date().toISOString(),
+    ...(period ? { period } : {}),
   };
 }
 
@@ -213,6 +254,7 @@ export function calculateStoreFinancialOverview(
 
   const monthlyTrx = transactions.filter(isCurrentMonthSuccess);
   const grossRevenue = monthlyTrx.reduce((sum, t) => sum + Number(t.price || 0), 0);
+  const period = monthKey(now);
 
   // Hitung komisi untuk seluruh admin (kecuali superadmin)
   let totalCommissionLiability = 0;
@@ -222,12 +264,13 @@ export function calculateStoreFinancialOverview(
   adminAccounts.forEach(admin => {
     const access = normalizeAdminAccess(admin.allowed_paths);
     const comm = calculateAdminCommissions(
-      monthlyTrx, 
-      admin.id, 
-      admin.full_name, 
-      adminFee, 
+      transactions,
+      admin.id,
+      admin.full_name,
+      adminFee,
       access.commissions || [],
-      admin.role
+      admin.role,
+      period
     );
     totalCommissionLiability += comm.totalEarned;
     totalCommissionPaid += comm.totalPaid;

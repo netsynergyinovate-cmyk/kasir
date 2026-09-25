@@ -7,7 +7,7 @@ import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
 import { getGreeting } from '../utils/dashboardStats';
-import { calculateAdminCommissions, commissionByMonth, commissionRuleNotes } from '../utils/commissions';
+import { calculateAdminCommissions, commissionByMonth, commissionRuleNotes, monthKey, monthLabel, payoutPeriodKey } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
 import './Dashboard.css';
 
@@ -60,32 +60,37 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
   // 3. Remaining Target
   const remainingTarget = totalPotentialTarget - grossRevenue;
 
-  // 4. Komisi Jasa Kasir. Seluruh aturan (superadmin & CS tidak berkomisi, atribusi toko, dll.) ada di
-  // calculateAdminCommissions supaya dashboard admin dan superadmin selalu memakai hitungan yang sama.
-  // Tarif per transaksi ditetapkan Superadmin (company_settings.admin_fee); pencairan dicatat Superadmin.
+  // 4. Komisi Jasa Kasir dihitung PER BULAN (bulan yang dipilih di dashboard). Seluruh aturan (superadmin & CS
+  // tidak berkomisi, atribusi toko, dll.) ada di calculateAdminCommissions. Tarif per transaksi ditetapkan
+  // Superadmin (company_settings.admin_fee) dan pencairan dicatat Superadmin untuk bulan yang dibayar.
   const commissionFee = companyInfo.adminFee || 10000;
   const userAccess = normalizeAdminAccess(session?.profile?.allowed_paths);
   const myRole = session?.profile?.role;
+  const commissionPeriod = monthKey(new Date(selectedYear, selectedMonth, 1));
+  const commissionMonthLabel = monthLabel(commissionPeriod);
   const myCommissionData = calculateAdminCommissions(
     transactions,
     session?.user?.id,
     session?.profile?.full_name,
     commissionFee,
     userAccess.commissions || [],
-    myRole
+    myRole,
+    commissionPeriod
   );
-  // Komisi pada periode yang sedang dipilih di dashboard (bulan / hari)
-  const periodCommission = calculateAdminCommissions(
-    filteredTransactions,
+  const commissionMonths = commissionByMonth(
+    transactions,
     session?.user?.id,
     session?.profile?.full_name,
     commissionFee,
-    [],
-    myRole
+    myRole,
+    userAccess.commissions || []
   );
-  const commissionMonths = commissionByMonth(transactions, session?.user?.id, session?.profile?.full_name, commissionFee, myRole);
   const commissionNotes = commissionRuleNotes(myCommissionData);
-  const periodLabel = `${selectedDay === 'all' ? '' : `${selectedDay} `}${months[selectedMonth]} ${selectedYear}`;
+  // Sisa komisi yang belum cair pada bulan-bulan selain bulan yang sedang dilihat
+  const otherMonthsPending = commissionMonths
+    .filter((month) => month.key !== commissionPeriod)
+    .reduce((sum, month) => sum + month.pending, 0);
+  const totalPendingAllMonths = myCommissionData.pendingBalance + otherMonthsPending;
   const [showCommissionHistoryModal, setShowCommissionHistoryModal] = useState(false);
 
   // Total successful transactions (including CS, needed for progress bar)
@@ -322,13 +327,13 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
           >
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-200 group-hover:scale-110 transition-transform relative">
               <DollarSign size={20} />
-              {myCommissionData.pendingBalance > 0 && (
+              {totalPendingAllMonths > 0 && (
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full animate-ping" />
               )}
             </div>
             <span className="text-[11px] font-black text-gray-800 mt-2">Komisi Saya</span>
-            <span className={`text-[8px] font-bold ${myCommissionData.pendingBalance > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-              {myCommissionData.pendingBalance > 0 ? formatRupiah(myCommissionData.pendingBalance) : 'Riwayat'}
+            <span className={`text-[8px] font-bold ${totalPendingAllMonths > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+              {totalPendingAllMonths > 0 ? formatRupiah(totalPendingAllMonths) : 'Riwayat'}
             </span>
           </button>
 
@@ -560,7 +565,7 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
                 )}
               </div>
             </div>
-            <p className="text-[9px] text-emerald-100/90 mb-1">Hak komisi (akumulasi)</p>
+            <p className="text-[9px] text-emerald-100/90 mb-1">Hak komisi {commissionMonthLabel}</p>
             <p className="text-lg font-black leading-none">{formatRupiah(myCommissionData.totalEarned)}</p>
             <p className="text-[9px] text-emerald-100 mt-1">
               {myCommissionData.earnedTrxCount} transaksi × {formatRupiah(myCommissionData.feePerTransaction)}
@@ -569,17 +574,19 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
 
           <div className="mt-3 pt-2 border-t border-white/15 space-y-1 text-[9px] text-emerald-100">
             <div className="flex items-center justify-between font-bold">
-              <span>Sudah cair (Superadmin): <b className="text-white">{formatRupiah(myCommissionData.totalPaid)}</b></span>
+              <span>Sudah cair bulan ini (Superadmin): <b className="text-white">{formatRupiah(myCommissionData.totalPaid)}</b></span>
             </div>
             <div className="flex items-center justify-between font-bold">
-              <span>Belum cair: <b className="text-amber-200">{formatRupiah(myCommissionData.pendingBalance)}</b></span>
+              <span>Belum cair bulan ini: <b className="text-amber-200">{formatRupiah(myCommissionData.pendingBalance)}</b></span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1">
-                <TrendingUp size={9} /> {periodLabel}: {periodCommission.earnedTrxCount} trx
-              </span>
-              <b className="text-white">{formatRupiah(periodCommission.totalEarned)}</b>
-            </div>
+            {otherMonthsPending > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <TrendingUp size={9} /> Sisa bulan lain belum cair
+                </span>
+                <b className="text-amber-200">{formatRupiah(otherMonthsPending)}</b>
+              </div>
+            )}
           </div>
         </div>
 
@@ -812,6 +819,7 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
             <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
               <div className="p-2 bg-white rounded-lg shadow-xs">
                 <p className="text-[9px] font-bold text-gray-400 uppercase">Hak Komisi</p>
+                <p className="text-[8px] text-gray-400">{commissionMonthLabel}</p>
                 <p className="text-sm font-black text-gray-900">{formatRupiah(myCommissionData.totalEarned)}</p>
               </div>
               <div className="p-2 bg-white rounded-lg shadow-xs">
@@ -838,21 +846,28 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
               ) : (
                 <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
                   {commissionMonths.map((month) => (
-                    <div key={month.key} className="flex items-center justify-between px-3 py-2 text-xs bg-white">
-                      <span className="font-semibold text-gray-700">{month.label}</span>
-                      <span className="text-gray-500">
-                        {month.count} trx × {formatRupiah(myCommissionData.feePerTransaction)} = <b className="text-gray-900">{formatRupiah(month.amount)}</b>
-                      </span>
+                    <div key={month.key} className={`px-3 py-2 text-xs ${month.key === commissionPeriod ? 'bg-emerald-50/60' : 'bg-white'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-gray-700">{month.label}</span>
+                        <span className="text-gray-500">
+                          {month.count} trx × {formatRupiah(myCommissionData.feePerTransaction)} = <b className="text-gray-900">{formatRupiah(month.amount)}</b>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] mt-0.5">
+                        <span className="text-emerald-700">Sudah cair: {formatRupiah(month.paid)}</span>
+                        <span className={month.pending > 0 ? 'text-amber-700 font-bold' : 'text-gray-400'}>Belum cair: {formatRupiah(month.pending)}</span>
+                      </div>
                     </div>
                   ))}
                   <div className="flex items-center justify-between px-3 py-2 text-xs bg-gray-50 font-black text-gray-900">
-                    <span>Total hak komisi</span>
-                    <span>{myCommissionData.earnedTrxCount} trx = {formatRupiah(myCommissionData.totalEarned)}</span>
+                    <span>Total semua bulan</span>
+                    <span>
+                      {commissionMonths.reduce((sum, month) => sum + month.count, 0)} trx = {formatRupiah(commissionMonths.reduce((sum, month) => sum + month.amount, 0))}
+                    </span>
                   </div>
                 </div>
               )}
             </div>
-
             <div className="space-y-2">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Daftar Pengiriman</p>
               {myCommissionData.history.length === 0 ? (
@@ -863,6 +878,7 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
                     <div key={item.id} className="p-3 bg-white border border-gray-100 rounded-xl shadow-xs flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-gray-800 truncate">{item.notes || 'Pencairan Komisi'}</p>
+                        <p className="text-[10px] font-semibold text-emerald-700">Untuk komisi {monthLabel(payoutPeriodKey(item))}</p>
                         <p className="text-[10px] text-gray-400">
                           {new Date(item.sent_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           {item.payment_method ? ` · ${item.payment_method}` : ''}

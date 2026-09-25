@@ -11,7 +11,7 @@ import {
   getGreeting, compareMonths, cashierPerformance, paymentBreakdown, formatRelativeTime, compareDays, resolveDay,
   methodBreakdown, dailyTransactions, toInputValue, weeklyRevenue, projectMonthRevenue, percentChange,
 } from '../utils/dashboardStats';
-import { calculateStoreFinancialOverview, calculateAdminCommissions } from '../utils/commissions';
+import { calculateStoreFinancialOverview, calculateAdminCommissions, monthKey } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
 import AdminCommissionModal from '../components/AdminCommissionModal';
 import Dashboard from './Dashboard';
@@ -923,13 +923,15 @@ const DashboardSuperadmin = (props) => {
                 };
 
                 const currentAccess = normalizeAdminAccess(matchedAdmin.allowed_paths);
+                // Komisi dihitung per bulan (bulan yang sama dengan omset kasir di atas)
                 const comm = calculateAdminCommissions(
                   transactions,
                   matchedAdmin.id,
                   cashier.name,
                   companyInfo.adminFee || 10000,
                   currentAccess.commissions || [],
-                  isSuper ? 'superadmin' : 'admin'
+                  isSuper ? 'superadmin' : 'admin',
+                  monthKey(now)
                 );
 
                 const medalColor = index === 0
@@ -999,7 +1001,7 @@ const DashboardSuperadmin = (props) => {
                         <div className="w-full flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2 sm:p-2.5 rounded-lg border border-slate-200/60">
                           <div className="flex flex-wrap items-center gap-2.5">
                             <div>
-                              <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider block">Hak Komisi (total)</span>
+                              <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider block">Hak Komisi</span>
                               <span className="font-bold text-emerald-600 text-xs">{formatRupiah(comm.totalEarned)}</span>
                             </div>
                             <div className="h-5 w-px bg-slate-200" />

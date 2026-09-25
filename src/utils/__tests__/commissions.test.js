@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { 
   calculateAdminCommissions, 
   createCommissionPayout,
+  monthKey,
+  monthLabel,
+  payoutPeriodKey,
   calculateStoreFinancialOverview,
   commissionByMonth,
   commissionRuleNotes
@@ -144,7 +147,7 @@ describe('calculateStoreFinancialOverview', () => {
       { id: 't3', status: 'LUNAS', type: 'retail', price: 250000, cashier_id: 'adm-budi', cashier_name: 'Budi', date: '2026-09-22T10:00:00Z' },
     ];
     const accounts = [
-      { id: 'adm-wahyu', full_name: 'Wahyu', role: 'admin', allowed_paths: { commissions: [{ amount: 10000, status: 'TERKIRIM' }] } },
+      { id: 'adm-wahyu', full_name: 'Wahyu', role: 'admin', allowed_paths: { commissions: [{ amount: 10000, status: 'TERKIRIM', sent_at: '2026-09-15T10:00:00' }] } },
       { id: 'adm-budi', full_name: 'Budi', role: 'admin', allowed_paths: { commissions: [] } },
       { id: 'super-1', full_name: 'Owner', role: 'superadmin' }
     ];
@@ -189,7 +192,7 @@ describe('commissionByMonth', () => {
 
   it('keeps transactions without a valid date in their own bucket so totals still match', () => {
     const months = commissionByMonth([trx('a', undefined)], 'adm-budi', 'Budi', 10000, 'admin');
-    expect(months).toEqual([{ key: 'unknown', label: 'Tanpa tanggal', count: 1, amount: 10000 }]);
+    expect(months).toEqual([{ key: 'unknown', label: 'Tanpa tanggal', count: 1, amount: 10000, paid: 0, pending: 10000 }]);
   });
 });
 
@@ -218,6 +221,91 @@ describe('calculateAdminCommissions extra fields & commissionRuleNotes', () => {
     const notes = commissionRuleNotes({ feePerTransaction: 10000 }).join(' ');
     expect(notes).toContain('10.000');
     expect(notes).toContain('Superadmin');
-    expect(notes).toContain('akumulasi');
+    expect(notes).toContain('per bulan');
+  });
+});
+
+describe('komisi dihitung per bulan', () => {
+  const trx = (id, date) => ({ id, date, status: 'LUNAS', type: 'retail', payment_method: 'CASH', cashier_id: 'adm-budi', cashier_name: 'Budi' });
+  // Agustus: 3 transaksi, September: 2 transaksi
+  const transactions = [
+    trx('a1', '2026-08-03T10:00:00'), trx('a2', '2026-08-10T10:00:00'), trx('a3', '2026-08-20T10:00:00'),
+    trx('s1', '2026-09-01T10:00:00'), trx('s2', '2026-09-02T10:00:00'),
+  ];
+  const history = [
+    // dikirim awal September tetapi untuk komisi Agustus
+    { id: 'p1', amount: 20000, status: 'TERKIRIM', period: '2026-08', sent_at: '2026-09-02T09:00:00' },
+    // tanpa field period: dihitung menurut bulan tanggal kirimnya
+    { id: 'p2', amount: 5000, status: 'TERKIRIM', sent_at: '2026-09-10T09:00:00' },
+    { id: 'p3', amount: 99999, status: 'DIBATALKAN', period: '2026-09', sent_at: '2026-09-11T09:00:00' },
+  ];
+
+  it('counts only the transactions of the requested month', () => {
+    const september = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, history, 'admin', '2026-09');
+    expect(september.earnedTrxCount).toBe(2);
+    expect(september.totalEarned).toBe(20000);
+
+    const august = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, history, 'admin', '2026-08');
+    expect(august.earnedTrxCount).toBe(3);
+    expect(august.totalEarned).toBe(30000);
+  });
+
+  it('attributes a payout to the month it pays for (period), falling back to the month it was sent', () => {
+    const september = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, history, 'admin', '2026-09');
+    expect(september.totalPaid).toBe(5000); // p2 saja; p1 untuk Agustus, p3 dibatalkan
+    expect(september.pendingBalance).toBe(15000);
+
+    const august = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, history, 'admin', '2026-08');
+    expect(august.totalPaid).toBe(20000);
+    expect(august.pendingBalance).toBe(10000);
+  });
+
+  it('still returns the whole payout history and only the month payouts in periodHistory', () => {
+    const september = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, history, 'admin', '2026-09');
+    expect(september.history).toHaveLength(3);
+    expect(september.periodHistory.map((p) => p.id)).toEqual(['p2', 'p3']);
+  });
+
+  it('without a period keeps summing every month (all-time)', () => {
+    const all = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, history, 'admin');
+    expect(all.totalEarned).toBe(50000);
+    expect(all.totalPaid).toBe(25000);
+    expect(all.pendingBalance).toBe(25000);
+  });
+
+  it('breaks earnings and payouts down per month, including paid/pending', () => {
+    const months = commissionByMonth(transactions, 'adm-budi', 'Budi', 10000, 'admin', history);
+    expect(months.map((m) => [m.key, m.count, m.amount, m.paid, m.pending])).toEqual([
+      ['2026-09', 2, 20000, 5000, 15000],
+      ['2026-08', 3, 30000, 20000, 10000],
+    ]);
+  });
+
+  it('lists a month that only has a payout and no transactions', () => {
+    const months = commissionByMonth([], 'adm-budi', 'Budi', 10000, 'admin', [{ amount: 7000, status: 'TERKIRIM', period: '2026-07' }]);
+    expect(months).toEqual([{ key: '2026-07', label: 'Juli 2026', count: 0, amount: 0, paid: 7000, pending: 0 }]);
+  });
+
+  it('records the month a payout is for', () => {
+    expect(createCommissionPayout({ adminId: 'a', adminName: 'A', amount: 1000, period: '2026-08' }).period).toBe('2026-08');
+    expect(createCommissionPayout({ adminId: 'a', adminName: 'A', amount: 1000 })).not.toHaveProperty('period');
+  });
+
+  it('month helpers', () => {
+    expect(monthKey('2026-09-24T10:00:00')).toBe('2026-09');
+    expect(monthKey('bukan tanggal')).toBeNull();
+    expect(monthLabel('2026-09')).toBe('September 2026');
+    expect(monthLabel('unknown')).toBe('Tanpa tanggal');
+    expect(payoutPeriodKey({ period: '2026-08', sent_at: '2026-09-02T09:00:00' })).toBe('2026-08');
+    expect(payoutPeriodKey({ sent_at: '2026-09-02T09:00:00' })).toBe('2026-09');
+  });
+
+  it('store overview counts only payouts made for that month', () => {
+    const now = new Date('2026-09-24T12:00:00');
+    const accounts = [{ id: 'adm-budi', full_name: 'Budi', role: 'admin', allowed_paths: { commissions: history } }];
+    const overview = calculateStoreFinancialOverview(transactions.map((t) => ({ ...t, price: 100000 })), accounts, 10000, now);
+    expect(overview.totalCommissionLiability).toBe(20000); // hanya 2 transaksi September
+    expect(overview.totalCommissionPaid).toBe(5000);
+    expect(overview.pendingCommissionBalance).toBe(15000);
   });
 });
