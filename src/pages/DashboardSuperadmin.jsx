@@ -956,11 +956,6 @@ const DashboardSuperadmin = (props) => {
                         <div className="min-w-0">
                           <p className="text-xs sm:text-sm font-bold text-slate-900 truncate flex items-center gap-1.5">
                             {cashier.name}
-                            {isSuper && (
-                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 border border-purple-200">
-                                👑 Super Admin (Non-Komisi)
-                              </span>
-                            )}
                             {!isSuper && isCS && (
                               <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                                 💬 Layanan CS (Non-Komisi)
@@ -987,13 +982,9 @@ const DashboardSuperadmin = (props) => {
                     </div>
 
                     {/* Dedicated Commission Status Capsule */}
+                    {!isSuper && (
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      {isSuper ? (
-                        <div className="w-full flex items-center justify-between bg-purple-50/70 p-2 rounded-lg border border-purple-100/80">
-                          <span className="text-[11px] font-semibold text-purple-900">Aturan Akun:</span>
-                          <span className="text-[11px] text-purple-700 italic font-medium">Rp 0 (Super Admin)</span>
-                        </div>
-                      ) : isCS ? (
+                      {isCS ? (
                         <div className="w-full flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-200/80">
                           <span className="text-[11px] font-semibold text-slate-800">Kanal Layanan:</span>
                           <span className="text-[11px] text-slate-600 italic font-medium">Rp 0 (Kanal CS)</span>
@@ -1027,6 +1018,7 @@ const DashboardSuperadmin = (props) => {
                         </div>
                       )}
                     </div>
+                    )}
                   </div>
                 );
               })

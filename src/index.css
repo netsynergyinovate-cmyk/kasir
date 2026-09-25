@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/* Scrollbar disembunyikan di seluruh aplikasi; halaman dan daftar tetap bisa digulir (sentuh / roda mouse / keyboard). */
+html,
+body,
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
