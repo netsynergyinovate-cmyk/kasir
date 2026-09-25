@@ -1,6 +1,7 @@
 import { isOwnTransaction } from './dashboardStats';
 import { supabase } from '../lib/supabase';
 import { normalizeAdminAccess } from './permissions';
+import { formatRupiah } from './format';
 
 const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -164,6 +165,30 @@ export function commissionByMonth(
 }
 
 /**
+ * Rekap komisi satu bulan dalam bentuk teks siap disalin/dikirim (WhatsApp). `data` = hasil
+ * calculateAdminCommissions dengan period.
+ */
+export function buildCommissionRecap(adminName, data) {
+  const lines = [
+    `*Rekap Komisi ${adminName} · ${monthLabel(data.period)}*`,
+    '',
+    `Transaksi otomatis: ${data.earnedTrxCount} × ${formatRupiah(data.feePerTransaction)} = ${formatRupiah(data.autoEarned)}`,
+  ];
+
+  if (data.periodBonuses.length > 0) {
+    lines.push(`Tambahan dari Superadmin: ${formatRupiah(data.bonusTotal)}`);
+    data.periodBonuses.forEach((bonus) => lines.push(`  • ${bonus.notes}: ${formatRupiah(bonus.amount)}`));
+  }
+
+  lines.push(
+    `*Total hak komisi: ${formatRupiah(data.totalEarned)}*`,
+    `Sudah cair: ${formatRupiah(data.totalPaid)}`,
+    `Belum cair: ${formatRupiah(data.pendingBalance)}`
+  );
+  return lines.join('\n');
+}
+
+/**
  * Keterangan cara hitung komisi yang ditampilkan ke admin (bahasa awam, sesuai aturan di atas).
  */
 export function commissionRuleNotes({ feePerTransaction = 10000, usesStoreAttribution: storeAttribution = false } = {}) {
@@ -233,6 +258,26 @@ async function saveAllowedPaths(admin, payload) {
 export async function recordCommissionBonus(admin, bonusRecord) {
   const currentAccess = normalizeAdminAccess(admin.allowed_paths);
   return saveAllowedPaths(admin, { ...currentAccess, bonuses: [bonusRecord, ...(currentAccess.bonuses || [])] });
+}
+
+/**
+ * Hapus satu catatan pencairan komisi (mis. salah input nominal atau transfer dibatalkan). Saldo belum cair
+ * bulan itu otomatis bertambah lagi. Baris di tabel relasional admin_commissions (bila ada) ikut dihapus.
+ */
+export async function removeCommissionPayout(admin, payoutId) {
+  const currentAccess = normalizeAdminAccess(admin.allowed_paths);
+  const updated = await saveAllowedPaths(admin, {
+    ...currentAccess,
+    commissions: (currentAccess.commissions || []).filter((c) => c.id !== payoutId),
+  });
+
+  try {
+    await supabase.from('admin_commissions').delete().eq('id', payoutId);
+  } catch (err) {
+    console.warn('Tabel admin_commissions belum aktif, hanya data hybrid JSONB yang dihapus:', err?.message);
+  }
+
+  return updated;
 }
 
 /** Batalkan (hapus) satu tambahan komisi, mis. karena salah input. */

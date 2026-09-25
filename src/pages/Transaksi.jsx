@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Wifi, Printer, UserCheck, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
+import MoneyInput from '../components/MoneyInput';
 import { pickInvoiceNumber } from '../utils/runsnetSync';
 import { isPaidThisMonth } from '../utils/visits';
 import './Transaksi.css';
@@ -403,13 +404,14 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                   UANG PAS
                 </button>
               </div>
-              <input 
-                name="amountPaid" 
-                type="number" 
+              <MoneyInput
+                name="amountPaid"
                 value={amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
-                placeholder="0" 
-                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none text-2xl font-black text-blue-600 placeholder:text-gray-300" 
+                onValueChange={setAmountPaid}
+                prefix="Rp"
+                placeholder="0"
+                aria-label="Uang diterima"
+                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none text-2xl font-black text-blue-600 placeholder:text-gray-300"
               />
             </div>
 

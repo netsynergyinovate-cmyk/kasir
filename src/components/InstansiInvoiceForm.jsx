@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import MoneyInput from './MoneyInput';
 import { X, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -119,7 +120,7 @@ const InstansiInvoiceForm = ({ kind, clients, internetPackages, existingInvoiceN
 
         <div>
           <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Nominal Tagihan (Rp)</label>
-          <input value={amount} onChange={(e) => setAmount(Number(e.target.value))} type="number" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm" />
+          <MoneyInput value={amount || ''} onValueChange={(v) => setAmount(Number(v) || 0)} prefix="Rp" aria-label="Nominal tagihan" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm" />
         </div>
 
         <div className="grid grid-cols-2 gap-3">

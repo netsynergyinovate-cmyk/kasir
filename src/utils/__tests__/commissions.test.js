@@ -3,6 +3,7 @@ import {
   calculateAdminCommissions, 
   createCommissionPayout,
   createCommissionBonus,
+  buildCommissionRecap,
   bonusPeriodKey,
   monthKey,
   monthLabel,
@@ -376,5 +377,32 @@ describe('tambahan komisi (bonus) dari Superadmin', () => {
     const overview = calculateStoreFinancialOverview(transactions.map((t) => ({ ...t, price: 100000 })), accounts, 10000, now);
     expect(overview.totalCommissionLiability).toBe(70000);
     expect(overview.pendingCommissionBalance).toBe(70000);
+  });
+});
+
+describe('buildCommissionRecap', () => {
+  const trx = (id, date) => ({ id, date, status: 'LUNAS', type: 'retail', payment_method: 'CASH', cashier_id: 'adm-budi', cashier_name: 'Budi' });
+
+  it('builds a WhatsApp-ready text with the automatic part, bonuses, and the balances', () => {
+    const data = calculateAdminCommissions(
+      [trx('s1', '2026-09-01T10:00:00'), trx('s2', '2026-09-02T10:00:00')],
+      'adm-budi', 'Budi', 10000,
+      [{ id: 'p1', amount: 20000, status: 'TERKIRIM', period: '2026-09' }],
+      'admin', '2026-09',
+      [{ id: 'b1', amount: 50000, period: '2026-09', notes: 'Target tercapai' }]
+    );
+    const recap = buildCommissionRecap('Budi', data);
+    expect(recap).toContain('*Rekap Komisi Budi · September 2026*');
+    expect(recap).toContain('Transaksi otomatis: 2 × Rp 10.000 = Rp 20.000');
+    expect(recap).toContain('Tambahan dari Superadmin: Rp 50.000');
+    expect(recap).toContain('• Target tercapai: Rp 50.000');
+    expect(recap).toContain('*Total hak komisi: Rp 70.000*');
+    expect(recap).toContain('Sudah cair: Rp 20.000');
+    expect(recap).toContain('Belum cair: Rp 50.000');
+  });
+
+  it('leaves out the bonus lines when there is none', () => {
+    const data = calculateAdminCommissions([trx('s1', '2026-09-01T10:00:00')], 'adm-budi', 'Budi', 10000, [], 'admin', '2026-09', []);
+    expect(buildCommissionRecap('Budi', data)).not.toContain('Tambahan dari Superadmin');
   });
 });

@@ -70,7 +70,7 @@ describe('Transaksi POS pre-selection via URL search params', () => {
   };
 
   const typeAmount = async (value) => {
-    const input = container.querySelector('input[name="amountPaid"]');
+    const input = container.querySelector('input[aria-label="Uang diterima"]');
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -81,6 +81,7 @@ describe('Transaksi POS pre-selection via URL search params', () => {
     await renderPos();
 
     await typeAmount('300000');
+    expect(container.querySelector('input[aria-label="Uang diterima"]').value).toBe('300.000');
     expect(container.textContent).toContain('Kembalian');
     expect(container.textContent).toContain('Rp 50.000');
 

@@ -10,6 +10,7 @@ import {
   ImagePlus, Loader2
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
+import MoneyInput from '../components/MoneyInput';
 import { supabase } from '../lib/supabase';
 import { testBillingSystemConnection, getEbillingLogs, clearEbillingLogs } from '../utils/billingApi';
 import AdminAccountsPanel from '../components/AdminAccountsPanel';
@@ -804,13 +805,13 @@ const Settings = ({
                 <p className="text-[10px] font-bold text-gray-400 uppercase">Fee per Transaksi</p>
                 <div className="flex items-center gap-1">
                   <span className="font-black text-emerald-600">Rp</span>
-                  <input 
-                    name="adminFee" 
+                  <MoneyInput
+                    name="adminFee"
                     readOnly={!isSuper}
-                    value={localCompany.adminFee || ''} 
-                    onChange={handleLocalChange} 
-                    onBlur={handleBlur} 
-                    type="number" 
+                    value={localCompany.adminFee || ''}
+                    onValueChange={(next) => setLocalCompany((prev) => ({ ...prev, adminFee: next }))}
+                    onBlur={handleBlur}
+                    aria-label="Tarif komisi per transaksi"
                     className="font-black text-emerald-600 bg-transparent border-none p-0 w-24 outline-none"
                   />
                 </div>
@@ -900,7 +901,7 @@ const Settings = ({
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-3">
               <h4 className="text-[10px] font-black text-blue-800 uppercase tracking-wider">Tambah Paket Baru</h4>
               <input value={newPkgName} onChange={(e)=>setNewPkgName(e.target.value)} type="text" placeholder="Nama Paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm font-medium"/>
-              <input value={newPkgPrice} onChange={(e)=>setNewPkgPrice(e.target.value)} type="number" placeholder="Harga Paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm font-medium"/>
+              <MoneyInput value={newPkgPrice} onValueChange={setNewPkgPrice} prefix="Rp" placeholder="Harga Paket" aria-label="Harga paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm font-medium" />
               <button onClick={handleAddPkg} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg text-sm shadow-md shadow-blue-200 active:scale-95 transition-all">Simpan Paket</button>
             </div>
           </div>
