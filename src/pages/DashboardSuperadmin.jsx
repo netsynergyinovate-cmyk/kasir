@@ -931,7 +931,8 @@ const DashboardSuperadmin = (props) => {
                   companyInfo.adminFee || 10000,
                   currentAccess.commissions || [],
                   isSuper ? 'superadmin' : 'admin',
-                  monthKey(now)
+                  monthKey(now),
+                  currentAccess.bonuses || []
                 );
 
                 const medalColor = index === 0
@@ -1108,10 +1109,7 @@ const DashboardSuperadmin = (props) => {
           companyInfo={companyInfo}
           session={session}
           onClose={() => setSelectedCommissionAdmin(null)}
-          onSaved={() => {
-            fetchAccounts();
-            setSelectedCommissionAdmin(null);
-          }}
+          onSaved={fetchAccounts}
         />
       )}
     </div>

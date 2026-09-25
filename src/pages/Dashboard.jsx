@@ -7,7 +7,7 @@ import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
 import { getGreeting } from '../utils/dashboardStats';
-import { calculateAdminCommissions, commissionByMonth, commissionRuleNotes, monthKey, monthLabel, payoutPeriodKey } from '../utils/commissions';
+import { calculateAdminCommissions, commissionByMonth, commissionRuleNotes, monthKey, monthLabel, payoutPeriodKey, bonusPeriodKey } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
 import './Dashboard.css';
 
@@ -75,7 +75,8 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
     commissionFee,
     userAccess.commissions || [],
     myRole,
-    commissionPeriod
+    commissionPeriod,
+    userAccess.bonuses || []
   );
   const commissionMonths = commissionByMonth(
     transactions,
@@ -83,7 +84,8 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
     session?.profile?.full_name,
     commissionFee,
     myRole,
-    userAccess.commissions || []
+    userAccess.commissions || [],
+    userAccess.bonuses || []
   );
   const commissionNotes = commissionRuleNotes(myCommissionData);
   // Sisa komisi yang belum cair pada bulan-bulan selain bulan yang sedang dilihat
@@ -569,7 +571,13 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
             <p className="text-lg font-black leading-none">{formatRupiah(myCommissionData.totalEarned)}</p>
             <p className="text-[9px] text-emerald-100 mt-1">
               {myCommissionData.earnedTrxCount} transaksi × {formatRupiah(myCommissionData.feePerTransaction)}
+              {myCommissionData.bonusTotal > 0 && ` = ${formatRupiah(myCommissionData.autoEarned)}`}
             </p>
+            {myCommissionData.bonusTotal > 0 && (
+              <p className="text-[9px] text-amber-200 font-bold mt-0.5">
+                + Tambahan dari Superadmin {formatRupiah(myCommissionData.bonusTotal)}
+              </p>
+            )}
           </div>
 
           <div className="mt-3 pt-2 border-t border-white/15 space-y-1 text-[9px] text-emerald-100">
@@ -850,9 +858,15 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-gray-700">{month.label}</span>
                         <span className="text-gray-500">
-                          {month.count} trx × {formatRupiah(myCommissionData.feePerTransaction)} = <b className="text-gray-900">{formatRupiah(month.amount)}</b>
+                          {month.count} trx × {formatRupiah(myCommissionData.feePerTransaction)} = <b className="text-gray-900">{formatRupiah(month.auto)}</b>
                         </span>
                       </div>
+                      {month.bonus > 0 && (
+                        <div className="flex items-center justify-between text-[10px] mt-0.5">
+                          <span className="text-amber-700 font-semibold">+ Tambahan dari Superadmin</span>
+                          <b className="text-amber-700">{formatRupiah(month.bonus)}</b>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-[10px] mt-0.5">
                         <span className="text-emerald-700">Sudah cair: {formatRupiah(month.paid)}</span>
                         <span className={month.pending > 0 ? 'text-amber-700 font-bold' : 'text-gray-400'}>Belum cair: {formatRupiah(month.pending)}</span>
@@ -862,12 +876,36 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
                   <div className="flex items-center justify-between px-3 py-2 text-xs bg-gray-50 font-black text-gray-900">
                     <span>Total semua bulan</span>
                     <span>
-                      {commissionMonths.reduce((sum, month) => sum + month.count, 0)} trx = {formatRupiah(commissionMonths.reduce((sum, month) => sum + month.amount, 0))}
+                      {commissionMonths.reduce((sum, month) => sum + month.count, 0)} trx = {formatRupiah(commissionMonths.reduce((sum, month) => sum + month.auto, 0))}
+                      {commissionMonths.some((month) => month.bonus > 0) && (
+                        <> + tambahan {formatRupiah(commissionMonths.reduce((sum, month) => sum + month.bonus, 0))}</>
+                      )}
                     </span>
                   </div>
                 </div>
               )}
             </div>
+            {myCommissionData.allBonuses.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tambahan Komisi dari Superadmin</p>
+                <div className="divide-y divide-amber-100 border border-amber-100 rounded-xl overflow-hidden bg-amber-50/40">
+                  {[...myCommissionData.allBonuses]
+                    .sort((a, b) => new Date(b.given_at || 0) - new Date(a.given_at || 0))
+                    .map((bonus) => (
+                      <div key={bonus.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-800 truncate">{bonus.notes}</p>
+                          <p className="text-[10px] text-gray-500">
+                            Untuk {monthLabel(bonusPeriodKey(bonus))}{bonus.given_by_name ? ` · oleh ${bonus.given_by_name}` : ''}
+                          </p>
+                        </div>
+                        <span className="text-xs font-black text-amber-700 shrink-0">+{formatRupiah(bonus.amount)}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Daftar Pengiriman</p>
               {myCommissionData.history.length === 0 ? (

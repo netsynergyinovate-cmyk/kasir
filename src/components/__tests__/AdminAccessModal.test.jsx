@@ -76,4 +76,19 @@ describe('AdminAccessModal: hak akses fitur membuka menu halamannya', () => {
     expect(saved.permissions).not.toContain('customers.view');
     expect(saved.paths).toContain('/customers');
   });
+
+  it('keeps the bonuses and payouts granted by the Superadmin when access is saved', async () => {
+    const bonuses = [{ id: 'b1', amount: 50000, period: '2026-09', notes: 'Target' }];
+    const commissions = [{ id: 'c1', amount: 10000, status: 'TERKIRIM' }];
+    const admin = { id: 'adm-3', full_name: 'Admin Tiga', allowed_paths: { paths: ['/pos'], permissions: ['pos.view'], commissions, bonuses } };
+
+    await act(async () => {
+      root.render(<AdminAccessModal admin={admin} onClose={() => {}} onSaved={() => {}} />);
+    });
+    await click(findByText('button', 'Simpan Akses'));
+
+    const saved = updateMock.mock.calls[0][0].allowed_paths;
+    expect(saved.bonuses).toEqual(bonuses);
+    expect(saved.commissions).toEqual(commissions);
+  });
 });

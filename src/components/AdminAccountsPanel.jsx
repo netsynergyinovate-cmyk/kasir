@@ -181,7 +181,7 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
               const customInitials = mapConfig.label || initialsOf(acc.full_name);
 
               const commData = !isSuper
-                ? calculateAdminCommissions(transactions, acc.id, acc.full_name, companyInfo?.adminFee || 10000, access.commissions || [], acc.role, monthKey(new Date()))
+                ? calculateAdminCommissions(transactions, acc.id, acc.full_name, companyInfo?.adminFee || 10000, access.commissions || [], acc.role, monthKey(new Date()), access.bonuses || [])
                 : null;
 
               return (

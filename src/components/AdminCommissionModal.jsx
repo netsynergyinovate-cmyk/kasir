@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { X, Send, CheckCircle2, Loader2, DollarSign, CreditCard, History, AlertCircle } from 'lucide-react';
+import { X, Send, CheckCircle2, Loader2, DollarSign, CreditCard, History, AlertCircle, Trash2, Gift } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
-import { calculateAdminCommissions, commissionByMonth, createCommissionPayout, recordCommissionPayout, monthKey, monthLabel, payoutPeriodKey } from '../utils/commissions';
+import {
+  calculateAdminCommissions, commissionByMonth, createCommissionPayout, recordCommissionPayout,
+  createCommissionBonus, recordCommissionBonus, removeCommissionBonus, monthKey, monthLabel, payoutPeriodKey,
+} from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
 
 const PAYMENT_METHODS = [
@@ -16,7 +19,8 @@ const PAYMENT_METHODS = [
 ];
 
 const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, session, onClose, onSaved }) => {
-  const currentAccess = normalizeAdminAccess(admin.allowed_paths);
+  const [livePaths, setLivePaths] = useState(admin.allowed_paths);
+  const currentAccess = normalizeAdminAccess(livePaths);
   const commissionFee = companyInfo.adminFee || 10000;
   // Komisi dihitung dan dicairkan PER BULAN; Superadmin memilih bulan yang sedang dibayar.
   const [period, setPeriod] = useState(() => monthKey(new Date()));
@@ -27,7 +31,8 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
     commissionFee,
     currentAccess.commissions || [],
     admin.role,
-    targetPeriod
+    targetPeriod,
+    currentAccess.bonuses || []
   );
   const commissionData = computeFor(period);
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
@@ -35,11 +40,60 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
     return monthKey(date);
   });
   if (!monthOptions.includes(period)) monthOptions.push(period);
-  const otherMonthsPending = commissionByMonth(transactions, admin.id, admin.full_name, commissionFee, admin.role, currentAccess.commissions || [])
+  const otherMonthsPending = commissionByMonth(transactions, admin.id, admin.full_name, commissionFee, admin.role, currentAccess.commissions || [], currentAccess.bonuses || [])
     .filter((month) => month.key !== period)
     .reduce((sum, month) => sum + month.pending, 0);
 
   const [amount, setAmount] = useState(commissionData.pendingBalance > 0 ? String(commissionData.pendingBalance) : '');
+
+  const [bonusAmount, setBonusAmount] = useState('');
+  const [bonusNotes, setBonusNotes] = useState('');
+  const [isSavingBonus, setIsSavingBonus] = useState(false);
+
+  const handleAddBonus = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+    const numeric = Number(bonusAmount);
+    if (!numeric || numeric <= 0) {
+      setErrorMsg('Masukkan nominal tambahan komisi yang valid.');
+      return;
+    }
+    setIsSavingBonus(true);
+    try {
+      const bonus = createCommissionBonus({
+        adminId: admin.id,
+        adminName: admin.full_name,
+        amount: numeric,
+        period,
+        notes: bonusNotes.trim(),
+        givenByName: session?.profile?.full_name || 'Super Admin',
+      });
+      const updated = await recordCommissionBonus({ ...admin, allowed_paths: livePaths }, bonus);
+      setLivePaths(updated);
+      setBonusAmount('');
+      setBonusNotes('');
+      setSuccessMsg(`Tambahan komisi ${formatRupiah(numeric)} untuk ${monthLabel(period)} berhasil dicatat.`);
+      onSaved?.();
+    } catch (err) {
+      setErrorMsg('Gagal menyimpan tambahan komisi: ' + (err.message || 'Terjadi kesalahan'));
+    } finally {
+      setIsSavingBonus(false);
+    }
+  };
+
+  const handleRemoveBonus = async (bonusId) => {
+    if (!window.confirm('Batalkan tambahan komisi ini?')) return;
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const updated = await removeCommissionBonus({ ...admin, allowed_paths: livePaths }, bonusId);
+      setLivePaths(updated);
+      onSaved?.();
+    } catch (err) {
+      setErrorMsg('Gagal membatalkan tambahan komisi: ' + (err.message || 'Terjadi kesalahan'));
+    }
+  };
 
   const handlePeriodChange = (nextPeriod) => {
     setPeriod(nextPeriod);
@@ -81,7 +135,8 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
         period,
       });
 
-      await recordCommissionPayout(admin, payout);
+      const updated = await recordCommissionPayout({ ...admin, allowed_paths: livePaths }, payout);
+      setLivePaths(updated);
 
       setSuccessMsg(`Komisi sebesar ${formatRupiah(numericAmount)} berhasil dikirim dan dicatat!`);
       setAmount('');
@@ -136,7 +191,7 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
           <div className="p-2 bg-white rounded-xl shadow-xs">
             <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Hak Komisi</p>
             <p className="text-xs font-black text-gray-800 mt-0.5">{formatRupiah(commissionData.totalEarned)}</p>
-            <p className="text-[9px] text-gray-400">{commissionData.earnedTrxCount} Trx</p>
+            <p className="text-[9px] text-gray-400">{commissionData.earnedTrxCount} Trx{commissionData.bonusTotal > 0 ? ` + tambahan` : ''}</p>
           </div>
           <div className="p-2 bg-white rounded-xl shadow-xs">
             <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Sudah Cair</p>
@@ -148,6 +203,58 @@ const AdminCommissionModal = ({ admin, transactions = [], companyInfo = {}, sess
             <p className="text-xs font-black text-amber-600 mt-0.5">{formatRupiah(commissionData.pendingBalance)}</p>
             <p className="text-[9px] text-gray-400">Siap Ditransfer</p>
           </div>
+        </div>
+
+        {/* Tambahan komisi dari Superadmin untuk bulan terpilih */}
+        <div className="space-y-2.5 bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
+          <p className="text-[11px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+            <Gift size={14} /> Tambahan Komisi · {monthLabel(period)}
+          </p>
+          <p className="text-[11px] text-gray-600 leading-snug">
+            Komisi otomatis ({commissionData.earnedTrxCount} transaksi × {formatRupiah(commissionData.feePerTransaction)} = <b>{formatRupiah(commissionData.autoEarned)}</b>) sudah dihitung sendiri.
+            Isi di sini bila kamu ingin memberi tambahan untuk admin ini di bulan tersebut.
+          </p>
+          {commissionData.periodBonuses.length > 0 && (
+            <div className="space-y-1.5">
+              {commissionData.periodBonuses.map((bonus) => (
+                <div key={bonus.id} className="flex items-center justify-between gap-2 p-2 bg-white border border-amber-100 rounded-xl">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-800 truncate">{bonus.notes}</p>
+                    <p className="text-[10px] text-gray-400">Oleh {bonus.given_by_name}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-black text-amber-700">+{formatRupiah(bonus.amount)}</span>
+                    <button type="button" onClick={() => handleRemoveBonus(bonus.id)} aria-label="Batalkan tambahan" className="p-1 text-gray-400 hover:text-red-600 rounded-md">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <form onSubmit={handleAddBonus} className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr_auto] gap-2">
+            <input
+              type="number"
+              min="1000"
+              step="1000"
+              value={bonusAmount}
+              onChange={(e) => setBonusAmount(e.target.value)}
+              placeholder="Nominal tambahan (Rp)"
+              aria-label="Nominal tambahan komisi"
+              className="p-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs font-bold text-gray-800"
+            />
+            <input
+              type="text"
+              value={bonusNotes}
+              onChange={(e) => setBonusNotes(e.target.value)}
+              placeholder="Keterangan (misal: target tercapai)"
+              aria-label="Keterangan tambahan komisi"
+              className="p-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs font-medium text-gray-800"
+            />
+            <button type="submit" disabled={isSavingBonus} className="px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl disabled:opacity-60 active:scale-95 transition-all">
+              {isSavingBonus ? 'Menyimpan...' : 'Tambahkan'}
+            </button>
+          </form>
         </div>
 
         {otherMonthsPending > 0 && (

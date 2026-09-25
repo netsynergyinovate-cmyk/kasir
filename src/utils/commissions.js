@@ -57,12 +57,18 @@ export function monthLabel(key) {
 // Bulan komisi yang dibayar oleh sebuah pencairan: field `period` bila ada, jika tidak bulan tanggal kirimnya.
 export const payoutPeriodKey = (payout) => payout?.period || monthKey(payout?.sent_at);
 
+// Bulan yang diberi tambahan komisi (bonus) oleh Superadmin: field `period`, atau bulan tanggal pemberiannya.
+export const bonusPeriodKey = (bonus) => bonus?.period || monthKey(bonus?.given_at);
+
+const validBonuses = (bonuses) => (Array.isArray(bonuses) ? bonuses.filter((b) => Number(b?.amount) > 0) : []);
+
 /**
  * Kalkulasi komisi admin. Komisi dihitung PER BULAN bila `period` ('YYYY-MM') diberikan:
  * - totalEarned: transaksi lunas bulan itu yang diproses admin * adminFee
  * - totalPaid: pencairan Superadmin yang dicatat untuk bulan itu
  * - pendingBalance: sisa yang belum dicairkan untuk bulan itu (minimal 0)
- * Tanpa `period` seluruh transaksi dan pencairan dijumlahkan (total semua bulan).
+ * - Tambahan komisi (bonus) dari Superadmin untuk bulan itu ikut menambah totalEarned.
+ * Tanpa `period` seluruh transaksi, bonus, dan pencairan dijumlahkan (total semua bulan).
  */
 export function calculateAdminCommissions(
   transactions = [],
@@ -71,7 +77,8 @@ export function calculateAdminCommissions(
   adminFee = 10000,
   commissionHistory = [],
   adminRole = 'admin',
-  period = null
+  period = null,
+  bonuses = []
 ) {
   const feePerTransaction = Number(adminFee) || 10000;
   const scopedTransactions = period
@@ -80,7 +87,11 @@ export function calculateAdminCommissions(
   const matchingTrx = matchingCommissionTransactions(scopedTransactions, adminId, adminName, adminRole);
   const instansiCount = matchingTrx.filter((t) => t.type === 'instansi').length;
 
-  const totalEarned = matchingTrx.length * feePerTransaction;
+  const autoEarned = matchingTrx.length * feePerTransaction;
+  const allBonuses = adminRole === 'superadmin' ? [] : validBonuses(bonuses);
+  const periodBonuses = period ? allBonuses.filter((b) => bonusPeriodKey(b) === period) : allBonuses;
+  const bonusTotal = periodBonuses.reduce((sum, b) => sum + Number(b.amount), 0);
+  const totalEarned = autoEarned + bonusTotal;
   const validHistory = Array.isArray(commissionHistory) ? commissionHistory : [];
   const periodHistory = period ? validHistory.filter((c) => payoutPeriodKey(c) === period) : validHistory;
   const totalPaid = periodHistory
@@ -95,6 +106,10 @@ export function calculateAdminCommissions(
     instansiCount,
     feePerTransaction,
     usesStoreAttribution: adminRole !== 'superadmin' && usesStoreAttribution(adminName),
+    autoEarned,
+    bonusTotal,
+    periodBonuses,
+    allBonuses,
     totalEarned,
     totalPaid,
     pendingBalance,
@@ -113,20 +128,25 @@ export function commissionByMonth(
   adminName = '',
   adminFee = 10000,
   adminRole = 'admin',
-  commissionHistory = []
+  commissionHistory = [],
+  bonuses = []
 ) {
   const fee = Number(adminFee) || 10000;
   const buckets = new Map();
   const bucketFor = (key) => {
-    if (!buckets.has(key)) buckets.set(key, { key, label: monthLabel(key), count: 0, amount: 0, paid: 0, pending: 0 });
+    if (!buckets.has(key)) buckets.set(key, { key, label: monthLabel(key), count: 0, auto: 0, bonus: 0, amount: 0, paid: 0, pending: 0 });
     return buckets.get(key);
   };
 
   matchingCommissionTransactions(transactions, adminId, adminName, adminRole).forEach((t) => {
     const entry = bucketFor(monthKey(t.date || t.created_at) || 'unknown');
     entry.count += 1;
-    entry.amount += fee;
+    entry.auto += fee;
   });
+
+  if (adminRole !== 'superadmin') {
+    validBonuses(bonuses).forEach((b) => { bucketFor(bonusPeriodKey(b) || 'unknown').bonus += Number(b.amount); });
+  }
 
   if (adminRole !== 'superadmin' && Array.isArray(commissionHistory)) {
     commissionHistory
@@ -136,7 +156,10 @@ export function commissionByMonth(
 
   const rank = (key) => (key === 'unknown' ? '' : key);
   return [...buckets.values()]
-    .map((entry) => ({ ...entry, pending: Math.max(0, entry.amount - entry.paid) }))
+    .map((entry) => {
+      const amount = entry.auto + entry.bonus;
+      return { ...entry, amount, pending: Math.max(0, amount - entry.paid) };
+    })
     .sort((x, y) => (rank(x.key) < rank(y.key) ? 1 : rank(x.key) > rank(y.key) ? -1 : 0));
 }
 
@@ -149,6 +172,7 @@ export function commissionRuleNotes({ feePerTransaction = 10000, usesStoreAttrib
     'Yang dihitung: transaksi berstatus LUNAS (retail) dan invoice instansi yang tercatat atas namamu.',
     'Yang tidak dihitung: transaksi belum lunas, transaksi Layanan CS, transaksi admin lain, dan transaksi Superadmin.',
     'Komisi dihitung per bulan: hanya transaksi pada bulan itu. Bulan yang berbeda tidak dijumlahkan di angka utama.',
+    'Superadmin juga bisa memberi tambahan komisi untuk bulan tertentu. Nominalnya ditentukan Superadmin, ditambahkan ke hak komisi bulan itu, dan keterangannya tampil di bawah.',
     'Pencairan dilakukan Superadmin lewat transfer, dicatat untuk bulan yang dibayar, dan muncul di Riwayat. Belum cair = hak komisi bulan itu − yang sudah dicairkan untuk bulan itu.',
   ];
   if (storeAttribution) {
@@ -181,6 +205,40 @@ export function createCommissionPayout({
     sent_at: new Date().toISOString(),
     ...(period ? { period } : {}),
   };
+}
+
+/**
+ * Membuat catatan tambahan komisi (bonus) dari Superadmin untuk satu admin pada satu bulan ('YYYY-MM').
+ */
+export function createCommissionBonus({ adminId, adminName, amount, period, notes = '', givenByName = 'Super Admin' }) {
+  return {
+    id: `BONUS-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    admin_id: adminId,
+    admin_name: adminName,
+    amount: Number(amount) || 0,
+    period,
+    notes: notes || 'Tambahan komisi dari Superadmin',
+    given_by_name: givenByName,
+    given_at: new Date().toISOString(),
+  };
+}
+
+async function saveAllowedPaths(admin, payload) {
+  const { error } = await supabase.from('admin_profiles').update({ allowed_paths: payload }).eq('id', admin.id);
+  if (error) throw error;
+  return payload;
+}
+
+/** Simpan tambahan komisi ke admin_profiles.allowed_paths (JSONB, sama seperti riwayat pencairan). */
+export async function recordCommissionBonus(admin, bonusRecord) {
+  const currentAccess = normalizeAdminAccess(admin.allowed_paths);
+  return saveAllowedPaths(admin, { ...currentAccess, bonuses: [bonusRecord, ...(currentAccess.bonuses || [])] });
+}
+
+/** Batalkan (hapus) satu tambahan komisi, mis. karena salah input. */
+export async function removeCommissionBonus(admin, bonusId) {
+  const currentAccess = normalizeAdminAccess(admin.allowed_paths);
+  return saveAllowedPaths(admin, { ...currentAccess, bonuses: (currentAccess.bonuses || []).filter((b) => b.id !== bonusId) });
 }
 
 /**
@@ -270,7 +328,8 @@ export function calculateStoreFinancialOverview(
       adminFee,
       access.commissions || [],
       admin.role,
-      period
+      period,
+      access.bonuses || []
     );
     totalCommissionLiability += comm.totalEarned;
     totalCommissionPaid += comm.totalPaid;

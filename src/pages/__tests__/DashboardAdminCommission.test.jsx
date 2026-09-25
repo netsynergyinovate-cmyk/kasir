@@ -95,3 +95,60 @@ describe('Dashboard admin: komisi per bulan dan keterangannya', () => {
     expect(text).toContain(`Untuk komisi ${monthName(-1)}`);
   });
 });
+
+describe('Dashboard admin: tambahan komisi dari Superadmin', () => {
+  let container;
+  let root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  const thisPeriodKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const bonusSession = {
+    ...session,
+    profile: {
+      ...session.profile,
+      allowed_paths: {
+        ...session.profile.allowed_paths,
+        bonuses: [{ id: 'b1', amount: 50000, period: thisPeriodKey, notes: 'Target penagihan tercapai', given_by_name: 'CS NET.SI', given_at: at(0, 2) }],
+      },
+    },
+  };
+
+  const renderDashboard = async () => {
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <Dashboard transactions={transactions} customers={[]} packages={[]} companyInfo={{ adminFee: 10000 }} session={bonusSession} />
+        </MemoryRouter>
+      );
+    });
+  };
+
+  it('adds the bonus on top of the automatic commission and says where it comes from', async () => {
+    await renderDashboard();
+    const text = container.textContent;
+    expect(text).toContain(`Hak komisi ${monthName(0)}`);
+    expect(text).toContain('Rp 70.000'); // 2 trx x 10rb = 20rb + tambahan 50rb
+    expect(text).toContain('2 transaksi × Rp 10.000 = Rp 20.000');
+    expect(text).toContain('+ Tambahan dari Superadmin Rp 50.000');
+    expect(text).toContain('Belum cair bulan ini: Rp 70.000');
+  });
+
+  it('explains the bonus (amount, note, who gave it) in the calculation modal', async () => {
+    await renderDashboard();
+    const button = Array.from(container.querySelectorAll('button')).find((b) => b.textContent.includes('Cara hitung'));
+    await act(async () => { button.click(); });
+
+    const text = container.textContent;
+    expect(text).toContain('Superadmin juga bisa memberi tambahan komisi');
+    expect(text).toContain('Tambahan Komisi dari Superadmin');
+    expect(text).toContain('Target penagihan tercapai');
+    expect(text).toContain(`Untuk ${monthName(0)} · oleh CS NET.SI`);
+    expect(text).toContain('+ Tambahan dari Superadmin');
+    expect(text).toContain('3 trx = Rp 30.000 + tambahan Rp 50.000');
+  });
+});

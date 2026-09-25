@@ -107,6 +107,7 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
         permissions: permissions,
         map_icon: { type: iconType, color: iconColor, label: iconLabel },
         commissions: currentAccess.commissions || [],
+        bonuses: currentAccess.bonuses || [],
       };
 
       const { error: menuError } = await supabase.from('admin_profiles').update({ allowed_paths: newAllowedPaths }).eq('id', admin.id);

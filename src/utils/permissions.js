@@ -135,6 +135,7 @@ export function normalizeAdminAccess(allowedPaths) {
       permissions: DEFAULT_ADMIN_PERMISSIONS,
       map_icon: null,
       commissions: [],
+      bonuses: [],
     };
   }
 
@@ -151,6 +152,7 @@ export function normalizeAdminAccess(allowedPaths) {
       permissions: perms,
       map_icon: null,
       commissions: [],
+      bonuses: [],
     };
   }
 
@@ -160,6 +162,7 @@ export function normalizeAdminAccess(allowedPaths) {
       permissions: Array.isArray(allowedPaths.permissions) ? allowedPaths.permissions : DEFAULT_ADMIN_PERMISSIONS,
       map_icon: allowedPaths.map_icon || null,
       commissions: Array.isArray(allowedPaths.commissions) ? allowedPaths.commissions : [],
+      bonuses: Array.isArray(allowedPaths.bonuses) ? allowedPaths.bonuses : [],
     };
   }
 
@@ -168,6 +171,7 @@ export function normalizeAdminAccess(allowedPaths) {
     permissions: DEFAULT_ADMIN_PERMISSIONS,
     map_icon: null,
     commissions: [],
+    bonuses: [],
   };
 }
 

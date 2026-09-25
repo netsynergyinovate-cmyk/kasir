@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { 
   calculateAdminCommissions, 
   createCommissionPayout,
+  createCommissionBonus,
+  bonusPeriodKey,
   monthKey,
   monthLabel,
   payoutPeriodKey,
@@ -192,7 +194,7 @@ describe('commissionByMonth', () => {
 
   it('keeps transactions without a valid date in their own bucket so totals still match', () => {
     const months = commissionByMonth([trx('a', undefined)], 'adm-budi', 'Budi', 10000, 'admin');
-    expect(months).toEqual([{ key: 'unknown', label: 'Tanpa tanggal', count: 1, amount: 10000, paid: 0, pending: 10000 }]);
+    expect(months).toEqual([{ key: 'unknown', label: 'Tanpa tanggal', count: 1, auto: 10000, bonus: 0, amount: 10000, paid: 0, pending: 10000 }]);
   });
 });
 
@@ -283,7 +285,7 @@ describe('komisi dihitung per bulan', () => {
 
   it('lists a month that only has a payout and no transactions', () => {
     const months = commissionByMonth([], 'adm-budi', 'Budi', 10000, 'admin', [{ amount: 7000, status: 'TERKIRIM', period: '2026-07' }]);
-    expect(months).toEqual([{ key: '2026-07', label: 'Juli 2026', count: 0, amount: 0, paid: 7000, pending: 0 }]);
+    expect(months).toEqual([{ key: '2026-07', label: 'Juli 2026', count: 0, auto: 0, bonus: 0, amount: 0, paid: 7000, pending: 0 }]);
   });
 
   it('records the month a payout is for', () => {
@@ -307,5 +309,72 @@ describe('komisi dihitung per bulan', () => {
     expect(overview.totalCommissionLiability).toBe(20000); // hanya 2 transaksi September
     expect(overview.totalCommissionPaid).toBe(5000);
     expect(overview.pendingCommissionBalance).toBe(15000);
+  });
+});
+
+describe('tambahan komisi (bonus) dari Superadmin', () => {
+  const trx = (id, date) => ({ id, date, status: 'LUNAS', type: 'retail', payment_method: 'CASH', cashier_id: 'adm-budi', cashier_name: 'Budi' });
+  const transactions = [trx('a1', '2026-08-03T10:00:00'), trx('s1', '2026-09-01T10:00:00'), trx('s2', '2026-09-02T10:00:00')];
+  const bonuses = [
+    { id: 'b1', amount: 50000, period: '2026-09', notes: 'Target tercapai', given_at: '2026-09-20T10:00:00' },
+    { id: 'b2', amount: 30000, given_at: '2026-08-25T10:00:00' }, // tanpa period: bulan tanggal diberikan
+    { id: 'b3', amount: 0, period: '2026-09' }, // nol diabaikan
+  ];
+
+  it('adds the bonus of that month on top of the automatic per-transaction commission', () => {
+    const september = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, [], 'admin', '2026-09', bonuses);
+    expect(september.autoEarned).toBe(20000); // 2 trx x 10rb
+    expect(september.bonusTotal).toBe(50000);
+    expect(september.totalEarned).toBe(70000);
+    expect(september.pendingBalance).toBe(70000);
+    expect(september.periodBonuses.map((b) => b.id)).toEqual(['b1']);
+
+    const august = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, [], 'admin', '2026-08', bonuses);
+    expect(august.autoEarned).toBe(10000);
+    expect(august.bonusTotal).toBe(30000);
+    expect(august.totalEarned).toBe(40000);
+  });
+
+  it('payouts reduce the total including the bonus', () => {
+    const history = [{ id: 'p1', amount: 20000, status: 'TERKIRIM', period: '2026-09' }];
+    const september = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, history, 'admin', '2026-09', bonuses);
+    expect(september.totalPaid).toBe(20000);
+    expect(september.pendingBalance).toBe(50000);
+  });
+
+  it('without a period sums every month and superadmin never gets a bonus', () => {
+    const all = calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, [], 'admin', null, bonuses);
+    expect(all.totalEarned).toBe(30000 + 80000);
+    const superadmin = calculateAdminCommissions(transactions, 'super', 'Owner', 10000, [], 'superadmin', '2026-09', bonuses);
+    expect(superadmin.bonusTotal).toBe(0);
+    expect(superadmin.totalEarned).toBe(0);
+  });
+
+  it('shows the bonus in the per-month breakdown and in the pending amount', () => {
+    const months = commissionByMonth(transactions, 'adm-budi', 'Budi', 10000, 'admin', [], bonuses);
+    expect(months.map((m) => [m.key, m.count, m.auto, m.bonus, m.amount, m.pending])).toEqual([
+      ['2026-09', 2, 20000, 50000, 70000, 70000],
+      ['2026-08', 1, 10000, 30000, 40000, 40000],
+    ]);
+  });
+
+  it('lists a month that only has a bonus and no transactions', () => {
+    const months = commissionByMonth([], 'adm-budi', 'Budi', 10000, 'admin', [], [{ id: 'b', amount: 15000, period: '2026-07' }]);
+    expect(months).toEqual([{ key: '2026-07', label: 'Juli 2026', count: 0, auto: 0, bonus: 15000, amount: 15000, paid: 0, pending: 15000 }]);
+  });
+
+  it('creates a bonus record for a given month and resolves its period', () => {
+    const bonus = createCommissionBonus({ adminId: 'a', adminName: 'A', amount: '25000', period: '2026-09', notes: 'Lembur', givenByName: 'CS NET.SI' });
+    expect(bonus).toMatchObject({ admin_id: 'a', amount: 25000, period: '2026-09', notes: 'Lembur', given_by_name: 'CS NET.SI' });
+    expect(bonusPeriodKey(bonus)).toBe('2026-09');
+    expect(bonusPeriodKey({ given_at: '2026-08-25T10:00:00' })).toBe('2026-08');
+  });
+
+  it('store overview includes admin bonuses in the commission liability', () => {
+    const now = new Date('2026-09-24T12:00:00');
+    const accounts = [{ id: 'adm-budi', full_name: 'Budi', role: 'admin', allowed_paths: { commissions: [], bonuses } }];
+    const overview = calculateStoreFinancialOverview(transactions.map((t) => ({ ...t, price: 100000 })), accounts, 10000, now);
+    expect(overview.totalCommissionLiability).toBe(70000);
+    expect(overview.pendingCommissionBalance).toBe(70000);
   });
 });

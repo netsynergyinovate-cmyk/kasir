@@ -135,6 +135,14 @@ describe('normalizeAdminAccess', () => {
     expect(normalized.map_icon.type).toBe('motor');
     expect(normalized.commissions).toHaveLength(1);
   });
+
+  it('keeps Superadmin bonuses, defaulting to an empty list in every format', () => {
+    const bonuses = [{ id: 'b1', amount: 50000, period: '2026-09' }];
+    expect(normalizeAdminAccess({ paths: ['/pos'], bonuses }).bonuses).toEqual(bonuses);
+    expect(normalizeAdminAccess({ paths: ['/pos'] }).bonuses).toEqual([]);
+    expect(normalizeAdminAccess(null).bonuses).toEqual([]);
+    expect(normalizeAdminAccess(['/pos']).bonuses).toEqual([]);
+  });
 });
 
 describe('hasPermission', () => {
