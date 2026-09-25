@@ -11,7 +11,7 @@ import {
   getGreeting, compareMonths, cashierPerformance, paymentBreakdown, formatRelativeTime, compareDays, resolveDay,
   methodBreakdown, dailyTransactions, toInputValue, weeklyRevenue, projectMonthRevenue, percentChange,
 } from '../utils/dashboardStats';
-import { calculateStoreFinancialOverview, calculateAdminCommissions, monthKey } from '../utils/commissions';
+import { calculateStoreFinancialOverview, calculateAdminCommissions, isSuperadminCashierName, monthKey } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
 import AdminCommissionModal from '../components/AdminCommissionModal';
 import Dashboard from './Dashboard';
@@ -191,14 +191,16 @@ const DashboardSuperadmin = (props) => {
   const adminFee = companyInfo.adminFee || 10000;
 
   const comparison = compareMonths(transactions, now);
-  const cashiers = cashierPerformance(transactions, now.getFullYear(), now.getMonth());
+  // Superadmin tidak berkomisi: dikenali dari perannya di admin_profiles atau dari namanya ("Super Administrator").
+  const isSuperCashier = (name) => roleByName.get(name) === 'superadmin' || isSuperadminCashierName(name);
+  const cashiers = cashierPerformance(transactions, now.getFullYear(), now.getMonth()).filter((c) => !isSuperCashier(c.name));
   const topRevenue = cashiers.length > 0 ? cashiers[0].revenue : 0;
   const payment = paymentBreakdown(customers, transactions, packages, now);
 
   const effectiveAccounts = allAccounts.length > 0
     ? allAccounts
     : cashiers
-        .filter(c => !((c.name || '').toLowerCase().includes('cs') || roleByName.get(c.name) === 'superadmin'))
+        .filter(c => !(c.name || '').toLowerCase().includes('cs'))
         .map(c => ({ id: c.name, full_name: c.name, role: 'admin', allowed_paths: {} }));
 
   // Ringkasan finansial mengikuti mode: bulan berjalan, atau bulan lalu (angka final, bukan proyeksi).
@@ -909,8 +911,6 @@ const DashboardSuperadmin = (props) => {
               </div>
             ) : (
               cashiers.map((cashier, index) => {
-                const role = roleByName.get(cashier.name);
-                const isSuper = role === 'superadmin';
                 const isCS = (cashier.name || '').toLowerCase().includes('cs');
 
                 const matchedAdmin = effectiveAccounts.find(
@@ -918,7 +918,7 @@ const DashboardSuperadmin = (props) => {
                 ) || {
                   id: cashier.name,
                   full_name: cashier.name,
-                  role: isSuper ? 'superadmin' : 'admin',
+                  role: 'admin',
                   allowed_paths: {},
                 };
 
@@ -930,7 +930,7 @@ const DashboardSuperadmin = (props) => {
                   cashier.name,
                   companyInfo.adminFee || 10000,
                   currentAccess.commissions || [],
-                  isSuper ? 'superadmin' : 'admin',
+                  'admin',
                   monthKey(now),
                   currentAccess.bonuses || []
                 );
@@ -956,7 +956,7 @@ const DashboardSuperadmin = (props) => {
                         <div className="min-w-0">
                           <p className="text-xs sm:text-sm font-bold text-slate-900 truncate flex items-center gap-1.5">
                             {cashier.name}
-                            {!isSuper && isCS && (
+                            {isCS && (
                               <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                                 💬 Layanan CS (Non-Komisi)
                               </span>
@@ -982,7 +982,6 @@ const DashboardSuperadmin = (props) => {
                     </div>
 
                     {/* Dedicated Commission Status Capsule */}
-                    {!isSuper && (
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
                       {isCS ? (
                         <div className="w-full flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-200/80">
@@ -1018,7 +1017,6 @@ const DashboardSuperadmin = (props) => {
                         </div>
                       )}
                     </div>
-                    )}
                   </div>
                 );
               })

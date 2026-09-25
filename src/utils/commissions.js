@@ -8,6 +8,10 @@ const MONTH_NAMES = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
+// Kasir bernama Superadmin (mis. "Super Administrator") tidak berkomisi, dan transaksinya tidak boleh dialihkan ke admin lain.
+// Dicek lewat kata "super" karena nama itu juga mengandung "admin", yang dipakai aturan atribusi toko di bawah.
+export const isSuperadminCashierName = (name = '') => (name || '').toLowerCase().includes('super');
+
 // Akun khusus yang menerima atribusi transaksi kasir toko umum (transaksi tanpa admin spesifik lain).
 export const usesStoreAttribution = (adminName = '') => (adminName || '').toLowerCase().includes('wahyu');
 
@@ -27,6 +31,10 @@ export function matchingCommissionTransactions(transactions = [], adminId = '', 
                  (t.cashier_name || '').toLowerCase().includes('cs') ||
                  (t.cashierName || '').toLowerCase().includes('cs');
     if (!isPaid || isCS) return false;
+
+    // Transaksi yang dikerjakan Superadmin tidak dihitung untuk admin mana pun
+    const cashierName = t.cashier_name || t.cashierName || '';
+    if (isSuperadminCashierName(cashierName) && cashierName.trim().toLowerCase() !== (adminName || '').trim().toLowerCase()) return false;
 
     // Akun dengan atribusi toko: sertakan transaksi kasir umum / toko yang belum spesifik atas admin lain
     if (storeAttribution) {

@@ -406,3 +406,30 @@ describe('buildCommissionRecap', () => {
     expect(buildCommissionRecap('Budi', data)).not.toContain('Tambahan dari Superadmin');
   });
 });
+
+describe('transaksi Superadmin tidak pernah dihitung untuk admin', () => {
+  const shop = (id, cashierName) => ({ id, status: 'LUNAS', type: 'retail', payment_method: 'CASH', cashier_name: cashierName });
+
+  it('does not attribute "Super Administrator" transactions to Wahyu (the word "admin" in the name must not count as a general store cashier)', () => {
+    const transactions = [
+      ...Array.from({ length: 10 }, (_, i) => shop(`w${i}`, i < 4 ? 'Wahyu' : 'Admin')),
+      ...Array.from({ length: 13 }, (_, i) => shop(`s${i}`, 'Super Administrator')),
+    ];
+    const result = calculateAdminCommissions(transactions, 'adm-wahyu', 'Wahyu', 10000, [], 'admin');
+    expect(result.earnedTrxCount).toBe(10); // bukan 23
+    expect(result.totalEarned).toBe(100000);
+  });
+
+  it('also keeps them out of the commission of any other admin and of the store liability', () => {
+    const transactions = [
+      { id: 'a', status: 'LUNAS', type: 'retail', cashier_id: 'adm-budi', cashier_name: 'Budi', date: '2026-09-02T10:00:00' },
+      { id: 's', status: 'LUNAS', type: 'retail', cashier_name: 'Super Administrator', date: '2026-09-03T10:00:00', price: 200000 },
+    ];
+    expect(calculateAdminCommissions(transactions, 'adm-budi', 'Budi', 10000, [], 'admin').earnedTrxCount).toBe(1);
+
+    const accounts = [{ id: 'adm-wahyu', full_name: 'Wahyu', role: 'admin', allowed_paths: {} }];
+    const overview = calculateStoreFinancialOverview(transactions.map((t) => ({ ...t, price: 100000 })), accounts, 10000, new Date('2026-09-24T12:00:00'));
+    // transaksi Budi milik admin lain dan transaksi Superadmin tidak dihitung: Wahyu tidak mendapat komisi dari keduanya
+    expect(overview.totalCommissionLiability).toBe(0);
+  });
+});

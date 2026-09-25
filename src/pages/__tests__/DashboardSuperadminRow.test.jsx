@@ -8,7 +8,7 @@ import process from 'node:process';
 
 vi.mock('../../lib/supabase', () => {
   const profiles = [
-    { id: 'sup-1', full_name: 'Super Administrator', role: 'superadmin', allowed_paths: null },
+    { id: 'sup-1', full_name: 'Pemilik Toko', role: 'superadmin', allowed_paths: null },
     { id: 'adm-budi', full_name: 'Budi', role: 'admin', allowed_paths: null },
   ];
   const result = Promise.resolve({ data: profiles, error: null });
@@ -22,8 +22,8 @@ const now = new Date();
 const at = (day) => new Date(now.getFullYear(), now.getMonth(), day, 10).toISOString();
 const trx = (id, cashier, day) => ({ id, date: at(day), price: 165000, status: 'LUNAS', type: 'retail', customerName: `P${id}`, cashier_name: cashier, payment_method: 'CASH' });
 
-describe('DashboardSuperadmin: baris Super Administrator di Performa Kasir', () => {
-  it('shows the Super Administrator row with revenue but no commission information', async () => {
+describe('DashboardSuperadmin: Super Administrator tidak muncul di Performa Kasir', () => {
+  it('leaves the Super Administrator out of the commission leaderboard even when no profile carries that name', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -45,7 +45,8 @@ describe('DashboardSuperadmin: baris Super Administrator di Performa Kasir', () 
 
     const text = container.textContent;
     expect(text).toContain('Performa Kasir');
-    expect(text).toContain('2 transaksi lunas bulan ini'); // baris omset Super Administrator tetap ada
+    expect(text).not.toContain('2 transaksi lunas bulan ini'); // omset Super Administrator tidak ditampilkan di sini
+    expect(text).toContain('1 transaksi lunas bulan ini'); // Budi tetap tampil
     expect(text).not.toContain('Non-Komisi');
     expect(text).not.toContain('Aturan Akun');
     expect(text).not.toContain('Rp 0 (Super Admin)');
