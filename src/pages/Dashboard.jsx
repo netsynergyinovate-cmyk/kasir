@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Zap, Navigation2, Sparkles } from 'lucide-react';
+import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Zap, Navigation2, Sparkles, Info } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { formatDueReminderMessage } from '../utils/whatsappTemplates';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
-import { getGreeting, isOwnTransaction } from '../utils/dashboardStats';
-import { calculateAdminCommissions } from '../utils/commissions';
+import { getGreeting } from '../utils/dashboardStats';
+import { calculateAdminCommissions, commissionByMonth, commissionRuleNotes } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
 import './Dashboard.css';
 
@@ -60,43 +60,32 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
   // 3. Remaining Target
   const remainingTarget = totalPotentialTarget - grossRevenue;
 
-  // 4. Admin Fee Income (Jasa Kasir) — Sesuai aturan:
-  // - Superadmin & CS: tidak ada komisi (Rp 0).
-  // - Admin Wahyu: diatribusikan transaksi kasir toko non-CS (general retail).
-  // - Admin lain: hanya transaksi masing-masing.
-  const isWahyu = (session?.profile?.full_name || '').toLowerCase().includes('wahyu');
-  const isSuperadminSession = session?.profile?.role === 'superadmin';
-
-  const successTrxForAdmin = filteredTransactions.filter(t => {
-    const isPaid = t.status === 'LUNAS' || t.type === 'instansi';
-    const isCS = t.payment_method === 'CS' || 
-                 (t.cashier_name || '').toLowerCase().includes('cs') ||
-                 (t.cashierName || '').toLowerCase().includes('cs');
-    if (!isPaid || isCS) return false;
-    if (isSuperadminSession) return false;
-
-    if (isWahyu) {
-      const isSpecificOtherAdmin = t.cashier_id && t.cashier_id !== session?.user?.id && 
-                                   t.cashier_name && !t.cashier_name.toLowerCase().includes('wahyu') &&
-                                   !t.cashier_name.toLowerCase().includes('admin');
-      if (isSpecificOtherAdmin) return false;
-      return true;
-    }
-
-    return isOwnTransaction(t, session?.user?.id, session?.profile?.full_name);
-  });
-  const adminIncome = successTrxForAdmin.length * (companyInfo.adminFee || 10000);
-
-  // Komisi komprehensif & riwayat payout dari Super Admin
+  // 4. Komisi Jasa Kasir. Seluruh aturan (superadmin & CS tidak berkomisi, atribusi toko, dll.) ada di
+  // calculateAdminCommissions supaya dashboard admin dan superadmin selalu memakai hitungan yang sama.
+  // Tarif per transaksi ditetapkan Superadmin (company_settings.admin_fee); pencairan dicatat Superadmin.
+  const commissionFee = companyInfo.adminFee || 10000;
   const userAccess = normalizeAdminAccess(session?.profile?.allowed_paths);
+  const myRole = session?.profile?.role;
   const myCommissionData = calculateAdminCommissions(
     transactions,
     session?.user?.id,
     session?.profile?.full_name,
-    companyInfo.adminFee || 10000,
+    commissionFee,
     userAccess.commissions || [],
-    session?.profile?.role
+    myRole
   );
+  // Komisi pada periode yang sedang dipilih di dashboard (bulan / hari)
+  const periodCommission = calculateAdminCommissions(
+    filteredTransactions,
+    session?.user?.id,
+    session?.profile?.full_name,
+    commissionFee,
+    [],
+    myRole
+  );
+  const commissionMonths = commissionByMonth(transactions, session?.user?.id, session?.profile?.full_name, commissionFee, myRole);
+  const commissionNotes = commissionRuleNotes(myCommissionData);
+  const periodLabel = `${selectedDay === 'all' ? '' : `${selectedDay} `}${months[selectedMonth]} ${selectedYear}`;
   const [showCommissionHistoryModal, setShowCommissionHistoryModal] = useState(false);
 
   // Total successful transactions (including CS, needed for progress bar)
@@ -552,27 +541,44 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
           <div>
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest">Jasa Kasir & Komisi</p>
-              {myCommissionData.history.length > 0 && (
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setShowCommissionHistoryModal(true)}
                   className="text-[9px] font-bold bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors"
                 >
-                  <History size={10} /> Riwayat ({myCommissionData.history.length})
+                  <Info size={10} /> Cara hitung
                 </button>
-              )}
+                {myCommissionData.history.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCommissionHistoryModal(true)}
+                    className="text-[9px] font-bold bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors"
+                  >
+                    <History size={10} /> Riwayat ({myCommissionData.history.length})
+                  </button>
+                )}
+              </div>
             </div>
-            <p className="text-lg font-black leading-none">{formatRupiah(adminIncome)}</p>
+            <p className="text-[9px] text-emerald-100/90 mb-1">Hak komisi (akumulasi)</p>
+            <p className="text-lg font-black leading-none">{formatRupiah(myCommissionData.totalEarned)}</p>
+            <p className="text-[9px] text-emerald-100 mt-1">
+              {myCommissionData.earnedTrxCount} transaksi × {formatRupiah(myCommissionData.feePerTransaction)}
+            </p>
           </div>
-          
-          <div className="mt-3 pt-2 border-t border-white/15 flex items-center justify-between text-[9px] text-emerald-100">
-            <span className="flex items-center gap-1">
-              <TrendingUp size={9} /> {successTrxForAdmin.length} Trx
-            </span>
-            <div className="flex items-center gap-2 font-bold">
-              <span>Cair: <b className="text-white">{formatRupiah(myCommissionData.totalPaid)}</b></span>
-              <span>·</span>
-              <span>Pending: <b className="text-amber-200">{formatRupiah(myCommissionData.pendingBalance)}</b></span>
+
+          <div className="mt-3 pt-2 border-t border-white/15 space-y-1 text-[9px] text-emerald-100">
+            <div className="flex items-center justify-between font-bold">
+              <span>Sudah cair (Superadmin): <b className="text-white">{formatRupiah(myCommissionData.totalPaid)}</b></span>
+            </div>
+            <div className="flex items-center justify-between font-bold">
+              <span>Belum cair: <b className="text-amber-200">{formatRupiah(myCommissionData.pendingBalance)}</b></span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <TrendingUp size={9} /> {periodLabel}: {periodCommission.earnedTrxCount} trx
+              </span>
+              <b className="text-white">{formatRupiah(periodCommission.totalEarned)}</b>
             </div>
           </div>
         </div>
@@ -803,15 +809,48 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
+            <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
               <div className="p-2 bg-white rounded-lg shadow-xs">
-                <p className="text-[9px] font-bold text-gray-400 uppercase">Total Diterima</p>
+                <p className="text-[9px] font-bold text-gray-400 uppercase">Hak Komisi</p>
+                <p className="text-sm font-black text-gray-900">{formatRupiah(myCommissionData.totalEarned)}</p>
+              </div>
+              <div className="p-2 bg-white rounded-lg shadow-xs">
+                <p className="text-[9px] font-bold text-gray-400 uppercase">Sudah Cair</p>
                 <p className="text-sm font-black text-emerald-600">{formatRupiah(myCommissionData.totalPaid)}</p>
               </div>
               <div className="p-2 bg-white rounded-lg shadow-xs">
-                <p className="text-[9px] font-bold text-gray-400 uppercase">Sisa Pending</p>
+                <p className="text-[9px] font-bold text-gray-400 uppercase">Belum Cair</p>
                 <p className="text-sm font-black text-amber-600">{formatRupiah(myCommissionData.pendingBalance)}</p>
               </div>
+            </div>
+
+            <div className="space-y-1.5 p-3 bg-emerald-50/60 border border-emerald-100 rounded-xl">
+              <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest flex items-center gap-1"><Info size={11} /> Cara hitung</p>
+              <ul className="space-y-1 text-[11px] text-gray-700 leading-snug list-disc pl-4">
+                {commissionNotes.map((note) => <li key={note}>{note}</li>)}
+              </ul>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rincian per Bulan</p>
+              {commissionMonths.length === 0 ? (
+                <p className="text-xs text-gray-400 italic text-center py-4 bg-gray-50 rounded-xl">Belum ada transaksi yang dihitung sebagai komisi.</p>
+              ) : (
+                <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+                  {commissionMonths.map((month) => (
+                    <div key={month.key} className="flex items-center justify-between px-3 py-2 text-xs bg-white">
+                      <span className="font-semibold text-gray-700">{month.label}</span>
+                      <span className="text-gray-500">
+                        {month.count} trx × {formatRupiah(myCommissionData.feePerTransaction)} = <b className="text-gray-900">{formatRupiah(month.amount)}</b>
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between px-3 py-2 text-xs bg-gray-50 font-black text-gray-900">
+                    <span>Total hak komisi</span>
+                    <span>{myCommissionData.earnedTrxCount} trx = {formatRupiah(myCommissionData.totalEarned)}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

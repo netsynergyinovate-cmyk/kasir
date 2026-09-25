@@ -2,6 +2,44 @@ import { isOwnTransaction } from './dashboardStats';
 import { supabase } from '../lib/supabase';
 import { normalizeAdminAccess } from './permissions';
 
+const MONTH_NAMES = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+
+// Akun khusus yang menerima atribusi transaksi kasir toko umum (transaksi tanpa admin spesifik lain).
+export const usesStoreAttribution = (adminName = '') => (adminName || '').toLowerCase().includes('wahyu');
+
+/**
+ * Transaksi yang dihitung sebagai komisi seorang admin. Satu-satunya tempat aturan atribusi ditulis,
+ * dipakai dashboard admin maupun superadmin supaya angkanya selalu sama.
+ */
+export function matchingCommissionTransactions(transactions = [], adminId = '', adminName = '', adminRole = 'admin') {
+  // Superadmin tidak pernah mendapatkan komisi
+  if (adminRole === 'superadmin') return [];
+
+  const storeAttribution = usesStoreAttribution(adminName);
+
+  return transactions.filter((t) => {
+    const isPaid = t.status === 'LUNAS' || t.type === 'instansi';
+    const isCS = t.payment_method === 'CS' ||
+                 (t.cashier_name || '').toLowerCase().includes('cs') ||
+                 (t.cashierName || '').toLowerCase().includes('cs');
+    if (!isPaid || isCS) return false;
+
+    // Akun dengan atribusi toko: sertakan transaksi kasir umum / toko yang belum spesifik atas admin lain
+    if (storeAttribution) {
+      const isSpecificOtherAdmin = t.cashier_id && t.cashier_id !== adminId &&
+                                   t.cashier_name && !t.cashier_name.toLowerCase().includes('wahyu') &&
+                                   !t.cashier_name.toLowerCase().includes('admin');
+      if (isSpecificOtherAdmin) return false;
+      return true;
+    }
+
+    return isOwnTransaction(t, adminId, adminName);
+  });
+}
+
 /**
  * Kalkulasi komisi admin:
  * - totalEarned: Jumlah transaksi lunas yang diproses admin * adminFee
@@ -16,39 +54,11 @@ export function calculateAdminCommissions(
   commissionHistory = [],
   adminRole = 'admin'
 ) {
-  // Superadmin tidak pernah mendapatkan komisi
-  if (adminRole === 'superadmin') {
-    return {
-      earnedTrxCount: 0,
-      totalEarned: 0,
-      totalPaid: 0,
-      pendingBalance: 0,
-      history: [],
-    };
-  }
+  const feePerTransaction = Number(adminFee) || 10000;
+  const matchingTrx = matchingCommissionTransactions(transactions, adminId, adminName, adminRole);
+  const instansiCount = matchingTrx.filter((t) => t.type === 'instansi').length;
 
-  const isWahyu = (adminName || '').toLowerCase().includes('wahyu');
-
-  const matchingTrx = transactions.filter((t) => {
-    const isPaid = t.status === 'LUNAS' || t.type === 'instansi';
-    const isCS = t.payment_method === 'CS' || 
-                 (t.cashier_name || '').toLowerCase().includes('cs') ||
-                 (t.cashierName || '').toLowerCase().includes('cs');
-    if (!isPaid || isCS) return false;
-
-    // Jika admin adalah Wahyu, sertakan transaksi kasir umum / toko yang belum spesifik
-    if (isWahyu) {
-      const isSpecificOtherAdmin = t.cashier_id && t.cashier_id !== adminId && 
-                                   t.cashier_name && !t.cashier_name.toLowerCase().includes('wahyu') &&
-                                   !t.cashier_name.toLowerCase().includes('admin');
-      if (isSpecificOtherAdmin) return false;
-      return true;
-    }
-
-    return isOwnTransaction(t, adminId, adminName);
-  });
-
-  const totalEarned = matchingTrx.length * (Number(adminFee) || 10000);
+  const totalEarned = matchingTrx.length * feePerTransaction;
   const validHistory = Array.isArray(commissionHistory) ? commissionHistory : [];
   const totalPaid = validHistory
     .filter((c) => c.status === 'TERKIRIM')
@@ -58,11 +68,54 @@ export function calculateAdminCommissions(
 
   return {
     earnedTrxCount: matchingTrx.length,
+    instansiCount,
+    feePerTransaction,
+    usesStoreAttribution: adminRole !== 'superadmin' && usesStoreAttribution(adminName),
     totalEarned,
     totalPaid,
     pendingBalance,
     history: validHistory,
   };
+}
+
+/**
+ * Rincian hak komisi per bulan (terbaru dulu): berapa transaksi dihitung dan berapa rupiahnya.
+ * Total semua bulan = totalEarned dari calculateAdminCommissions.
+ */
+export function commissionByMonth(transactions = [], adminId = '', adminName = '', adminFee = 10000, adminRole = 'admin') {
+  const fee = Number(adminFee) || 10000;
+  const buckets = new Map();
+
+  matchingCommissionTransactions(transactions, adminId, adminName, adminRole).forEach((t) => {
+    const rawDate = t.date || t.created_at;
+    const date = rawDate ? new Date(rawDate) : null;
+    const valid = date && !Number.isNaN(date.getTime());
+    const key = valid ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : 'unknown';
+    const label = valid ? `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}` : 'Tanpa tanggal';
+    const entry = buckets.get(key) || { key, label, count: 0, amount: 0 };
+    entry.count += 1;
+    entry.amount += fee;
+    buckets.set(key, entry);
+  });
+
+  return [...buckets.values()].sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0));
+}
+
+/**
+ * Keterangan cara hitung komisi yang ditampilkan ke admin (bahasa awam, sesuai aturan di atas).
+ */
+export function commissionRuleNotes({ feePerTransaction = 10000, usesStoreAttribution: storeAttribution = false } = {}) {
+  const notes = [
+    `Hak komisi = jumlah transaksi lunas atas akunmu × tarif Rp ${Math.floor(feePerTransaction).toLocaleString('id-ID')} per transaksi. Tarif ini ditetapkan Superadmin di Pengaturan.`,
+    'Yang dihitung: transaksi berstatus LUNAS (retail) dan invoice instansi yang tercatat atas namamu.',
+    'Yang tidak dihitung: transaksi belum lunas, transaksi Layanan CS, transaksi admin lain, dan transaksi Superadmin.',
+    'Angka ini akumulasi sejak awal, bukan per bulan. Rincian per bulan ada di bawah.',
+    'Pencairan dilakukan Superadmin lewat transfer dan dicatat di Riwayat. Sisa belum cair = hak komisi − total yang sudah dicairkan.',
+  ];
+  if (storeAttribution) {
+    notes.splice(2, 0, 'Untuk akun ini, transaksi kasir toko umum yang belum atas nama admin lain ikut dihitung.');
+  }
+  return notes;
 }
 
 /**

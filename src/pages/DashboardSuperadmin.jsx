@@ -999,7 +999,7 @@ const DashboardSuperadmin = (props) => {
                         <div className="w-full flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2 sm:p-2.5 rounded-lg border border-slate-200/60">
                           <div className="flex flex-wrap items-center gap-2.5">
                             <div>
-                              <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider block">Hak Komisi</span>
+                              <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider block">Hak Komisi (total)</span>
                               <span className="font-bold text-emerald-600 text-xs">{formatRupiah(comm.totalEarned)}</span>
                             </div>
                             <div className="h-5 w-px bg-slate-200" />
