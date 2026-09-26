@@ -10,6 +10,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { formatRupiah, getInvoiceNumber } from '../utils/format';
 import { runsnetCodeOf, describeRunsnetStatus, isRunsnetMismatch } from '../utils/runsnetStatus';
+import { isEffectivelyKasbon } from '../utils/dashboardStats';
 import RunsnetProofModal from '../components/RunsnetProofModal';
 
 const formatDateTime = (dateStr) => {
@@ -136,15 +137,17 @@ const History = ({
     [dateFilteredTransactions]
   );
   const lunasCount = useMemo(
-    () => dateFilteredTransactions.filter((t) => t.status === 'LUNAS').length,
+    () => dateFilteredTransactions.filter((t) => t.status === 'LUNAS' && !isEffectivelyKasbon(t)).length,
     [dateFilteredTransactions]
   );
   const waCount = useMemo(
     () => dateFilteredTransactions.filter(isWhatsAppPayment).length,
     [dateFilteredTransactions]
   );
+  // Kasbon SESUNGGUHNYA (lihat isEffectivelyKasbon): termasuk transaksi lama yang tersimpan LUNAS
+  // tapi uang masuknya kurang dari harga paket, bukan cuma yang berlabel KASBON.
   const kasbonCount = useMemo(
-    () => dateFilteredTransactions.filter((t) => t.status === 'KASBON').length,
+    () => dateFilteredTransactions.filter(isEffectivelyKasbon).length,
     [dateFilteredTransactions]
   );
   const instansiCount = useMemo(
@@ -158,9 +161,9 @@ const History = ({
 
   // 2. Filter lanjutan berdasarkan Tab Status
   const displayedTransactions = useMemo(() => {
-    if (statusTab === 'lunas') return dateFilteredTransactions.filter((t) => t.status === 'LUNAS' && t.type !== 'instansi');
+    if (statusTab === 'lunas') return dateFilteredTransactions.filter((t) => t.status === 'LUNAS' && t.type !== 'instansi' && !isEffectivelyKasbon(t));
     if (statusTab === 'whatsapp') return dateFilteredTransactions.filter(isWhatsAppPayment);
-    if (statusTab === 'kasbon') return dateFilteredTransactions.filter((t) => t.status === 'KASBON');
+    if (statusTab === 'kasbon') return dateFilteredTransactions.filter(isEffectivelyKasbon);
     if (statusTab === 'mismatch') return dateFilteredTransactions.filter((t) => isRunsnetMismatch(t, runsnetStatuses[runsnetCodeOf(t)]));
     if (statusTab === 'instansi') return dateFilteredTransactions.filter((t) => t.type === 'instansi');
     return dateFilteredTransactions;
@@ -599,6 +602,9 @@ const History = ({
             const checkedAtCard = checkedTimes[trx.id];
             const pppoe = trx.pppoeId || trx.pppoe_id;
             const isWaTrx = isWhatsAppPayment(trx);
+            // Kasbon SESUNGGUHNYA dari angka (lihat isEffectivelyKasbon) — transaksi lama yang
+            // tersimpan LUNAS tapi kurang bayar tetap tampil KASBON di sini.
+            const isKasbon = isEffectivelyKasbon(trx);
 
             return (
               <div
@@ -641,12 +647,12 @@ const History = ({
                         ? 'bg-purple-100 text-purple-700'
                         : isWaTrx
                           ? 'bg-emerald-600 text-white shadow-2xs'
-                          : trx.status === 'LUNAS'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
+                          : isKasbon
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
                     }`}>
                       {isWaTrx && <MessageCircle size={11} className="shrink-0" />}
-                      <span>{trx.type === 'instansi' ? 'INSTANSI' : isWaTrx ? 'LUNAS (WA BOT)' : trx.status}</span>
+                      <span>{trx.type === 'instansi' ? 'INSTANSI' : isWaTrx ? 'LUNAS (WA BOT)' : isKasbon ? 'KASBON' : trx.status}</span>
                     </span>
                   </div>
 
@@ -726,7 +732,7 @@ const History = ({
                   {/* Nominal Transaksi di Sisi Kanan */}
                   <div className="text-right shrink-0">
                     <p className="font-black text-blue-700 text-base">{formatRupiah(trx.price)}</p>
-                    {trx.status === 'KASBON' && (
+                    {isKasbon && (
                       <>
                         {Number(trx.amountPaid) > 0 && (
                           <p className="text-[10px] font-bold text-emerald-600 mt-0.5">

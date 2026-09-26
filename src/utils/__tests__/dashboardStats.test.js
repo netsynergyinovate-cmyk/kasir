@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction, weeklyRevenue, projectMonthRevenue, daysInMonth, paymentBreakdown, kasbonSummary } from '../dashboardStats';
+import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction, weeklyRevenue, projectMonthRevenue, daysInMonth, paymentBreakdown, kasbonSummary, isEffectivelyKasbon } from '../dashboardStats';
 
 describe('getGreeting', () => {
   it('returns the Indonesian greeting for each part of the day', () => {
@@ -49,6 +49,37 @@ describe('kasbonSummary', () => {
   it('returns zero for an empty or all-LUNAS list', () => {
     expect(kasbonSummary([])).toEqual({ count: 0, shortfall: 0 });
     expect(kasbonSummary([trx('2026-09-05T10:00:00', 200000)])).toEqual({ count: 0, shortfall: 0 });
+  });
+
+  it('also counts an OLD transaction stored as LUNAS but actually underpaid (before the auto-KASBON feature existed)', () => {
+    const transactions = [trx('2026-09-05T10:00:00', 200000, { status: 'LUNAS', amountPaid: 100000 })];
+    expect(kasbonSummary(transactions)).toEqual({ count: 1, shortfall: 100000 });
+  });
+});
+
+describe('isEffectivelyKasbon', () => {
+  it('flags a retail transaction underpaid even when its stored status still says LUNAS', () => {
+    expect(isEffectivelyKasbon(trx('2026-09-05T10:00:00', 200000, { amountPaid: 100000 }))).toBe(true);
+  });
+
+  it('trusts the stored KASBON status even if amountPaid happens to equal the price', () => {
+    expect(isEffectivelyKasbon(trx('2026-09-05T10:00:00', 200000, { status: 'KASBON', amountPaid: 200000 }))).toBe(true);
+  });
+
+  it('is false for a fully paid LUNAS transaction', () => {
+    expect(isEffectivelyKasbon(trx('2026-09-05T10:00:00', 200000, { amountPaid: 200000 }))).toBe(false);
+  });
+
+  it('ignores a CS adjustment even if its recorded amountPaid looks short', () => {
+    expect(isEffectivelyKasbon(trx('2026-09-05T10:00:00', 200000, { amountPaid: 0, payment_method: 'CS' }))).toBe(false);
+  });
+
+  it('ignores instansi invoices (not a retail package payment)', () => {
+    expect(isEffectivelyKasbon(trx('2026-09-05T10:00:00', 200000, { amountPaid: 100000, type: 'instansi' }))).toBe(false);
+  });
+
+  it('treats a missing amountPaid as fully paid (cannot retroactively assume debt with no data)', () => {
+    expect(isEffectivelyKasbon(trx('2026-09-05T10:00:00', 200000, { amountPaid: undefined }))).toBe(false);
   });
 });
 

@@ -95,12 +95,25 @@ export function paymentSummary(customers, transactions, now = new Date()) {
   return { active: active.length, paid, unpaid: active.length - paid };
 }
 
-// Ringkasan piutang KASBON (transaksi retail yang dibayar kurang dari harga paket — lihat status
-// otomatis di Transaksi.jsx): jumlah transaksi dan total kekurangannya (harga paket - uang yang sudah
+// KASBON SESUNGGUHNYA dari angka transaksi (harga paket vs uang yang sudah masuk), bukan cuma teks
+// status yang tersimpan. Transaksi LAMA (dibuat sebelum status KASBON otomatis ada di Transaksi.jsx)
+// yang sebenarnya dibayar kurang tetap tercatat status "LUNAS" di database — fungsi ini yang bikin
+// Riwayat & Dashboard tetap membacanya sebagai kasbon walau label lamanya salah, supaya piutang
+// beneran kebaca real, gak ada selisih. CS (penyesuaian customer service) dikecualikan, sama seperti
+// shouldSyncTransaction di runsnetSync.js — bukan kekurangan bayar dari pelanggan.
+export function isEffectivelyKasbon(trx) {
+  if (trx.type !== 'retail') return false;
+  if ((trx.payment_method || trx.paymentMethod) === 'CS') return false;
+  const price = Number(trx.price || 0);
+  const paid = Number(trx.amountPaid ?? trx.amount_paid ?? price);
+  return trx.status === 'KASBON' || paid < price;
+}
+
+// Ringkasan piutang KASBON: jumlah transaksi dan total kekurangannya (harga paket - uang yang sudah
 // masuk). Pemanggil mengirim transaksi yang SUDAH difilter periodenya (bulan/hari yang sedang dilihat),
 // supaya "Piutang Kasbon" di Dashboard selalu sinkron dengan periode kartu-kartu lain di sekitarnya.
 export function kasbonSummary(transactions) {
-  const kasbonTrx = transactions.filter((trx) => trx.type === 'retail' && trx.status === 'KASBON');
+  const kasbonTrx = transactions.filter(isEffectivelyKasbon);
   const shortfall = kasbonTrx.reduce((sum, trx) => {
     const paid = Number(trx.amountPaid ?? trx.amount_paid ?? 0);
     return sum + Math.max(Number(trx.price || 0) - paid, 0);
