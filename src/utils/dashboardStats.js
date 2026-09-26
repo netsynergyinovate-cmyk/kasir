@@ -238,3 +238,28 @@ export function paymentBreakdown(customers, transactions, packages = [], now = n
     unpaidAmount,
   };
 }
+
+// Daftar pelanggan aktif yang sudah/belum bayar retail bulan berjalan (sama kriterianya dengan
+// paymentBreakdown, tapi ini kembalikan daftar pelanggannya, bukan cuma jumlah/nominal) — dipakai kartu
+// "Tagihan & Pengingat Pelanggan". dueDiff = hari sejak tanggal jatuh tempo (positif = sudah lewat),
+// null kalau pelanggan belum punya due_date. Daftar belum-bayar diurutkan yang paling telat dulu.
+export function activePaymentLists(customers, transactions, now = new Date()) {
+  const active = customers.filter((customer) => customer.status === 'aktif');
+  const paidNames = new Set(
+    transactions
+      .filter((trx) => trx.type === 'retail' && trx.status === 'LUNAS' && inMonth(trx, now.getFullYear(), now.getMonth()))
+      .map((trx) => normalizeName(trx.customerName || trx.customer_name))
+  );
+  const withDueDiff = (customer) => ({
+    ...customer,
+    dueDiff: customer.due_date != null && customer.due_date !== '' ? now.getDate() - Number(customer.due_date) : null,
+  });
+
+  const paid = active.filter((customer) => paidNames.has(normalizeName(customer.name))).map(withDueDiff);
+  const unpaid = active
+    .filter((customer) => !paidNames.has(normalizeName(customer.name)))
+    .map(withDueDiff)
+    .sort((a, b) => (b.dueDiff ?? -999) - (a.dueDiff ?? -999));
+
+  return { paid, unpaid };
+}

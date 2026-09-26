@@ -2,16 +2,20 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Zap, Navigation2, Sparkles, Info } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
-import { formatDueReminderMessage } from '../utils/whatsappTemplates';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
 import { getGreeting, kasbonSummary } from '../utils/dashboardStats';
 import { calculateAdminCommissions, commissionByMonth, commissionRuleNotes, monthKey, monthLabel, payoutPeriodKey, bonusPeriodKey } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
+import { useWhatsAppReminders } from '../hooks/useWhatsAppReminders';
 import './Dashboard.css';
 
-const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute = false, origin = null, myPosition = null, locationStatus = 'off', adminLocations = [], onRetryLocation, transactions = [], customers = [], packages = [], companyInfo = {}, session, setReceiptToView, setInstansiReceiptToView }) => {
+// embedded: true saat komponen ini ditempel di bawah DashboardSuperadmin.jsx (lihat DashboardSuperadmin.jsx) —
+// menyembunyikan bagian yang superadmin SUDAH punya versi barunya sendiri di atas (Aksi Cepat, Pengingat
+// Tagihan, Status Pembayaran), supaya tidak dobel. Dashboard admin biasa (route "/") tidak terpengaruh,
+// tetap tampil lengkap seperti biasa.
+const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVisit, canManageRoute = false, origin = null, myPosition = null, locationStatus = 'off', adminLocations = [], onRetryLocation, transactions = [], customers = [], packages = [], companyInfo = {}, session, setReceiptToView, setInstansiReceiptToView }) => {
   const [selectedDay, setSelectedDay] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -27,9 +31,10 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
   const [unpaidExpanded, setUnpaidExpanded] = useState(false);
   const [paidExpanded, setPaidExpanded] = useState(false);
   const [reminderExpanded, setReminderExpanded] = useState(false);
-  const [sendingReminderId, setSendingReminderId] = useState(null);
-  const [isSendingBatch, setIsSendingBatch] = useState(false);
-  const [reminderFeedback, setReminderFeedback] = useState(null);
+  const {
+    sendingReminderId, isSendingBatch, reminderFeedback, setReminderFeedback,
+    sendSingleReminder, sendBatchReminders,
+  } = useWhatsAppReminders({ companyInfo, session });
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -175,98 +180,6 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
     return { label: months[monthIndex].slice(0, 3), value: monthRevenue };
   });
 
-  const openWhatsAppReminderDirect = (cust, daysLeft) => {
-    const raw = (cust.phone || '').replace(/[^0-9]/g, '');
-    const cleanNum = raw.startsWith('0') ? '62' + raw.slice(1) : raw;
-    const msg = formatDueReminderMessage(cust, daysLeft, companyInfo);
-    window.open(`https://wa.me/${cleanNum}?text=${encodeURIComponent(msg)}`, '_blank');
-    setReminderFeedback({ type: 'info', message: `Membuka WhatsApp untuk mengirim pengingat ke ${cust.name}.` });
-  };
-
-  const handleSendSingleReminder = async (cust) => {
-    if (!cust.phone) {
-      alert(`Pelanggan ${cust.name} tidak memiliki nomor WhatsApp.`);
-      return;
-    }
-    const daysLeft = Math.max(0, -cust.dueDiff);
-    setSendingReminderId(cust.id);
-    setReminderFeedback(null);
-    try {
-      if (companyInfo.watbizEnabled && companyInfo.watbizToken) {
-        const res = await fetch('/api/watbiz', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token || ''}`
-          },
-          body: JSON.stringify({
-            action: 'send-reminder',
-            customer: cust,
-            daysLeft,
-            companyInfo,
-            senderName: session?.profile?.full_name || 'Admin Kasir'
-          })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.ok) {
-          setReminderFeedback({ type: 'success', message: `Pengingat & peringatan isolir terkirim ke ${cust.name} (${cust.phone}).` });
-        } else {
-          openWhatsAppReminderDirect(cust, daysLeft);
-        }
-      } else {
-        openWhatsAppReminderDirect(cust, daysLeft);
-      }
-    } catch (err) {
-      console.warn('Gagal panggil Watbiz API:', err.message);
-      openWhatsAppReminderDirect(cust, daysLeft);
-    } finally {
-      setSendingReminderId(null);
-    }
-  };
-
-  const handleSendBatchReminders = async () => {
-    const targets = reminderList.filter(c => c.phone);
-    if (targets.length === 0) {
-      alert('Tidak ada pelanggan di daftar pengingat yang memiliki nomor WhatsApp.');
-      return;
-    }
-
-    if (!window.confirm(`Kirim pesan pengingat jatuh tempo & peringatan isolir ke ${targets.length} pelanggan secara masal via Watbiz?`)) {
-      return;
-    }
-
-    setIsSendingBatch(true);
-    setReminderFeedback(null);
-    try {
-      const res = await fetch('/api/watbiz', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({
-          action: 'send-reminders',
-          customers: targets,
-          companyInfo,
-          senderName: session?.profile?.full_name || 'Admin Kasir'
-        })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        setReminderFeedback({
-          type: 'success',
-          message: `Selesai: ${data.success} pengingat isolir berhasil dikirim${data.failed > 0 ? `, ${data.failed} gagal` : ''} dari total ${data.total} pelanggan.`
-        });
-      } else {
-        setReminderFeedback({ type: 'error', message: data.error || 'Gagal mengirim pengingat masal via Watbiz.' });
-      }
-    } catch (err) {
-      setReminderFeedback({ type: 'error', message: 'Koneksi error: ' + err.message });
-    } finally {
-      setIsSendingBatch(false);
-    }
-  };
-
   return (
     <div className="dashboard-container p-4 space-y-6 pb-32 animate-in fade-in duration-300">
       
@@ -288,7 +201,8 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
         </div>
       )}
 
-      {/* Quick Action Grid (Aksi Cepat) */}
+      {/* Quick Action Grid (Aksi Cepat) — disembunyikan saat embedded, DashboardSuperadmin sudah punya versinya sendiri */}
+      {!embedded && (
       <div className="space-y-2">
         <div className="flex items-center justify-between ml-1">
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
@@ -368,7 +282,7 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
             onClick={() => {
               const el = document.getElementById('reminder-section');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
-              else if (reminderList.length > 0) handleSendBatchReminders();
+              else if (reminderList.length > 0) sendBatchReminders(reminderList);
               else alert('Tidak ada pelanggan yang mendekati jatuh tempo saat ini.');
             }}
             className="quick-action-tile group"
@@ -398,12 +312,14 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
           </Link>
         </div>
       </div>
+      )}
 
       {/* Peta + jalur rute kunjungan dan tujuan berikutnya */}
       <RouteOverview customers={customers} transactions={transactions} visits={visits} onAddVisit={onAddVisit} canManageRoute={canManageRoute} origin={origin} myPosition={myPosition} locationStatus={locationStatus} adminLocations={adminLocations} onRetryLocation={onRetryLocation} />
 
-      {/* Pengingat Tagihan (due-date reminders, always real-time) */}
-      {reminderList.length > 0 && (
+      {/* Pengingat Tagihan (due-date reminders, always real-time) — disembunyikan saat embedded,
+          DashboardSuperadmin.jsx punya versi barunya sendiri (Tagihan & Pengingat Pelanggan) */}
+      {!embedded && reminderList.length > 0 && (
         <div id="reminder-section">
           <div className="flex items-center justify-between mb-2 ml-1">
             <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
@@ -415,7 +331,7 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
             {reminderList.some(c => c.phone) && (
               <button
                 type="button"
-                onClick={handleSendBatchReminders}
+                onClick={() => sendBatchReminders(reminderList)}
                 disabled={isSendingBatch}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1 rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition-all disabled:opacity-50"
                 title="Kirim pengingat tagihan dan peringatan isolir otomatis ke semua pelanggan ber-nomor WA"
@@ -460,7 +376,7 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
                       {cust.phone && (
                         <button
                           type="button"
-                          onClick={() => handleSendSingleReminder(cust)}
+                          onClick={() => sendSingleReminder(cust)}
                           disabled={isItemSending || isSendingBatch}
                           title="Kirim pesan pengingat jatuh tempo & peringatan isolir via WhatsApp"
                           className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/60 rounded-lg text-[10px] font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1"
@@ -486,7 +402,11 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
         </div>
       )}
 
-      {/* Professional Period Filter (Compact) */}
+      {/* Professional Period Filter (Compact), Metrics Grid, dan Revenue Chart — disembunyikan saat
+          embedded: superadmin punya filter periode & kartu finansialnya sendiri di section-section baru
+          (Finansial Eksekutif, Target/Penagihan, Pendapatan Harian + Omset 7/14/Bulan). */}
+      {!embedded && (
+      <>
       <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Calendar size={14} className="text-blue-600" />
@@ -655,8 +575,11 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
           <RevenueBarChart data={revenueChartData} />
         </div>
       </div>
+      </>
+      )}
 
-      {/* Payment Status Section */}
+      {/* Payment Status Section — disembunyikan saat embedded, DashboardSuperadmin.jsx punya versinya sendiri */}
+      {!embedded && (
       <div>
         <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Status Pembayaran Bulan Ini</h2>
         <div className="bg-white p-5 super-rounded border border-gray-100 shadow-sm">
@@ -725,8 +648,12 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
           )}
         </div>
       </div>
+      )}
 
-      {/* Latest Highlight */}
+      {/* Latest Highlight & Transaction List — disembunyikan saat embedded, superadmin punya section
+          "Aktivitas Transaksi Terbaru" sendiri di DashboardSuperadmin.jsx */}
+      {!embedded && (
+      <>
       {latestSuccess && (
         <div className="mt-2">
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Transaksi Barusan 🔥</h2>
@@ -814,6 +741,8 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* Modal Riwayat Pencairan Komisi */}
       {showCommissionHistoryModal && (

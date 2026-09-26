@@ -3,16 +3,19 @@ import { Link } from 'react-router-dom';
 import {
   TrendingUp, TrendingDown, Minus, CalendarDays, BookOpen, ChevronDown, ChevronLeft, ChevronRight,
   Trophy, Clock, Smartphone, MapPin, Zap, Users, Settings, Send, MessageCircle, DollarSign,
-  Navigation2, FolderKanban, CreditCard, ChartColumn, Target, Check,
+  Navigation2, FolderKanban, CreditCard, ChartColumn, Target, Check, Receipt, FileSpreadsheet,
+  Building2, FileText,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatRupiah, formatRupiahCompact } from '../utils/format';
 import {
   getGreeting, compareMonths, cashierPerformance, paymentBreakdown, formatRelativeTime, compareDays, resolveDay,
   methodBreakdown, dailyTransactions, toInputValue, weeklyRevenue, projectMonthRevenue, percentChange, kasbonSummary,
+  activePaymentLists,
 } from '../utils/dashboardStats';
 import { calculateStoreFinancialOverview, calculateAdminCommissions, isSuperadminCashierName, monthKey } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
+import { useWhatsAppReminders } from '../hooks/useWhatsAppReminders';
 import AdminCommissionModal from '../components/AdminCommissionModal';
 import Dashboard from './Dashboard';
 
@@ -132,8 +135,10 @@ const Pill = ({ className = '', children }) => (
 const RANGE_OPTIONS = [['7', '7H'], ['14', '14H'], ['month', 'Bln']];
 const METRIC_OPTIONS = [['rp', 'Rp'], ['trx', 'Trx']];
 
+const METHOD_FILTERS = [['all', 'Semua', null], ['cash', 'Tunai', 'Cash'], ['transfer', 'Transfer', 'Transfer Bank'], ['qris', 'QRIS', 'QRIS']];
+
 const DashboardSuperadmin = (props) => {
-  const { transactions = [], customers = [], packages = [], session, companyInfo = {} } = props;
+  const { transactions = [], customers = [], packages = [], session, companyInfo = {}, setReceiptToView, setInstansiReceiptToView } = props;
   const [accounts, setAccounts] = useState([]);
   const [allAccounts, setAllAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
@@ -148,6 +153,12 @@ const DashboardSuperadmin = (props) => {
   const [slide, setSlide] = useState(0);
   const [rangeMode, setRangeMode] = useState('7');
   const [chartMetric, setChartMetric] = useState('rp');
+  const [billingTab, setBillingTab] = useState('unpaid');
+  const [billingExpanded, setBillingExpanded] = useState(false);
+  const [cashierFilter, setCashierFilter] = useState('all'); // all | pending | noncommission
+  const [cashierSort, setCashierSort] = useState('omset'); // omset | trx
+  const [txMethodFilter, setTxMethodFilter] = useState('all');
+  const [txExpanded, setTxExpanded] = useState(false);
   const sliderRef = useRef(null);
 
   const fetchAccounts = useCallback(() => {
@@ -196,12 +207,79 @@ const DashboardSuperadmin = (props) => {
   const cashiers = cashierPerformance(transactions, now.getFullYear(), now.getMonth()).filter((c) => !isSuperCashier(c.name));
   const topRevenue = cashiers.length > 0 ? cashiers[0].revenue : 0;
   const payment = paymentBreakdown(customers, transactions, packages, now);
+  const { paid: paidCustomersList, unpaid: unpaidCustomersList } = activePaymentLists(customers, transactions, now);
+  const {
+    sendingReminderId, isSendingBatch, reminderFeedback, setReminderFeedback,
+    sendSingleReminder, sendBatchReminders,
+  } = useWhatsAppReminders({ companyInfo, session });
 
   const effectiveAccounts = allAccounts.length > 0
     ? allAccounts
     : cashiers
         .filter(c => !(c.name || '').toLowerCase().includes('cs'))
         .map(c => ({ id: c.name, full_name: c.name, role: 'admin', allowed_paths: {} }));
+
+  // Baris leaderboard kasir + komisinya masing-masing (dihitung sekali di sini, dipakai buat filter,
+  // urutan, dan hitungan badge tab — bukan lagi dihitung ulang di dalam .map() render).
+  const cashierRows = cashiers.map((cashier) => {
+    const isCS = (cashier.name || '').toLowerCase().includes('cs');
+    const matchedAdmin = effectiveAccounts.find(
+      (a) => (a.full_name || '').toLowerCase() === cashier.name.toLowerCase()
+    ) || { id: cashier.name, full_name: cashier.name, role: 'admin', allowed_paths: {} };
+    const currentAccess = normalizeAdminAccess(matchedAdmin.allowed_paths);
+    const comm = calculateAdminCommissions(
+      transactions,
+      matchedAdmin.id,
+      cashier.name,
+      companyInfo.adminFee || 10000,
+      currentAccess.commissions || [],
+      'admin',
+      monthKey(now),
+      currentAccess.bonuses || []
+    );
+    return { cashier, matchedAdmin, comm, isCS };
+  });
+  const cashierPendingCount = cashierRows.filter((r) => !r.isCS && r.comm.pendingBalance > 0).length;
+  const cashierNonKomisiCount = cashierRows.filter((r) => r.isCS).length;
+  const filteredCashierRows = cashierRows.filter((r) => {
+    if (cashierFilter === 'pending') return !r.isCS && r.comm.pendingBalance > 0;
+    if (cashierFilter === 'noncommission') return r.isCS;
+    return true;
+  });
+  const sortedCashierRows = [...filteredCashierRows].sort((a, b) => (
+    cashierSort === 'trx' ? b.cashier.count - a.cashier.count : b.cashier.revenue - a.cashier.revenue
+  ));
+
+  // Aktivitas Transaksi Terbaru: transaksi sukses (retail LUNAS/KASBON atau instansi) semua kasir,
+  // terbaru dulu, difilter metode pembayaran kalau kasir/superadmin memilih filter tertentu.
+  const activeMethodFilter = METHOD_FILTERS.find(([value]) => value === txMethodFilter);
+  const recentTransactions = [...transactions]
+    .filter((trx) => trx.status === 'LUNAS' || trx.status === 'KASBON' || trx.type === 'instansi')
+    .filter((trx) => !activeMethodFilter[2] || (trx.payment_method || trx.paymentMethod) === activeMethodFilter[2])
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  const visibleTransactions = txExpanded ? recentTransactions.slice(0, 30) : recentTransactions.slice(0, 8);
+
+  // Ekspor daftar yang lagi terlihat (sesuai filter metode) ke file CSV — buat pembukuan manual/dibawa ke akuntan.
+  const handleExportTransactionsCsv = () => {
+    const header = ['Tanggal', 'Pelanggan', 'Nominal', 'Metode', 'Status'];
+    const rows = recentTransactions.map((trx) => [
+      new Date(trx.date).toLocaleString('id-ID'),
+      trx.type === 'instansi' ? trx.instansiName : trx.customerName,
+      trx.price,
+      trx.payment_method || trx.paymentMethod || '',
+      trx.status,
+    ]);
+    const csv = [header, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `transaksi-${monthKey(now)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Ringkasan finansial mengikuti mode: bulan berjalan, atau bulan lalu (angka final, bukan proyeksi).
   const periodDate = compareMode ? new Date(now.getFullYear(), now.getMonth() - 1, 1) : now;
@@ -922,37 +1000,46 @@ const DashboardSuperadmin = (props) => {
             </span>
           </div>
 
+          {cashiers.length > 0 && (
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="grid grid-cols-3 gap-1 bg-slate-100/90 p-0.5 rounded-lg text-[9px] font-semibold text-slate-500 text-center flex-1">
+                {[['all', `Semua (${cashierRows.length})`], ['pending', `Pending (${cashierPendingCount})`], ['noncommission', `Non-Komisi (${cashierNonKomisiCount})`]].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setCashierFilter(value)}
+                    className={`py-1 rounded transition active:scale-95 cursor-pointer ${cashierFilter === value ? 'bg-white text-blue-700 font-bold shadow-2xs' : 'hover:text-slate-800'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-md text-[9px] font-bold text-slate-500 shrink-0">
+                {[['omset', 'Omset'], ['trx', 'Trx']].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setCashierSort(value)}
+                    className={`px-1.5 py-0.5 rounded transition cursor-pointer ${cashierSort === value ? 'bg-white text-blue-700 shadow-2xs' : 'hover:text-slate-700'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2.5">
             {cashiers.length === 0 ? (
               <div className="bg-white p-5 rounded-xl border border-slate-200/80 text-center text-xs text-slate-400 italic">
                 Belum ada transaksi bulan ini.
               </div>
+            ) : sortedCashierRows.length === 0 ? (
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 text-center text-xs text-slate-400 italic">
+                Tidak ada kasir yang cocok dengan filter ini.
+              </div>
             ) : (
-              cashiers.map((cashier, index) => {
-                const isCS = (cashier.name || '').toLowerCase().includes('cs');
-
-                const matchedAdmin = effectiveAccounts.find(
-                  (a) => (a.full_name || '').toLowerCase() === cashier.name.toLowerCase()
-                ) || {
-                  id: cashier.name,
-                  full_name: cashier.name,
-                  role: 'admin',
-                  allowed_paths: {},
-                };
-
-                const currentAccess = normalizeAdminAccess(matchedAdmin.allowed_paths);
-                // Komisi dihitung per bulan (bulan yang sama dengan omset kasir di atas)
-                const comm = calculateAdminCommissions(
-                  transactions,
-                  matchedAdmin.id,
-                  cashier.name,
-                  companyInfo.adminFee || 10000,
-                  currentAccess.commissions || [],
-                  'admin',
-                  monthKey(now),
-                  currentAccess.bonuses || []
-                );
-
+              sortedCashierRows.map(({ cashier, matchedAdmin, comm, isCS }, index) => {
                 const medalColor = index === 0
                   ? 'bg-amber-400 text-amber-950 ring-1 ring-amber-300'
                   : index === 1
@@ -1100,6 +1187,186 @@ const DashboardSuperadmin = (props) => {
           </div>
         </div>
 
+        {/* Tagihan & Pengingat Pelanggan — gabungan status bayar + pengingat WA gaya baru, ganti versi
+            lama yang tadinya dobel lewat embed <Dashboard> di bawah (Aksi Cepat, reminder, payment donut
+            sudah punya versi sendiri di atas; ini gantikan sisa bagian tagihan/pengingatnya). */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between px-0.5 gap-2">
+            <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Receipt size={13} className="text-blue-600" /> Tagihan &amp; Pengingat Pelanggan
+            </h2>
+            {unpaidCustomersList.some((c) => c.phone) && (
+              <button
+                type="button"
+                onClick={() => sendBatchReminders(unpaidCustomersList)}
+                disabled={isSendingBatch}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50 shrink-0"
+              >
+                <Send size={11} /> {isSendingBatch ? 'Mengirim...' : 'Kirim WA Masal'}
+              </button>
+            )}
+          </div>
+
+          {reminderFeedback && (
+            <div className={`p-2.5 rounded-xl text-[11px] font-semibold flex items-center justify-between gap-2 ${
+              reminderFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+              reminderFeedback.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+              'bg-blue-50 text-blue-800 border border-blue-200'
+            }`}>
+              <span>{reminderFeedback.message}</span>
+              <button type="button" onClick={() => setReminderFeedback(null)} className="text-slate-400 hover:text-slate-600 shrink-0">✕</button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-1.5 bg-slate-200/60 p-1 rounded-xl text-center text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => { setBillingTab('unpaid'); setBillingExpanded(false); }}
+              className={`py-1.5 rounded-lg transition active:scale-95 ${billingTab === 'unpaid' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 font-medium'}`}
+            >
+              Belum Bayar ({unpaidCustomersList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setBillingTab('paid'); setBillingExpanded(false); }}
+              className={`py-1.5 rounded-lg transition active:scale-95 ${billingTab === 'paid' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 font-medium'}`}
+            >
+              Sudah Bayar ({paidCustomersList.length})
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-xs space-y-2">
+            {(() => {
+              const activeList = billingTab === 'unpaid' ? unpaidCustomersList : paidCustomersList;
+              const visibleList = billingExpanded ? activeList : activeList.slice(0, 8);
+              return activeList.length === 0 ? (
+                <p className="text-xs text-slate-400 italic text-center py-4">
+                  {billingTab === 'unpaid' ? 'Semua pelanggan sudah bayar bulan ini 🎉' : 'Belum ada pelanggan yang membayar bulan ini'}
+                </p>
+              ) : (
+                <>
+                  {visibleList.map((cust) => {
+                    const isSendingThis = sendingReminderId === cust.id;
+                    return (
+                      <div key={cust.id} className="p-2.5 rounded-lg bg-slate-50/70 border border-slate-100 flex items-center justify-between gap-2 hover:bg-slate-100/60 transition">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <h6 className="text-[11px] font-bold text-slate-900 truncate">{cust.name}</h6>
+                            {billingTab === 'unpaid' && cust.dueDiff > 0 && (
+                              <span className="text-[8px] font-bold bg-rose-50 text-rose-600 border border-rose-100 px-1.5 py-0.2 rounded shrink-0">LEWAT {cust.dueDiff} HARI</span>
+                            )}
+                            {billingTab === 'unpaid' && cust.dueDiff === 0 && (
+                              <span className="text-[8px] font-bold bg-orange-50 text-orange-700 border border-orange-100 px-1.5 py-0.2 rounded shrink-0">JATUH TEMPO</span>
+                            )}
+                          </div>
+                          <p className="text-[9px] text-slate-400 mt-0.5 truncate">{cust.package}{!cust.phone && ' • Tanpa WA'}</p>
+                        </div>
+                        {billingTab === 'unpaid' && (
+                          cust.phone ? (
+                            <button
+                              type="button"
+                              onClick={() => sendSingleReminder(cust)}
+                              disabled={isSendingThis || isSendingBatch}
+                              className="border border-emerald-500 text-emerald-600 bg-emerald-50 text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1 hover:bg-emerald-100 active:scale-95 transition shrink-0 disabled:opacity-50"
+                            >
+                              <MessageCircle size={12} className={isSendingThis ? 'animate-spin' : ''} /> WA
+                            </button>
+                          ) : (
+                            <span className="text-[9px] text-slate-300 shrink-0">-</span>
+                          )
+                        )}
+                      </div>
+                    );
+                  })}
+                  {activeList.length > 8 && (
+                    <button
+                      type="button"
+                      onClick={() => setBillingExpanded((v) => !v)}
+                      className="w-full text-center text-[10px] font-bold text-blue-600 py-1.5 hover:underline"
+                    >
+                      {billingExpanded ? 'Tutup' : `Lihat Selengkapnya (${activeList.length - 8})`}
+                    </button>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Aktivitas Transaksi Terbaru — ganti "Riwayat Terakhir" gaya lama yang tadinya dari embed
+            <Dashboard>, sekarang punya filter metode bayar + ekspor CSV asli. */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between px-0.5">
+            <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Receipt size={13} className="text-blue-600" /> Aktivitas Transaksi Terbaru
+            </h2>
+            <Link to="/history" className="text-[10px] font-bold text-blue-600 hover:underline active:scale-95 transition">Lihat Semua</Link>
+          </div>
+
+          <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-xs space-y-1.5">
+            <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-100 text-[9px]">
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-semibold uppercase">Metode:</span>
+                {METHOD_FILTERS.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTxMethodFilter(value)}
+                    className={`px-1.5 py-0.5 rounded transition cursor-pointer ${txMethodFilter === value ? 'bg-blue-50 text-blue-700 font-bold border border-blue-100' : 'text-slate-600 hover:bg-slate-100'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={handleExportTransactionsCsv}
+                disabled={recentTransactions.length === 0}
+                className="font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded transition active:scale-95 flex items-center gap-0.5 shrink-0 disabled:opacity-40"
+              >
+                <FileSpreadsheet size={10} className="text-slate-600" /> CSV
+              </button>
+            </div>
+
+            {recentTransactions.length === 0 ? (
+              <p className="text-xs text-slate-400 italic text-center py-4">Belum ada transaksi.</p>
+            ) : (
+              <>
+                {visibleTransactions.map((trx) => (
+                  <div
+                    key={trx.id}
+                    onClick={() => (trx.type === 'instansi' ? setInstansiReceiptToView(trx) : setReceiptToView(trx))}
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition cursor-pointer active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${trx.type === 'instansi' ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>
+                        {trx.type === 'instansi' ? <Building2 size={15} /> : <FileText size={15} />}
+                      </div>
+                      <div className="min-w-0">
+                        <h6 className="text-[11px] font-bold text-slate-900 truncate">{trx.type === 'instansi' ? trx.instansiName : trx.customerName}</h6>
+                        <p className="text-[9px] text-slate-400 font-mono">
+                          {new Date(trx.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} · {trx.payment_method === 'CS' ? 'Bayar CS' : (trx.payment_method || trx.paymentMethod || 'Tidak dicatat')}
+                          {trx.status === 'KASBON' && <span className="text-orange-600 font-bold"> · KASBON</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-extrabold text-slate-900 font-mono shrink-0">{formatRupiah(trx.price)}</span>
+                  </div>
+                ))}
+                {recentTransactions.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setTxExpanded((v) => !v)}
+                    className="w-full text-center text-[10px] font-bold text-blue-600 py-1.5 hover:underline"
+                  >
+                    {txExpanded ? 'Tutup' : `Lihat ${Math.min(30, recentTransactions.length) - 8} lainnya`}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
         <div className="flex items-center gap-3 pt-2">
           <div className="flex-1 h-px bg-slate-200" />
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Detail Lengkap</span>
@@ -1107,7 +1374,7 @@ const DashboardSuperadmin = (props) => {
         </div>
       </div>
 
-      <Dashboard {...props} hideHeader canManageRoute />
+      <Dashboard {...props} hideHeader canManageRoute embedded />
 
       {/* Modal Transfer Komisi Kasir */}
       {selectedCommissionAdmin && (

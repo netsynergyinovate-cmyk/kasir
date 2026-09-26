@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction, weeklyRevenue, projectMonthRevenue, daysInMonth, paymentBreakdown, kasbonSummary, isEffectivelyKasbon } from '../dashboardStats';
+import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction, weeklyRevenue, projectMonthRevenue, daysInMonth, paymentBreakdown, kasbonSummary, isEffectivelyKasbon, activePaymentLists } from '../dashboardStats';
 
 describe('getGreeting', () => {
   it('returns the Indonesian greeting for each part of the day', () => {
@@ -351,5 +351,47 @@ describe('paymentBreakdown', () => {
 
   it('handles no active customers', () => {
     expect(paymentBreakdown([], [], [], now)).toEqual({ active: 0, paid: 0, unpaid: 0, paidPercent: 0, paidAmount: 0, unpaidAmount: 0 });
+  });
+});
+
+describe('activePaymentLists', () => {
+  const now = new Date(2026, 8, 24, 10, 0, 0); // 24 Sep 2026
+  const thisMonth = new Date(2026, 8, 3, 10, 0, 0).toISOString();
+  const customers = [
+    { id: 'a', name: 'Ani', status: 'aktif', package: 'Home 20M', due_date: '20' },
+    { id: 'b', name: 'Budi', status: 'aktif', package: 'Home 20M', due_date: '24' },
+    { id: 'c', name: 'Citra', status: 'aktif', package: 'Home 20M' },
+    { id: 'd', name: 'Dedi', status: 'isolir', package: 'Home 20M', due_date: '1' },
+  ];
+  const transactions = [
+    { type: 'retail', status: 'LUNAS', customerName: 'ani', price: 200000, date: thisMonth },
+  ];
+
+  it('splits active customers into paid/unpaid this month, matching names case-insensitively', () => {
+    const { paid, unpaid } = activePaymentLists(customers, transactions, now);
+    expect(paid.map((c) => c.name)).toEqual(['Ani']);
+    expect(unpaid.map((c) => c.name)).toEqual(['Budi', 'Citra']);
+  });
+
+  it('excludes inactive (isolir) customers entirely', () => {
+    const { paid, unpaid } = activePaymentLists(customers, transactions, now);
+    expect([...paid, ...unpaid].some((c) => c.name === 'Dedi')).toBe(false);
+  });
+
+  it('annotates each customer with dueDiff (days since due_date), null when no due_date is set', () => {
+    const { unpaid } = activePaymentLists(customers, transactions, now);
+    const budi = unpaid.find((c) => c.name === 'Budi');
+    const citra = unpaid.find((c) => c.name === 'Citra');
+    expect(budi.dueDiff).toBe(0); // jatuh tempo hari ini
+    expect(citra.dueDiff).toBeNull();
+  });
+
+  it('sorts the unpaid list by most overdue first', () => {
+    const moreCustomers = [
+      { id: 'e', name: 'Edi', status: 'aktif', due_date: '10' }, // 14 hari lewat
+      { id: 'f', name: 'Fani', status: 'aktif', due_date: '22' }, // 2 hari lewat
+    ];
+    const { unpaid } = activePaymentLists(moreCustomers, [], now);
+    expect(unpaid.map((c) => c.name)).toEqual(['Edi', 'Fani']);
   });
 });

@@ -102,4 +102,119 @@ describe('DashboardSuperadmin interactions', () => {
     const donut = container.querySelector('svg[aria-label="50% pelanggan sudah bayar"]');
     expect(donut).toBeTruthy();
   });
+
+  const renderWithTransactions = async (customTransactions) => {
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <DashboardSuperadmin
+            session={{ profile: { full_name: 'Super Administrator', role: 'superadmin' } }}
+            transactions={customTransactions}
+            customers={[]}
+            packages={[]}
+            companyInfo={{ adminFee: 10000 }}
+          />
+        </MemoryRouter>
+      );
+    });
+  };
+
+  it('sorts the cashier leaderboard by Omset by default, and by transaction count when switched to Trx', async () => {
+    await renderWithTransactions([
+      { id: 'a1', date: at(0, 1), price: 500000, status: 'LUNAS', type: 'retail', customerName: 'X1', cashier_name: 'Ani Kasir', payment_method: 'CASH' },
+      { id: 'b1', date: at(0, 2), price: 100000, status: 'LUNAS', type: 'retail', customerName: 'X2', cashier_name: 'Budi Kasir', payment_method: 'CASH' },
+      { id: 'b2', date: at(0, 3), price: 100000, status: 'LUNAS', type: 'retail', customerName: 'X3', cashier_name: 'Budi Kasir', payment_method: 'CASH' },
+      { id: 'b3', date: at(0, 4), price: 100000, status: 'LUNAS', type: 'retail', customerName: 'X4', cashier_name: 'Budi Kasir', payment_method: 'CASH' },
+    ]);
+
+    // Omset (bawaan): Ani (Rp 500rb) tampil sebelum Budi (Rp 300rb, tapi 3 trx)
+    expect(container.textContent.indexOf('Ani Kasir')).toBeLessThan(container.textContent.indexOf('Budi Kasir'));
+
+    // Ada dua tombol berlabel "Trx" (toggle metrik grafik & toggle urutan leaderboard) — leaderboard
+    // muncul belakangan di DOM, jadi ambil yang terakhir.
+    const trxButtons = Array.from(container.querySelectorAll('button')).filter((b) => b.textContent.trim() === 'Trx');
+    await click(trxButtons[trxButtons.length - 1]);
+    // Trx: Budi (3 trx) sekarang tampil duluan walau omsetnya lebih kecil
+    expect(container.textContent.indexOf('Budi Kasir')).toBeLessThan(container.textContent.indexOf('Ani Kasir'));
+  });
+
+  it('filters the cashier leaderboard by pending commission and by non-commission (CS) channel', async () => {
+    await renderWithTransactions([
+      { id: 'a1', date: at(0, 1), price: 500000, status: 'LUNAS', type: 'retail', customerName: 'X1', cashier_name: 'Ani Kasir', payment_method: 'CASH' },
+      { id: 'c1', date: at(0, 2), price: 50000, status: 'LUNAS', type: 'retail', customerName: 'X2', cashier_name: 'CS Toko', payment_method: 'CASH' },
+    ]);
+
+    expect(findButton('Semua (2)')).toBeTruthy();
+    expect(findButton('Pending (1)')).toBeTruthy();
+    expect(findButton('Non-Komisi (1)')).toBeTruthy();
+    expect(container.textContent).toContain('Ani Kasir');
+    expect(container.textContent).toContain('CS Toko');
+
+    await click(findButton('Non-Komisi (1)'));
+    expect(container.textContent).toContain('CS Toko');
+    expect(container.textContent).not.toContain('Ani Kasir');
+
+    await click(findButton('Pending (1)'));
+    expect(container.textContent).toContain('Ani Kasir');
+    expect(container.textContent).not.toContain('CS Toko');
+  });
+
+  it('lists recent transactions, filters them by payment method, and opens a receipt on click', async () => {
+    const setReceiptToView = vi.fn();
+    const setInstansiReceiptToView = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <DashboardSuperadmin
+            session={{ profile: { full_name: 'Super Administrator', role: 'superadmin' } }}
+            transactions={[
+              { id: 't1', date: at(0, 1), price: 200000, status: 'LUNAS', type: 'retail', customerName: 'Ani', payment_method: 'Cash' },
+              { id: 't2', date: at(0, 2), price: 150000, status: 'LUNAS', type: 'retail', customerName: 'Budi', payment_method: 'Transfer Bank' },
+            ]}
+            customers={[]}
+            packages={[]}
+            companyInfo={{ adminFee: 10000 }}
+            setReceiptToView={setReceiptToView}
+            setInstansiReceiptToView={setInstansiReceiptToView}
+          />
+        </MemoryRouter>
+      );
+    });
+
+    expect(container.textContent).toContain('Aktivitas Transaksi Terbaru');
+    expect(container.textContent).toContain('Ani');
+    expect(container.textContent).toContain('Budi');
+
+    const aniRow = Array.from(container.querySelectorAll('h6')).find((h) => h.textContent === 'Ani').closest('.cursor-pointer');
+    await click(aniRow);
+    expect(setReceiptToView).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }));
+    expect(setInstansiReceiptToView).not.toHaveBeenCalled();
+
+    await click(findButton('Transfer'));
+    expect(container.textContent).toContain('Budi');
+    expect(container.textContent).not.toContain('Ani');
+  });
+
+  it('exports the recent transaction list to a downloadable CSV file', async () => {
+    const clickSpy = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') el.click = clickSpy;
+      return el;
+    });
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:mock'), revokeObjectURL: vi.fn() });
+
+    await renderWithTransactions([
+      { id: 't1', date: at(0, 1), price: 200000, status: 'LUNAS', type: 'retail', customerName: 'Ani', payment_method: 'Cash' },
+    ]);
+
+    await click(findButton('CSV'));
+    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 });

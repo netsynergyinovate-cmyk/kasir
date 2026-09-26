@@ -47,7 +47,7 @@ describe('DashboardSuperadmin: Super Administrator tidak muncul di Performa Kasi
     expect(text).toContain('Performa Kasir');
     expect(text).not.toContain('2 transaksi lunas bulan ini'); // omset Super Administrator tidak ditampilkan di sini
     expect(text).toContain('1 transaksi lunas bulan ini'); // Budi tetap tampil
-    expect(text).not.toContain('Non-Komisi');
+    expect(text).not.toContain('Layanan CS (Non-Komisi)'); // badge CS per-baris, beda dari label tab filter "Non-Komisi (0)"
     expect(text).not.toContain('Aturan Akun');
     expect(text).not.toContain('Rp 0 (Super Admin)');
     // hanya admin biasa (Budi) yang punya tombol Transfer Komisi
