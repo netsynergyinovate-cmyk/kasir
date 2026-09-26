@@ -1,4 +1,4 @@
-import { pickPaymentTarget } from './runsnetSync';
+import { pickPaymentTarget, shouldSyncTransaction } from './runsnetSync';
 
 // Status NYATA sebuah invoice di Runsnet, dibaca langsung dari Runsnet (api/runsnet/invoice-status.js).
 // Kode invoice Runsnet sebuah transaksi (atau null kalau transaksinya hanya bernomor lokal INV-...).
@@ -23,10 +23,11 @@ export function describeRunsnetStatus(transaction, runsnetStatus) {
   return { key: runsnetStatus, ...view };
 }
 
-// Catatan KAsir bilang LUNAS, tetapi Runsnet belum PAID: perlu dikirim ulang / diperiksa.
+// Catatan KAsir bilang sudah dibayar (LUNAS atau KASBON — keduanya wajib PAID di Runsnet, lihat
+// shouldSyncTransaction), tetapi Runsnet belum PAID: perlu dikirim ulang / diperiksa.
 export function isRunsnetMismatch(transaction, runsnetStatus) {
   return transaction.type !== 'instansi'
-    && transaction.status === 'LUNAS'
+    && shouldSyncTransaction(transaction)
     && Boolean(runsnetCodeOf(transaction))
     && Boolean(runsnetStatus)
     && runsnetStatus !== 'PAID';

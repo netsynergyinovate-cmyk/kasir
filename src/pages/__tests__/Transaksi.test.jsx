@@ -107,5 +107,29 @@ describe('Transaksi POS pre-selection via URL search params', () => {
     expect(container.textContent).toContain('Pilih Pelanggan Dulu');
     expect(container.textContent).not.toContain('Kembalian');
   });
+
+  const statusButton = (label) => [...container.querySelectorAll('button')].find((b) => b.textContent === label);
+
+  it('automatically switches to KASBON when the amount paid is less than the package price', async () => {
+    await renderPos();
+    await typeAmount('200000'); // Budi's package is Rp 250.000
+    expect(statusButton('KASBON').className).toContain('bg-white');
+    expect(statusButton('LUNAS').className).not.toContain('bg-white');
+  });
+
+  it('switches back to LUNAS automatically once the amount covers the full price', async () => {
+    await renderPos();
+    await typeAmount('200000');
+    expect(statusButton('KASBON').className).toContain('bg-white');
+    await typeAmount('250000');
+    expect(statusButton('LUNAS').className).toContain('bg-white');
+  });
+
+  it('lets the cashier override the auto status manually', async () => {
+    await renderPos();
+    await typeAmount('250000'); // full price -> auto LUNAS
+    await act(async () => { statusButton('KASBON').click(); });
+    expect(statusButton('KASBON').className).toContain('bg-white');
+  });
 });
 

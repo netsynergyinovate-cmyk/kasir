@@ -20,6 +20,14 @@ describe('shouldSyncTransaction', () => {
     expect(shouldSyncTransaction(trx({ status: 'PENDING' }))).toBe(false);
   });
 
+  it('syncs a KASBON (underpaid) transaction as PAID too, so Runsnet matches the real payment received', () => {
+    expect(shouldSyncTransaction(trx({ status: 'KASBON' }))).toBe(true);
+  });
+
+  it('does not sync a KASBON entry that is a CS adjustment', () => {
+    expect(shouldSyncTransaction(trx({ status: 'KASBON', payment_method: 'CS' }))).toBe(false);
+  });
+
   it('does not sync a CS (customer service) adjustment, not a real cash collection', () => {
     expect(shouldSyncTransaction(trx({ payment_method: 'CS' }))).toBe(false);
   });

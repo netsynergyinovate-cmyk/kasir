@@ -31,11 +31,15 @@ describe('isRunsnetMismatch', () => {
     expect(isRunsnetMismatch(withCode, 'CANCEL')).toBe(true);
   });
 
-  it('does not flag PAID, unknown, local-only, KASBON, or instansi', () => {
+  it('also flags a KASBON (underpaid) transaction — it is synced as PAID too, so it should match', () => {
+    expect(isRunsnetMismatch({ ...withCode, status: 'KASBON' }, 'PENDING')).toBe(true);
+  });
+
+  it('does not flag PAID, unknown, local-only, a CS-adjusted KASBON, or instansi', () => {
     expect(isRunsnetMismatch(withCode, 'PAID')).toBe(false);
     expect(isRunsnetMismatch(withCode, undefined)).toBe(false);
     expect(isRunsnetMismatch(localOnly, 'PENDING')).toBe(false);
-    expect(isRunsnetMismatch({ ...withCode, status: 'KASBON' }, 'PENDING')).toBe(false);
+    expect(isRunsnetMismatch({ ...withCode, status: 'KASBON', payment_method: 'CS' }, 'PENDING')).toBe(false);
     expect(isRunsnetMismatch({ ...withCode, type: 'instansi' }, 'PENDING')).toBe(false);
   });
 });

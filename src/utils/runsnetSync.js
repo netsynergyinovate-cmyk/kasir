@@ -3,9 +3,13 @@
 // jadi aturan keputusannya dipisah ke sini supaya bisa diuji.
 
 // Transaksi yang layak disinkron: pembayaran yang benar-benar tercatat sukses.
+// KASBON tetap disinkron sebagai PAID di Runsnet walau kasir menerima kurang dari harga paket —
+// selisihnya (piutang) HANYA dicatat internal di KAsir (lihat status/amountPaid transaksi), supaya
+// data Runsnet tetap sama dengan pembayaran nyata yang terjadi dan tidak ada selisih/pelanggan
+// keisolir gara-gara kekurangan bayar.
 // payment_method 'CS' = penyesuaian customer service, bukan uang yang benar-benar diterima.
 export function shouldSyncTransaction(transaction) {
-  const isSuccess = transaction.status === 'LUNAS' || transaction.type === 'instansi';
+  const isSuccess = transaction.status === 'LUNAS' || transaction.status === 'KASBON' || transaction.type === 'instansi';
   return isSuccess && transaction.payment_method !== 'CS';
 }
 

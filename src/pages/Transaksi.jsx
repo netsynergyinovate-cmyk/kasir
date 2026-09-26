@@ -78,8 +78,10 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   const [selectedCust, setSelectedCust] = useState('');
   // Paket yang dipilih kasir secara manual; kosong = pakai paket hasil resolusi dari data pelanggan
   const [packageOverride, setPackageOverride] = useState(null);
-  const [status, setStatus] = useState('LUNAS');
   const [amountPaid, setAmountPaid] = useState('');
+  // null = ikuti status OTOMATIS dari jumlah bayar (lihat autoStatus); diisi kalau kasir menekan
+  // tombol LUNAS/KASBON secara manual, dan direset lagi begitu jumlah bayar diubah.
+  const [statusOverride, setStatusOverride] = useState(null);
   const [searchCust, setSearchCust] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,13 +134,22 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   const payValue = Number(amountPaid) || 0;
   const change = activePackage && payValue > 0 ? payValue - activePackage.price : 0;
 
+  // Kolom bayar masih kosong dianggap kasir akan bayar penuh (sama seperti perilaku submit di bawah);
+  // begitu kasir benar-benar mengetik nominal kurang dari harga paket, status otomatis jadi KASBON —
+  // supaya piutang & selisih data ke Runsnet tetap tercatat tanpa kasir perlu ingat menekan tombol.
+  const effectivePaid = amountPaid === '' ? (activePackage?.price ?? 0) : payValue;
+  const autoStatus = activePackage && effectivePaid < activePackage.price ? 'KASBON' : 'LUNAS';
+  const status = statusOverride || autoStatus;
+
   const handleQuickPay = (amount) => {
     setAmountPaid(amount.toString());
+    setStatusOverride(null);
   };
 
   const handleUangPas = () => {
     if (activePackage) {
       setAmountPaid(activePackage.price.toString());
+      setStatusOverride(null);
     }
   };
 
@@ -151,6 +162,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
     // Paket mengikuti aturan harga Mbps yang akurat (dihitung dari data pelanggan), tanpa override manual
     setPackageOverride(null);
     setAmountPaid('');
+    setStatusOverride(null);
     setIsSearching(false);
   };
 
@@ -209,7 +221,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
     setPackageOverride(null);
     setSearchCust('');
     setAmountPaid('');
-    setStatus('LUNAS');
+    setStatusOverride(null);
   };
 
   return (
@@ -220,10 +232,15 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Status Toggle */}
-        <div className="flex bg-gray-100 p-1.5 rounded-2xl">
-           <button type="button" onClick={() => setStatus('LUNAS')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${status === 'LUNAS' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>LUNAS</button>
-           <button type="button" onClick={() => setStatus('KASBON')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${status === 'KASBON' ? 'bg-white text-orange-500 shadow-sm' : 'text-gray-500'}`}>KASBON</button>
+        {/* Status Toggle — otomatis ikut jumlah bayar (kurang dari harga paket = KASBON), tombol ini cuma buat override manual */}
+        <div className="space-y-1">
+          <div className="flex bg-gray-100 p-1.5 rounded-2xl">
+             <button type="button" onClick={() => setStatusOverride('LUNAS')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${status === 'LUNAS' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>LUNAS</button>
+             <button type="button" onClick={() => setStatusOverride('KASBON')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${status === 'KASBON' ? 'bg-white text-orange-500 shadow-sm' : 'text-gray-500'}`}>KASBON</button>
+          </div>
+          {!statusOverride && (
+            <p className="text-[10px] text-gray-400 text-center">Otomatis dari jumlah bayar — kurang dari harga paket akan tercatat KASBON</p>
+          )}
         </div>
 
         <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
@@ -260,6 +277,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                       setSelectedCust('');
                       setPackageOverride(null);
                       setAmountPaid('');
+                      setStatusOverride(null);
                     }
                   }}
                   onFocus={() => setIsSearching(true)}
@@ -407,7 +425,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
               <MoneyInput
                 name="amountPaid"
                 value={amountPaid}
-                onValueChange={setAmountPaid}
+                onValueChange={(v) => { setAmountPaid(v); setStatusOverride(null); }}
                 prefix="Rp"
                 placeholder="0"
                 aria-label="Uang diterima"
