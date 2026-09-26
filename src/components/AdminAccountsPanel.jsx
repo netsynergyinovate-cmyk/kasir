@@ -8,7 +8,7 @@ import { calculateAdminCommissions, monthKey } from '../utils/commissions';
 import { MAP_ICON_TYPES, getDeterministicColor } from '../utils/adminMapIcons';
 import { formatRupiah } from '../utils/format';
 
-const ACCOUNT_COLUMNS = 'id, full_name, email, role, device_id, device_label, allowed_paths, last_login_at, last_login_device, last_login_location, last_login_ip';
+const ACCOUNT_COLUMNS = 'id, full_name, email, role, device_id, device_label, allowed_paths, last_login_at, last_login_device, last_login_device_id, last_login_location, last_login_ip';
 
 const formatLastLogin = (iso) => {
   if (!iso) return 'Belum pernah login';
@@ -27,6 +27,7 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
   const [resettingId, setResettingId] = useState(null);
+  const [lockingId, setLockingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [accessAdmin, setAccessAdmin] = useState(null);
   const [commissionAdmin, setCommissionAdmin] = useState(null);
@@ -108,6 +109,28 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
       await loadAdmins();
     }
     setResettingId(null);
+  };
+
+  // Kunci akun ke device LOGIN TERAKHIRnya (direkam otomatis tiap login di last_login_device_id).
+  // Sebelum ini device manapun bebas login; baru setelah dikunci device lain ditolak.
+  const handleLockDevice = async (acc) => {
+    if (!acc.last_login_device_id) {
+      alert('Admin ini belum pernah login dari device manapun, belum bisa dikunci.');
+      return;
+    }
+    if (!window.confirm(`Kunci akun ini ke device login terakhir (${acc.last_login_device || 'tidak diketahui'})? Device lain akan ditolak setelah ini.`)) return;
+    setLockingId(acc.id);
+    const { error } = await supabase
+      .from('admin_profiles')
+      .update({ device_id: acc.last_login_device_id, device_label: acc.last_login_device })
+      .eq('id', acc.id);
+
+    if (error) {
+      alert('Gagal mengunci device: ' + error.message);
+    } else {
+      await loadAdmins();
+    }
+    setLockingId(null);
   };
 
   const handleDeleteAdmin = async (acc) => {
@@ -243,7 +266,13 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
                     <div className="bg-slate-50 border-t border-gray-100 p-3 space-y-2.5">
                       <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
                         <Lock size={12} className="shrink-0" />
-                        {acc.device_label ? <>Terkunci ke <b className="text-gray-700">{acc.device_label}</b></> : 'Belum terkunci ke device manapun'}
+                        {acc.device_id ? (
+                          <>Terkunci ke <b className="text-gray-700">{acc.device_label}</b></>
+                        ) : acc.last_login_device_id ? (
+                          <>Belum dikunci — login terakhir dari <b className="text-gray-700">{acc.last_login_device}</b></>
+                        ) : (
+                          'Belum pernah login, belum bisa dikunci'
+                        )}
                       </p>
                       <div className="grid grid-cols-4 gap-2">
                         <button
@@ -262,15 +291,27 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
                           <DollarSign size={15} />
                           Komisi
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleResetDevice(acc.id)}
-                          disabled={!acc.device_id || resettingId === acc.id}
-                          className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95 transition-all disabled:opacity-40 disabled:hover:bg-amber-50"
-                        >
-                          {resettingId === acc.id ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
-                          Device
-                        </button>
+                        {acc.device_id ? (
+                          <button
+                            type="button"
+                            onClick={() => handleResetDevice(acc.id)}
+                            disabled={resettingId === acc.id}
+                            className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95 transition-all disabled:opacity-40 disabled:hover:bg-amber-50"
+                          >
+                            {resettingId === acc.id ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
+                            Reset
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleLockDevice(acc)}
+                            disabled={!acc.last_login_device_id || lockingId === acc.id}
+                            className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95 transition-all disabled:opacity-40 disabled:hover:bg-amber-50"
+                          >
+                            {lockingId === acc.id ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />}
+                            Kunci
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleDeleteAdmin(acc)}

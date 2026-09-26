@@ -60,7 +60,8 @@ describe('loadVerifiedProfile', () => {
     expect(rpc).toHaveBeenCalledWith('claim_invite');
     expect(result.error).toBeUndefined();
     expect(result.profile.role).toBe('admin');
-    expect(result.profile.device_id).toBe(localStorage.getItem('kasir_device_id'));
+    // Device TIDAK auto-terkunci lagi — masih null sampai superadmin mengunci manual.
+    expect(result.profile.device_id).toBeNull();
   });
 
   it('treats a failing claim_invite call as not registered', async () => {
@@ -106,18 +107,20 @@ describe('loadVerifiedProfile', () => {
     expect(rpc).toHaveBeenCalledWith('record_login', expect.objectContaining({ p_ip: null, p_location: null }));
   });
 
-  it('binds an unbound admin to the current device via record_login', async () => {
+  it('records the login for an unbound admin without auto-locking the device', async () => {
     const { client, rpc } = makeClient({ profile: { id: 'u1', role: 'admin', device_id: null } });
     const result = await loadVerifiedProfile(client, session);
     const deviceId = localStorage.getItem('kasir_device_id');
     expect(rpc).toHaveBeenCalledWith('record_login', expect.objectContaining({ p_device_id: deviceId }));
-    expect(result.profile.device_id).toBe(deviceId);
+    expect(result.profile.device_id).toBeNull();
+    expect(result.error).toBeUndefined();
   });
 
-  it('rejects an unbound admin when binding fails', async () => {
+  it('still lets an unbound admin in when recording the login fails', async () => {
     const { client } = makeClient({ profile: { id: 'u1', role: 'admin', device_id: null }, rpcError: { message: 'boom' } });
     const result = await loadVerifiedProfile(client, session);
-    expect(result.error).toMatch(/Gagal mengunci/);
+    expect(result.error).toBeUndefined();
+    expect(result.profile.role).toBe('admin');
   });
 
   it('accepts an admin on the bound device', async () => {

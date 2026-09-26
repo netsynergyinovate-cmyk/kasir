@@ -59,6 +59,17 @@ export default function App() {
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [previewAsAdmin, setPreviewAsAdmin] = useState(false);
+
+  // Superadmin bisa "Lihat sebagai Admin" buat cek tampilan admin tanpa akun/logout terpisah.
+  // Hanya mengubah TAMPILAN (session efektif yang dikirim ke halaman & navigasi); sesi login
+  // Supabase yang asli (dan RLS di database) tetap sebagai superadmin sesungguhnya.
+  const actualRole = session?.profile?.role;
+  const effectiveSession = useMemo(() => (
+    (actualRole === 'superadmin' && previewAsAdmin)
+      ? { ...session, profile: { ...session.profile, role: 'admin', allowed_paths: null } }
+      : session
+  ), [session, actualRole, previewAsAdmin]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -148,7 +159,7 @@ export default function App() {
 
     const loadProfile = async (authSession) => {
       if (!authSession) {
-        if (isMounted) setSession(null);
+        if (isMounted) { setSession(null); setPreviewAsAdmin(false); }
         return;
       }
       const result = await loadVerifiedProfile(supabase, authSession);
@@ -177,7 +188,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
       if (event === 'SIGNED_OUT') {
         clearLoginRecorded();
-        if (isMounted) setSession(null);
+        if (isMounted) { setSession(null); setPreviewAsAdmin(false); }
         return;
       }
       loadProfile(authSession);
@@ -242,10 +253,10 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (session?.profile?.role === 'admin' && !isPathAllowedForRole('admin', location.pathname, session.profile?.allowed_paths)) {
+    if (effectiveSession?.profile?.role === 'admin' && !isPathAllowedForRole('admin', location.pathname, effectiveSession.profile?.allowed_paths)) {
       navigate(ADMIN_DEFAULT_PATH, { replace: true });
     }
-  }, [session, location.pathname, navigate]);
+  }, [effectiveSession, location.pathname, navigate]);
 
   const restoredPathRef = useRef(false);
 
@@ -1005,6 +1016,12 @@ export default function App() {
       <div className="flex-1 relative flex flex-col print:hidden">
         
         <div className="sticky top-0 z-10 shrink-0">
+        {previewAsAdmin && (
+          <div className="flex items-center justify-center gap-2 px-3 py-1 text-[11px] font-bold text-white bg-purple-700">
+            <span>Pratinjau: tampilan Admin</span>
+            <button type="button" onClick={() => setPreviewAsAdmin(false)} className="ml-1 px-2 py-0.5 rounded-md bg-white/15 hover:bg-white/25 active:scale-95 transition-all">Kembali ke Super Admin</button>
+          </div>
+        )}
         {idleLockEnabled && (
           <div className={`flex items-center justify-center gap-2 px-3 py-1 text-[11px] font-bold text-white transition-colors ${countdownTone(idleRemaining) === 'critical' ? 'bg-red-600 animate-pulse' : countdownTone(idleRemaining) === 'warning' ? 'bg-amber-500' : 'bg-slate-800'}`}>
             <Lock size={12} className="shrink-0" />
@@ -1042,8 +1059,9 @@ export default function App() {
                     await supabase.auth.signOut();
                   } catch { /* diabaikan: best-effort */ }
                   setSession(null);
+                  setPreviewAsAdmin(false);
                 }
-              }} 
+              }}
               title="Keluar / Ganti Akun"
               className="p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl active:scale-95 transition-all"
             >
@@ -1053,19 +1071,22 @@ export default function App() {
         </header>
         </div>
 
-        <Sidebar 
-          isOpen={isSidebarOpen} 
-          setIsOpen={setIsSidebarOpen} 
-          companyInfo={companyInfo} 
-          session={session}
+        <Sidebar
+          isOpen={isSidebarOpen}
+          setIsOpen={setIsSidebarOpen}
+          companyInfo={companyInfo}
+          session={effectiveSession}
+          actualRole={actualRole}
+          previewAsAdmin={previewAsAdmin}
+          onTogglePreview={() => setPreviewAsAdmin((v) => !v)}
         />
 
         <main className="flex-1 overflow-y-auto relative">
           <Routes>
             <Route path="/" element={
-              session?.profile?.role === 'superadmin' ? (
+              effectiveSession?.profile?.role === 'superadmin' ? (
                 <DashboardSuperadmin
-                  session={session}
+                  session={effectiveSession}
                   visits={visits}
                   onAddVisit={handleAddVisit}
                   adminLocations={adminLocations}
@@ -1078,7 +1099,7 @@ export default function App() {
                 />
               ) : (
                 <Dashboard
-                  session={session}
+                  session={effectiveSession}
                   visits={visits}
                   onAddVisit={handleAddVisit}
                   origin={shareLocation.routeOrigin}
@@ -1095,9 +1116,9 @@ export default function App() {
               )
             } />
             <Route path="/history" element={
-              <History 
-                role={session?.profile?.role}
-                session={session}
+              <History
+                role={effectiveSession?.profile?.role}
+                session={effectiveSession}
                 transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name, packageName: t.package_name, serviceName: t.service_name, amountPaid: t.amount_paid, cashierName: t.cashier_name, paymentMethod: t.payment_method}))} 
                 setReceiptToView={setReceiptToView} 
                 setInstansiReceiptToView={setInstansiReceiptToView} 
@@ -1113,8 +1134,8 @@ export default function App() {
                 transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name, packageName: t.package_name, serviceName: t.service_name, amountPaid: t.amount_paid, cashierName: t.cashier_name}))}
                 companyInfo={companyInfo}
                 setReceiptToView={setReceiptToView}
-                role={session?.profile?.role}
-                session={session}
+                role={effectiveSession?.profile?.role}
+                session={effectiveSession}
                 onRunsnetImported={refetchCustomers}
                 visitStatusById={visitStatusById}
                 setShowAddCustomer={setShowAddCustomer}
@@ -1128,7 +1149,7 @@ export default function App() {
                 customers={customers}
                 transactions={transactions.map(t => ({...t, customerName: t.customer_name}))}
                 visits={visits}
-                role={session?.profile?.role}
+                role={effectiveSession?.profile?.role}
                 onAddVisit={handleAddVisit}
                 adminLocations={adminLocations}
                 onUpdateCustomerRoute={handleUpdateCustomerRoute}
@@ -1136,8 +1157,8 @@ export default function App() {
               />
             } />
             <Route path="/settings" element={
-              <Settings 
-                session={session}
+              <Settings
+                session={effectiveSession}
                 customers={customers}
                 packages={packages} 
                 onAddPackage={handleAddPackageDB}
@@ -1158,11 +1179,11 @@ export default function App() {
                 />
             } />
             <Route path="/pos" element={
-              <Transaksi 
-                customers={customers} 
-                packages={packages} 
+              <Transaksi
+                customers={customers}
+                packages={packages}
                 companyInfo={companyInfo}
-                session={session}
+                session={effectiveSession}
                 transactions={transactions}
                 onComplete={handleTransactionComplete} 
               />
@@ -1182,7 +1203,7 @@ export default function App() {
         </main>
 
         {location.pathname !== '/pelanggan-runsnet-baru' && (
-          <Navigation role={session?.profile?.role} allowedPaths={session?.profile?.allowed_paths} />
+          <Navigation role={effectiveSession?.profile?.role} allowedPaths={effectiveSession?.profile?.allowed_paths} />
         )}
       </div>
 

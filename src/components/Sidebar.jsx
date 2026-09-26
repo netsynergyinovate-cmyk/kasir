@@ -1,8 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { X, Home, Users, Printer, Settings as SettingsIcon, Building2, ChevronRight, Activity, LogOut, ShieldCheck, Crown, Route as RouteIcon, UserPlus } from 'lucide-react';
+import { X, Home, Users, Printer, Settings as SettingsIcon, Building2, ChevronRight, Activity, LogOut, ShieldCheck, Crown, Route as RouteIcon, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const Sidebar = ({ isOpen, setIsOpen, companyInfo, session }) => {
+// session: profil EFEKTIF yang dipakai buat tampilan (bisa hasil pratinjau "Lihat sebagai Admin").
+// actualRole: role SESUNGGUHNYA dari sesi login (dipakai buat nampilkan tombol pratinjau, hanya superadmin asli).
+const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewAsAdmin, onTogglePreview }) => {
   const isSuper = session?.profile?.role === 'superadmin';
   const roleName = isSuper ? 'Super Admin' : (session?.profile?.full_name || 'Admin Kasir');
   const roleBadge = isSuper ? 'Super Administrator' : 'Admin POS';
@@ -90,7 +92,16 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session }) => {
             )}
          </div>
 
-         <div className="p-3 border-t border-gray-100">
+         <div className="p-3 border-t border-gray-100 space-y-2">
+            {actualRole === 'superadmin' && (
+              <button
+                onClick={onTogglePreview}
+                className={`w-full flex items-center justify-center gap-2 p-2.5 text-xs font-bold rounded-xl transition-all active:scale-95 ${previewAsAdmin ? 'text-purple-700 bg-purple-50 hover:bg-purple-100' : 'text-blue-700 bg-blue-50 hover:bg-blue-100'}`}
+              >
+                {previewAsAdmin ? <EyeOff size={16} /> : <Eye size={16} />}
+                {previewAsAdmin ? 'Kembali ke Super Admin' : 'Lihat sebagai Admin'}
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2 p-2.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-all active:scale-95"

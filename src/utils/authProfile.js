@@ -95,14 +95,14 @@ export async function loadVerifiedProfile(supabase, authSession) {
   const currentDeviceLabel = getDeviceLabel();
   const isAdmin = profile.role === 'admin';
 
+  // Device HANYA ditolak kalau superadmin sudah mengunci akun ini secara manual (panel Akun Admin).
+  // Tidak ada auto-lock lagi di login pertama — device manapun boleh masuk sampai superadmin mengunci.
   if (isAdmin && profile.device_id && profile.device_id !== currentDeviceId) {
     return { error: 'Akun ini terkunci ke device lain. Hubungi superadmin untuk reset device.' };
   }
 
-  const needsBind = isAdmin && !profile.device_id;
   const alreadyRecorded = sessionStorage.getItem(RECORDED_KEY) === userId;
-
-  if (needsBind || !alreadyRecorded) {
+  if (!alreadyRecorded) {
     const { ip, location } = await fetchApproxLocation();
     const { error: recordError } = await supabase.rpc('record_login', {
       p_device_id: currentDeviceId,
@@ -110,15 +110,7 @@ export async function loadVerifiedProfile(supabase, authSession) {
       p_location: location,
       p_ip: ip,
     });
-
-    if (needsBind && recordError) {
-      return { error: 'Gagal mengunci akun ke device ini: ' + recordError.message };
-    }
     if (!recordError) sessionStorage.setItem(RECORDED_KEY, userId);
-
-    if (needsBind) {
-      return { profile: { ...profile, device_id: currentDeviceId, device_label: currentDeviceLabel } };
-    }
   }
 
   return { profile };
