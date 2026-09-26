@@ -726,10 +726,17 @@ const History = ({
                   {/* Nominal Transaksi di Sisi Kanan */}
                   <div className="text-right shrink-0">
                     <p className="font-black text-blue-700 text-base">{formatRupiah(trx.price)}</p>
-                    {trx.status === 'KASBON' && Number(trx.amountPaid) > 0 && (
-                      <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
-                        Masuk: {formatRupiah(trx.amountPaid)}
-                      </p>
+                    {trx.status === 'KASBON' && (
+                      <>
+                        {Number(trx.amountPaid) > 0 && (
+                          <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                            Masuk: {formatRupiah(trx.amountPaid)}
+                          </p>
+                        )}
+                        <p className="text-[10px] font-bold text-orange-600">
+                          Kurang: {formatRupiah(Math.max(Number(trx.price) - Number(trx.amountPaid || 0), 0))}
+                        </p>
+                      </>
                     )}
                     <button
                       type="button"

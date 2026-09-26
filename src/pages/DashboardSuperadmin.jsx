@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 import { formatRupiah, formatRupiahCompact } from '../utils/format';
 import {
   getGreeting, compareMonths, cashierPerformance, paymentBreakdown, formatRelativeTime, compareDays, resolveDay,
-  methodBreakdown, dailyTransactions, toInputValue, weeklyRevenue, projectMonthRevenue, percentChange,
+  methodBreakdown, dailyTransactions, toInputValue, weeklyRevenue, projectMonthRevenue, percentChange, kasbonSummary,
 } from '../utils/dashboardStats';
 import { calculateStoreFinancialOverview, calculateAdminCommissions, isSuperadminCashierName, monthKey } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
@@ -215,6 +215,12 @@ const DashboardSuperadmin = (props) => {
   const marginPercent = financialOverview.grossRevenue > 0
     ? Math.round((financialOverview.netStoreProfit / financialOverview.grossRevenue) * 100)
     : 100;
+  // Piutang KASBON periode yang sama dengan "Finansial Eksekutif" (ikut toggle Bulan Ini/Bulan Lalu).
+  const periodTransactions = transactions.filter((trx) => {
+    const d = new Date(trx.date);
+    return d.getFullYear() === periodDate.getFullYear() && d.getMonth() === periodDate.getMonth();
+  });
+  const kasbon = kasbonSummary(periodTransactions);
   const cashierCount = effectiveAccounts.filter(a => a.role !== 'superadmin').length || 1;
 
   // Sisa pendapatan agar menyamai bulan lalu (bulan lalu dipakai sebagai target).
@@ -453,6 +459,18 @@ const DashboardSuperadmin = (props) => {
                   <MetricLine left="Bulan sebelumnya" right={formatRupiahCompact(periodComparison.previous.revenue) === '0' ? 'Rp 0' : `Rp ${formatRupiahCompact(periodComparison.previous.revenue)}`} />
                 </MetricCard>
               </div>
+
+              {/* Slide 4: Piutang Kasbon (bayar kurang, tapi tetap disinkron PAID ke Runsnet — lihat Transaksi.jsx) */}
+              <div className="w-full shrink-0 grid grid-cols-2 gap-2 snap-start">
+                <MetricCard label="Piutang Kasbon" badge={<Pill className="text-orange-700 bg-orange-50 border border-orange-200/60">{kasbon.count} trx</Pill>} value={formatRupiah(kasbon.shortfall)} valueClass="text-orange-600">
+                  <MetricLine left="Kekurangan bayar" right="Belum ditutup" rightClass="font-bold text-orange-600" />
+                  <MetricLine left="Status Runsnet" right="Tetap PAID" rightClass="font-bold text-emerald-600" />
+                </MetricCard>
+                <MetricCard label="Rata-rata Kurang" badge={<Pill className="text-slate-600 bg-slate-100">per transaksi</Pill>} value={formatRupiah(kasbon.count > 0 ? Math.round(kasbon.shortfall / kasbon.count) : 0)}>
+                  <MetricLine left="Piutang internal" right="Bukan pendapatan hilang" />
+                  <MetricLine left="Sumber" right="Selisih bayar POS" />
+                </MetricCard>
+              </div>
             </div>
 
             <div className="flex items-center justify-between px-1 pt-1 text-[10px] text-slate-500">
@@ -466,7 +484,7 @@ const DashboardSuperadmin = (props) => {
                 <span className="font-medium text-slate-400 select-none">Sentuh &amp; geser kartu</span>
               </div>
               <div className="flex items-center gap-1">
-                {[0, 1, 2].map((index) => (
+                {[0, 1, 2, 3].map((index) => (
                   <button
                     key={index}
                     type="button"

@@ -6,7 +6,7 @@ import { formatDueReminderMessage } from '../utils/whatsappTemplates';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
-import { getGreeting } from '../utils/dashboardStats';
+import { getGreeting, kasbonSummary } from '../utils/dashboardStats';
 import { calculateAdminCommissions, commissionByMonth, commissionRuleNotes, monthKey, monthLabel, payoutPeriodKey, bonusPeriodKey } from '../utils/commissions';
 import { normalizeAdminAccess } from '../utils/permissions';
 import './Dashboard.css';
@@ -59,6 +59,10 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
 
   // 3. Remaining Target
   const remainingTarget = totalPotentialTarget - grossRevenue;
+
+  // Piutang KASBON periode ini (kekurangan bayar yang belum ditutup pelanggan) — sama periodenya
+  // dengan "Total Kotor" di atas.
+  const kasbon = kasbonSummary(filteredTransactions);
 
   // 4. Komisi Jasa Kasir dihitung PER BULAN (bulan yang dipilih di dashboard). Seluruh aturan (superadmin & CS
   // tidak berkomisi, atribusi toko, dll.) ada di calculateAdminCommissions. Tarif per transaksi ditetapkan
@@ -625,11 +629,23 @@ const Dashboard = ({ hideHeader = false, visits = [], onAddVisit, canManageRoute
           </div>
           
           <p className="text-[9px] text-gray-400 font-medium text-right">
-            {totalCustomers - totalSuccessTrx > 0 
-              ? `${totalCustomers - totalSuccessTrx} trx belum lunas` 
+            {totalCustomers - totalSuccessTrx > 0
+              ? `${totalCustomers - totalSuccessTrx} trx belum lunas`
               : 'Semua lunas! 🎉'}
           </p>
         </div>
+
+        {/* Piutang Kasbon Card — cuma tampil kalau ada transaksi KASBON di periode ini */}
+        {kasbon.count > 0 && (
+          <div className="bg-orange-50 border border-orange-200 p-5 super-rounded flex flex-col justify-center col-span-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">Piutang Kasbon</p>
+              <span className="text-[9px] font-black text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">{kasbon.count} transaksi</span>
+            </div>
+            <p className="text-lg font-black text-orange-600 mt-1">{formatRupiah(kasbon.shortfall)}</p>
+            <p className="text-[9px] text-gray-400 mt-1 italic font-medium leading-none">Kekurangan bayar pelanggan, belum ditutup</p>
+          </div>
+        )}
       </div>
 
       {/* Revenue Chart Section */}

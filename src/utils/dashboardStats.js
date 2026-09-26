@@ -95,6 +95,19 @@ export function paymentSummary(customers, transactions, now = new Date()) {
   return { active: active.length, paid, unpaid: active.length - paid };
 }
 
+// Ringkasan piutang KASBON (transaksi retail yang dibayar kurang dari harga paket — lihat status
+// otomatis di Transaksi.jsx): jumlah transaksi dan total kekurangannya (harga paket - uang yang sudah
+// masuk). Pemanggil mengirim transaksi yang SUDAH difilter periodenya (bulan/hari yang sedang dilihat),
+// supaya "Piutang Kasbon" di Dashboard selalu sinkron dengan periode kartu-kartu lain di sekitarnya.
+export function kasbonSummary(transactions) {
+  const kasbonTrx = transactions.filter((trx) => trx.type === 'retail' && trx.status === 'KASBON');
+  const shortfall = kasbonTrx.reduce((sum, trx) => {
+    const paid = Number(trx.amountPaid ?? trx.amount_paid ?? 0);
+    return sum + Math.max(Number(trx.price || 0) - paid, 0);
+  }, 0);
+  return { count: kasbonTrx.length, shortfall };
+}
+
 const sameDay = (trx, date) => {
   const trxDate = new Date(trx.date);
   return trxDate.getFullYear() === date.getFullYear()

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction, weeklyRevenue, projectMonthRevenue, daysInMonth, paymentBreakdown } from '../dashboardStats';
+import { getGreeting, percentChange, compareMonths, cashierPerformance, formatRelativeTime, paymentSummary, dailyStats, compareDays, resolveDay, methodBreakdown, dailyTransactions, toInputValue, isOwnTransaction, weeklyRevenue, projectMonthRevenue, daysInMonth, paymentBreakdown, kasbonSummary } from '../dashboardStats';
 
 describe('getGreeting', () => {
   it('returns the Indonesian greeting for each part of the day', () => {
@@ -29,6 +29,28 @@ describe('percentChange', () => {
 });
 
 const trx = (date, price, extra = {}) => ({ date, price, status: 'LUNAS', type: 'retail', cashier_name: 'Budi', ...extra });
+
+describe('kasbonSummary', () => {
+  it('sums the shortfall (price - amountPaid) of KASBON retail transactions only', () => {
+    const transactions = [
+      trx('2026-09-05T10:00:00', 250000, { status: 'KASBON', amountPaid: 200000 }),
+      trx('2026-09-06T10:00:00', 200000, { status: 'KASBON', amountPaid: 0 }),
+      trx('2026-09-07T10:00:00', 250000, { status: 'LUNAS', amountPaid: 250000 }),
+      trx('2026-09-08T10:00:00', 100000, { status: 'KASBON', amountPaid: 100000, type: 'instansi' }),
+    ];
+    expect(kasbonSummary(transactions)).toEqual({ count: 2, shortfall: 250000 });
+  });
+
+  it('never counts a negative shortfall as debt (overpaid KASBON, e.g. manual override)', () => {
+    const transactions = [trx('2026-09-05T10:00:00', 200000, { status: 'KASBON', amountPaid: 250000 })];
+    expect(kasbonSummary(transactions)).toEqual({ count: 1, shortfall: 0 });
+  });
+
+  it('returns zero for an empty or all-LUNAS list', () => {
+    expect(kasbonSummary([])).toEqual({ count: 0, shortfall: 0 });
+    expect(kasbonSummary([trx('2026-09-05T10:00:00', 200000)])).toEqual({ count: 0, shortfall: 0 });
+  });
+});
 
 describe('compareMonths', () => {
   const now = new Date(2026, 8, 21); // 21 Sep 2026
