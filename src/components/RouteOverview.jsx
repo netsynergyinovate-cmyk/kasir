@@ -26,6 +26,7 @@ const RouteOverview = ({
 }) => {
   const [visitFor, setVisitFor] = useState(null);
   const [justSaved, setJustSaved] = useState(false);
+  const [dueDateFilter, setDueDateFilter] = useState('');
   const savedTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(savedTimerRef.current), []);
@@ -57,6 +58,20 @@ const RouteOverview = ({
     }
     return ok;
   };
+
+  // Tanggal tagihan yang benar-benar dipakai pelanggan di rute ini, buat opsi filter.
+  const dueDateOptions = useMemo(() => {
+    const set = new Set();
+    customers.forEach((customer) => {
+      if (customer.due_date !== null && customer.due_date !== undefined && customer.due_date !== '') {
+        set.add(String(customer.due_date));
+      }
+    });
+    return Array.from(set).sort((a, b) => Number(a) - Number(b));
+  }, [customers]);
+  const displayedPending = dueDateFilter
+    ? pending.filter((customer) => String(customer.due_date) === dueDateFilter)
+    : pending;
 
   const locationNote = locationAdvice(locationStatus);
   const accuracy = locationStatus === 'active' && myPosition ? accuracyLevel(myPosition.accuracy) : null;
@@ -167,9 +182,26 @@ const RouteOverview = ({
 
             {pending.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Urutan kunjungan</p>
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Urutan kunjungan</p>
+                  {dueDateOptions.length > 0 && (
+                    <select
+                      value={dueDateFilter}
+                      onChange={(e) => setDueDateFilter(e.target.value)}
+                      className="text-[10px] font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-1.5 py-1 outline-none"
+                    >
+                      <option value="">Semua tanggal</option>
+                      {dueDateOptions.map((day) => (
+                        <option key={day} value={day}>Tgl {day}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {displayedPending.length === 0 && (
+                  <p className="text-[11px] text-gray-400 italic text-center py-3">Tidak ada pelanggan dengan tanggal tagihan ini.</p>
+                )}
                 <div className="max-h-72 overflow-y-auto space-y-1.5">
-                  {pending.map((customer) => {
+                  {displayedPending.map((customer) => {
                     const status = statusById[customer.id];
                     const leg = legBefore[customer.id];
                     const fromMe = hasOrigin && mapStops[0]?.id === customer.id;

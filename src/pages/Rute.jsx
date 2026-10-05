@@ -730,10 +730,11 @@ const Rute = ({
             {/* Kotak Pilihan Nomor Urut */}
             <div>
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Pilih Slot Nomor Urut:</p>
-              <div className="grid grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1 border border-gray-100 rounded-2xl bg-gray-50/50">
+              <div className="grid grid-cols-4 gap-2 max-h-56 overflow-y-auto p-1 border border-gray-100 rounded-2xl bg-gray-50/50">
                 {routeCustomers.map((occupant, i) => {
                   const pos = i + 1;
                   const isCurrent = routeNumberById[numberPickerFor.id] === pos;
+                  const occupantTone = TONE_COLORS[statusById[occupant.id]?.tone] || '#6b7280';
                   return (
                     <button
                       key={pos}
@@ -743,15 +744,18 @@ const Rute = ({
                         setNumberPickerFor(null);
                       }}
                       title={isCurrent ? 'Posisi Anda saat ini' : `Terisi: ${occupant.name}`}
-                      className={`h-12 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
+                      className={`min-h-14 rounded-xl font-black flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 transition-all active:scale-95 ${
                         isCurrent
                           ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300'
-                          : 'bg-white hover:bg-indigo-50 hover:text-indigo-600 text-gray-700 border border-gray-200 shadow-xs'
+                          : 'bg-white hover:bg-indigo-50 text-gray-700 border border-gray-200 shadow-xs'
                       }`}
                     >
-                      <span>{pos}</span>
-                      <span className={`text-[8px] font-bold normal-case ${isCurrent ? 'text-indigo-100' : 'text-gray-400'}`}>
-                        {isCurrent ? 'Anda' : 'Terisi'}
+                      <span className="text-sm">{pos}</span>
+                      <span
+                        className="text-[8px] font-bold normal-case truncate max-w-full"
+                        style={isCurrent ? undefined : { color: occupantTone }}
+                      >
+                        {isCurrent ? 'Anda' : occupant.name}
                       </span>
                     </button>
                   );
