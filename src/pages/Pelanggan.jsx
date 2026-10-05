@@ -150,10 +150,14 @@ const Pelanggan = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Reset pagination on filter or search changes
-  useEffect(() => {
+  // Reset pagination saat filter/pencarian berubah — diterapkan saat render, bukan di effect (pola
+  // sama dengan urlQuery di atas), supaya tidak memicu render berantai (react-hooks/set-state-in-effect).
+  const filterKey = `${searchTerm}|${selectedPackage}|${activeTab}|${sortBy}`;
+  const [lastFilterKey, setLastFilterKey] = useState(filterKey);
+  if (filterKey !== lastFilterKey) {
+    setLastFilterKey(filterKey);
     setCurrentPage(1);
-  }, [searchTerm, selectedPackage, activeTab, sortBy]);
+  }
 
   const handleSearchChange = (val) => {
     setSearchTerm(val);
