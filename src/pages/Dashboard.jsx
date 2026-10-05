@@ -103,17 +103,6 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
     .reduce((sum, month) => sum + month.pending, 0);
   const [showCommissionHistoryModal, setShowCommissionHistoryModal] = useState(false);
 
-  // Total successful transactions (including CS, needed for progress bar)
-  const totalSuccessTrx = filteredTransactions.filter(t => 
-    t.status === 'LUNAS' || t.type === 'instansi'
-  ).length;
-
-  const totalCustomers = customers.length;
-  // Calculate percentage, ensure it doesn't exceed 100% or drop below 0, handle 0 customers
-  const progressPercentage = totalCustomers > 0
-    ? Math.min(Math.round((totalSuccessTrx / totalCustomers) * 100), 100)
-    : 0;
-
   // Payment status breakdown (active customers only, for the selected month/year)
   const activeCustomers = customers.filter(c => c.status === 'aktif');
 
@@ -126,6 +115,11 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
   const paidCustomers = activeCustomers.filter(isPaidThisPeriod);
   const unpaidCustomers = activeCustomers.filter(c => !isPaidThisPeriod(c));
   const totalActiveCustomers = activeCustomers.length;
+  // Progres Penagihan = pelanggan AKTIF yang sudah bayar bulan ini, bukan jumlah transaksi vs
+  // SELURUH pelanggan (termasuk isolir) seperti versi lama — biar sejalan dengan kartu "Sisa Client".
+  const activePaidPercent = totalActiveCustomers > 0
+    ? Math.round((paidCustomers.length / totalActiveCustomers) * 100)
+    : 0;
 
   // Due-date reminders: always based on the real current date, independent of the period filter above.
   const today = new Date();
@@ -198,6 +192,22 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
             <Users size={24} />
           </div>
         </div>
+      )}
+
+      {/* Sisa Client Belum Bayar — chip kecil paling atas, bukan kartu besar. Disembunyikan saat
+          embedded, superadmin sudah punya ringkasan belum-bayar sendiri. */}
+      {!embedded && (
+        <Link
+          to="/customers?tab=belum_bayar"
+          className="flex items-center justify-between gap-2 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 active:scale-[0.99] transition-all"
+        >
+          <span className="flex items-center gap-1.5 text-[11px] font-bold text-orange-700">
+            <Users size={13} /> Sisa Client Belum Bayar
+          </span>
+          <span className="text-xs font-black text-orange-700">
+            {unpaidCustomers.length}<span className="text-[10px] font-semibold text-orange-400"> / {totalActiveCustomers}</span>
+          </span>
+        </Link>
       )}
 
       {/* Peta + jalur rute kunjungan dan tujuan berikutnya */}
@@ -341,20 +351,6 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 gap-4">
-        {/* Sisa Client Card — jumlah pelanggan aktif yang belum bayar bulan ini */}
-        <Link
-          to="/customers?tab=belum_bayar"
-          className="col-span-2 bg-white p-5 super-rounded border border-gray-100 shadow-sm flex items-center justify-between active:scale-[0.99] transition-all"
-        >
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Sisa Client Belum Bayar</p>
-            <p className="text-lg font-black text-gray-900 leading-none">{unpaidCustomers.length} <span className="text-xs font-bold text-gray-400">/ {totalActiveCustomers} pelanggan</span></p>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-            <Users size={20} />
-          </div>
-        </Link>
-
         {/* Target Sisa Card */}
         <div className="bg-indigo-600 p-5 super-rounded text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
           <div className="absolute -right-4 -top-4 w-20 h-20 bg-white opacity-10 rounded-full"></div>
@@ -433,26 +429,25 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
         <div className="stat-card p-5 super-rounded flex flex-col justify-center">
           <div className="flex justify-between items-end mb-2">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Progres Penagihan</p>
-            <p className="text-[10px] font-bold text-blue-600">{progressPercentage}%</p>
+            <p className="text-[10px] font-bold text-blue-600">{activePaidPercent}%</p>
           </div>
-          
+
           <div className="flex items-baseline gap-1 mb-3">
-            <p className="text-2xl font-black text-gray-900 leading-none">{totalSuccessTrx}</p>
-            <p className="text-xs font-bold text-gray-400">/ {totalCustomers}</p>
+            <p className="text-2xl font-black text-gray-900 leading-none">{paidCustomers.length}</p>
+            <p className="text-xs font-bold text-gray-400">/ {totalActiveCustomers} plg aktif</p>
           </div>
 
           <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-1.5">
-            <div 
-              className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out" 
-              style={{ width: `${progressPercentage}%` }}
+            <div
+              className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${activePaidPercent}%` }}
             ></div>
           </div>
-          
-          <p className="text-[9px] text-gray-400 font-medium text-right">
-            {totalCustomers - totalSuccessTrx > 0
-              ? `${totalCustomers - totalSuccessTrx} trx belum lunas`
-              : 'Semua lunas! 🎉'}
-          </p>
+
+          <div className="flex items-center justify-between text-[9px] font-bold">
+            <span className="text-emerald-600">{paidCustomers.length} Lunas</span>
+            <span className="text-amber-600">{unpaidCustomers.length} Belum Bayar</span>
+          </div>
         </div>
 
         {/* Piutang Kasbon Card — cuma tampil kalau ada transaksi KASBON di periode ini */}
