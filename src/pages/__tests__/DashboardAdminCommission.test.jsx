@@ -68,8 +68,8 @@ describe('Dashboard admin: komisi per bulan dan keterangannya', () => {
     expect(text).toContain(`Hak komisi ${monthName(0)}`);
     expect(text).toContain('Rp 20.000'); // 2 transaksi bulan ini × Rp 10.000, bukan 3 (bulan lalu tidak ikut)
     expect(text).toContain('2 transaksi × Rp 10.000');
-    expect(text).toContain('Sudah cair bulan ini (Superadmin): Rp 0'); // pencairan itu untuk bulan lalu
-    expect(text).toContain('Belum cair bulan ini: Rp 20.000');
+    expect(text).toContain('Cair: Rp 0'); // pencairan itu untuk bulan lalu
+    expect(text).toContain('Belum: Rp 20.000');
     expect(text).toContain('Sisa bulan lain belum cair');
     expect(text).toContain('Rp 6.000'); // 10.000 - 4.000 dari bulan lalu
   });
@@ -135,7 +135,7 @@ describe('Dashboard admin: tambahan komisi dari Superadmin', () => {
     expect(text).toContain('Rp 70.000'); // 2 trx x 10rb = 20rb + tambahan 50rb
     expect(text).toContain('2 transaksi × Rp 10.000 = Rp 20.000');
     expect(text).toContain('+ Tambahan dari Superadmin Rp 50.000');
-    expect(text).toContain('Belum cair bulan ini: Rp 70.000');
+    expect(text).toContain('Belum: Rp 70.000');
   });
 
   it('explains the bonus (amount, note, who gave it) in the calculation modal', async () => {

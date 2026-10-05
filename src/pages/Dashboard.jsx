@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Info } from 'lucide-react';
+import { FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Info } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
@@ -263,9 +263,9 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
         </div>
 
         {/* Jasa Admin / Komisi Card */}
-        <div className="bg-[#0ea569] py-2.5 px-3 super-rounded text-white shadow-sm relative overflow-hidden flex flex-col justify-between">
+        <div className="bg-[#0ea569] py-2 px-2.5 super-rounded text-white shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
-            <p className="text-[8px] font-bold text-emerald-100 uppercase tracking-widest">Jasa Kasir & Komisi</p>
+            <p className="text-[8px] font-bold text-emerald-100 uppercase tracking-widest">Jasa & Komisi</p>
             <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
@@ -285,31 +285,25 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
               )}
             </div>
           </div>
-          <p className="text-[8px] text-emerald-100/90 mt-0.5">Hak komisi {commissionMonthLabel}</p>
-          <p className="text-sm font-extrabold leading-none mt-0.5">{formatRupiah(myCommissionData.totalEarned)}</p>
-          <p className="text-[8px] text-emerald-100 mt-0.5">
-            {myCommissionData.earnedTrxCount} transaksi × {formatRupiah(myCommissionData.feePerTransaction)}
-            {myCommissionData.bonusTotal > 0 && ` = ${formatRupiah(myCommissionData.autoEarned)}`}
-          </p>
-          {myCommissionData.bonusTotal > 0 && (
-            <p className="text-[8px] text-amber-200 font-bold mt-0.5 truncate">+ Tambahan dari Superadmin {formatRupiah(myCommissionData.bonusTotal)}</p>
-          )}
-          <div className="mt-1.5 pt-1 border-t border-white/15 space-y-0.5 text-[8px] text-emerald-100">
-            <div className="flex items-center justify-between font-bold">
-              <span>Sudah cair bulan ini (Superadmin): <b className="text-white">{formatRupiah(myCommissionData.totalPaid)}</b></span>
-            </div>
-            <div className="flex items-center justify-between font-bold">
-              <span>Belum cair bulan ini: <b className="text-amber-200">{formatRupiah(myCommissionData.pendingBalance)}</b></span>
-            </div>
-            {otherMonthsPending > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <TrendingUp size={9} /> Sisa bulan lain belum cair
-                </span>
-                <b className="text-amber-200">{formatRupiah(otherMonthsPending)}</b>
-              </div>
-            )}
+          <p className="text-[7px] text-emerald-100/90 mt-0.5">Hak komisi {commissionMonthLabel}</p>
+          <div className="flex items-baseline justify-between gap-1 mt-0.5">
+            <p className="text-sm font-extrabold leading-none truncate">{formatRupiah(myCommissionData.totalEarned)}</p>
+            <span className="text-[7px] text-emerald-100 font-medium shrink-0">
+              {myCommissionData.earnedTrxCount} transaksi × {formatRupiah(myCommissionData.feePerTransaction)}
+              {myCommissionData.bonusTotal > 0 && ` = ${formatRupiah(myCommissionData.autoEarned)}`}
+            </span>
           </div>
+          {myCommissionData.bonusTotal > 0 && (
+            <p className="text-[7px] text-amber-200 font-bold mt-0.5 truncate">+ Tambahan dari Superadmin {formatRupiah(myCommissionData.bonusTotal)}</p>
+          )}
+          <p className="mt-1 pt-0.5 border-t border-white/15 text-[7px] text-emerald-100 font-bold truncate">
+            Cair: <b className="text-white">{formatRupiah(myCommissionData.totalPaid)}</b> · Belum: <b className="text-amber-200">{formatRupiah(myCommissionData.pendingBalance)}</b>
+          </p>
+          {otherMonthsPending > 0 && (
+            <p className="text-[7px] text-amber-200 font-bold mt-0.5 truncate">
+              Sisa bulan lain belum cair: {formatRupiah(otherMonthsPending)}
+            </p>
+          )}
         </div>
 
         {/* Total Kotor Card */}
