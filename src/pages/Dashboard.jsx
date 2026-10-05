@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Zap, Navigation2, Sparkles, Info } from 'lucide-react';
+import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Info } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
@@ -101,7 +101,6 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
   const otherMonthsPending = commissionMonths
     .filter((month) => month.key !== commissionPeriod)
     .reduce((sum, month) => sum + month.pending, 0);
-  const totalPendingAllMonths = myCommissionData.pendingBalance + otherMonthsPending;
   const [showCommissionHistoryModal, setShowCommissionHistoryModal] = useState(false);
 
   // Total successful transactions (including CS, needed for progress bar)
@@ -199,119 +198,6 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
             <Users size={24} />
           </div>
         </div>
-      )}
-
-      {/* Quick Action Grid (Aksi Cepat) — disembunyikan saat embedded, DashboardSuperadmin sudah punya versinya sendiri */}
-      {!embedded && (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between ml-1">
-          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
-            <Sparkles size={12} className="text-amber-500" />
-            <span>Aksi Cepat</span>
-          </h2>
-          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-            Pintasan Kasir
-          </span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          {/* 1. Transaksi Baru */}
-          <Link
-            to="/pos"
-            className="quick-action-tile group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-200 group-hover:scale-110 transition-transform">
-              <Zap size={20} className="fill-white" />
-            </div>
-            <span className="text-[11px] font-black text-gray-800 mt-2">Kasir Baru</span>
-            <span className="text-[8px] font-bold text-blue-600">Bayar / Voucher</span>
-          </Link>
-
-          {/* 2. Pelanggan */}
-          <Link
-            to="/customers"
-            className="quick-action-tile group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-200 group-hover:scale-110 transition-transform">
-              <Users size={20} />
-            </div>
-            <span className="text-[11px] font-black text-gray-800 mt-2">Pelanggan</span>
-            <span className="text-[8px] font-bold text-emerald-600">{totalCustomers} Terdaftar</span>
-          </Link>
-
-          {/* 3. Komisi Kasir */}
-          <button
-            type="button"
-            onClick={() => setShowCommissionHistoryModal(true)}
-            className="quick-action-tile group text-center"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-200 group-hover:scale-110 transition-transform relative">
-              <DollarSign size={20} />
-              {totalPendingAllMonths > 0 && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full animate-ping" />
-              )}
-            </div>
-            <span className="text-[11px] font-black text-gray-800 mt-2">Komisi Saya</span>
-            <span className={`text-[8px] font-bold ${totalPendingAllMonths > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-              {totalPendingAllMonths > 0 ? formatRupiah(totalPendingAllMonths) : 'Riwayat'}
-            </span>
-          </button>
-
-          {/* 4. Rute Lapangan */}
-          <Link
-            to={canManageRoute || session?.profile?.role === 'superadmin' ? '/rute' : '/'}
-            onClick={(e) => {
-              if (!canManageRoute && session?.profile?.role !== 'superadmin') {
-                e.preventDefault();
-                const routeEl = document.querySelector('.route-overview-container') || document.querySelector('section');
-                if (routeEl) routeEl.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
-            className="quick-action-tile group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-violet-500 text-white flex items-center justify-center shadow-md shadow-purple-200 group-hover:scale-110 transition-transform">
-              <Navigation2 size={20} />
-            </div>
-            <span className="text-[11px] font-black text-gray-800 mt-2">Rute Peta</span>
-            <span className="text-[8px] font-bold text-purple-600">Teknisi & Tagih</span>
-          </Link>
-
-          {/* 5. Pengingat WA */}
-          <button
-            type="button"
-            onClick={() => {
-              const el = document.getElementById('reminder-section');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-              else if (reminderList.length > 0) sendBatchReminders(reminderList);
-              else alert('Tidak ada pelanggan yang mendekati jatuh tempo saat ini.');
-            }}
-            className="quick-action-tile group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-green-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-green-200 group-hover:scale-110 transition-transform relative">
-              <MessageCircle size={20} />
-              {reminderList.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full border-2 border-white">
-                  {reminderList.length}
-                </span>
-              )}
-            </div>
-            <span className="text-[11px] font-black text-gray-800 mt-2">Kirim WA</span>
-            <span className="text-[8px] font-bold text-green-600">Pengingat Tagihan</span>
-          </button>
-
-          {/* 6. Riwayat Transaksi */}
-          <Link
-            to="/history"
-            className="quick-action-tile group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-slate-700 to-gray-800 text-white flex items-center justify-center shadow-md shadow-gray-300 group-hover:scale-110 transition-transform">
-              <History size={20} />
-            </div>
-            <span className="text-[11px] font-black text-gray-800 mt-2">Riwayat</span>
-            <span className="text-[8px] font-bold text-gray-500">Cetak & Bukti</span>
-          </Link>
-        </div>
-      </div>
       )}
 
       {/* Peta + jalur rute kunjungan dan tujuan berikutnya */}
@@ -455,6 +341,20 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 gap-4">
+        {/* Sisa Client Card — jumlah pelanggan aktif yang belum bayar bulan ini */}
+        <Link
+          to="/customers?tab=belum_bayar"
+          className="col-span-2 bg-white p-5 super-rounded border border-gray-100 shadow-sm flex items-center justify-between active:scale-[0.99] transition-all"
+        >
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Sisa Client Belum Bayar</p>
+            <p className="text-lg font-black text-gray-900 leading-none">{unpaidCustomers.length} <span className="text-xs font-bold text-gray-400">/ {totalActiveCustomers} pelanggan</span></p>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+        </Link>
+
         {/* Target Sisa Card */}
         <div className="bg-indigo-600 p-5 super-rounded text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
           <div className="absolute -right-4 -top-4 w-20 h-20 bg-white opacity-10 rounded-full"></div>
