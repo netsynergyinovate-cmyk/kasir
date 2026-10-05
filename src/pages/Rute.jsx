@@ -57,9 +57,11 @@ const Rute = ({
   const [coordFor, setCoordFor] = useState(null);
   const [coordDraft, setCoordDraft] = useState(null);
   const [query, setQuery] = useState(() => searchParams.get('q') || '');
+  const [dueDateFilter, setDueDateFilter] = useState(() => searchParams.get('due') || '');
 
   useSearchParamSync(setSearchParams, 'filter', filter, defaultFilter, 'kasir_rute_filter');
   useSearchParamSync(setSearchParams, 'edit', editMode ? '1' : '');
+  useSearchParamSync(setSearchParams, 'due', dueDateFilter);
 
   // State untuk mode penyusunan puzzle & urutan nomor
   const [draggedId, setDraggedId] = useState(null);
@@ -75,6 +77,18 @@ const Rute = ({
   } = useRouteData({ customers, transactions, visits });
   const notInRoute = customers.filter((customer) => customer.route_order === null || customer.route_order === undefined);
 
+  // Tanggal tagihan yang benar-benar dipakai pelanggan di rute ini, buat opsi filter.
+  const dueDateOptions = useMemo(() => {
+    const set = new Set();
+    customers.forEach((customer) => {
+      if (customer.due_date !== null && customer.due_date !== undefined && customer.due_date !== '') {
+        set.add(String(customer.due_date));
+      }
+    });
+    return Array.from(set).sort((a, b) => Number(a) - Number(b));
+  }, [customers]);
+  const matchesDueDate = (customer) => !dueDateFilter || String(customer.due_date) === dueDateFilter;
+
   // Posisi admin (pelacakan) untuk superadmin: penanda di peta dan daftar di bawahnya.
   const people = useMemo(() => adminLocations.map((admin) => {
     const age = describeLocationAge(admin.updatedAt);
@@ -83,8 +97,8 @@ const Rute = ({
 
   // Mode Atur Rute selalu menampilkan semua rumah supaya urutan bisa disusun.
   const focusPending = filter === 'perlu' && !editMode;
-  const listed = searchCustomers(focusPending ? pending : routeCustomers, query);
-  const notInRouteListed = searchCustomers(notInRoute, query);
+  const listed = searchCustomers((focusPending ? pending : routeCustomers).filter(matchesDueDate), query);
+  const notInRouteListed = searchCustomers(notInRoute.filter(matchesDueDate), query);
   const historyOf = (customerId) => visits
     .filter((visit) => visit.customer_id === customerId)
     .sort((a, b) => new Date(b.visited_at).getTime() - new Date(a.visited_at).getTime());
@@ -361,6 +375,18 @@ const Rute = ({
               className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-sm font-semibold text-gray-800 focus:border-indigo-500 placeholder:text-gray-400 placeholder:font-medium"
             />
           </div>
+          {dueDateOptions.length > 0 && (
+            <select
+              value={dueDateFilter}
+              onChange={(e) => setDueDateFilter(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs font-bold text-gray-700 focus:border-indigo-500"
+            >
+              <option value="">Semua tanggal tagihan</option>
+              {dueDateOptions.map((day) => (
+                <option key={day} value={day}>Tagihan tanggal {day}</option>
+              ))}
+            </select>
+          )}
           {!editMode && (
             <div className="flex gap-1.5 p-1 bg-gray-100 rounded-xl">
               {[['perlu', `Perlu didatangi (${pending.length})`], ['semua', `Semua (${routeCustomers.length})`]].map(([value, label]) => (
@@ -705,7 +731,7 @@ const Rute = ({
             <div>
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Pilih Slot Nomor Urut:</p>
               <div className="grid grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1 border border-gray-100 rounded-2xl bg-gray-50/50">
-                {routeCustomers.map((_, i) => {
+                {routeCustomers.map((occupant, i) => {
                   const pos = i + 1;
                   const isCurrent = routeNumberById[numberPickerFor.id] === pos;
                   return (
@@ -716,13 +742,17 @@ const Rute = ({
                         moveToPosition(numberPickerFor.id, pos);
                         setNumberPickerFor(null);
                       }}
-                      className={`h-11 rounded-xl font-black text-sm flex items-center justify-center transition-all active:scale-95 ${
+                      title={isCurrent ? 'Posisi Anda saat ini' : `Terisi: ${occupant.name}`}
+                      className={`h-12 rounded-xl font-black text-sm flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
                         isCurrent
                           ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300'
                           : 'bg-white hover:bg-indigo-50 hover:text-indigo-600 text-gray-700 border border-gray-200 shadow-xs'
                       }`}
                     >
-                      {pos}
+                      <span>{pos}</span>
+                      <span className={`text-[8px] font-bold normal-case ${isCurrent ? 'text-indigo-100' : 'text-gray-400'}`}>
+                        {isCurrent ? 'Anda' : 'Terisi'}
+                      </span>
                     </button>
                   );
                 })}
