@@ -550,31 +550,26 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
       {!embedded && (
       <>
       {latestSuccess && (
-        <div className="mt-2">
-          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Transaksi Barusan 🔥</h2>
-          <div 
-            onClick={() => latestSuccess.type === 'instansi' ? setInstansiReceiptToView(latestSuccess) : setReceiptToView(latestSuccess)}
-            className="highlight-card p-5 super-rounded shadow-sm relative cursor-pointer active:scale-[0.98] transition-all"
-          >
-            <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-10">
-                <CheckCircle size={80} className="text-green-600" />
+        <div
+          onClick={() => latestSuccess.type === 'instansi' ? setInstansiReceiptToView(latestSuccess) : setReceiptToView(latestSuccess)}
+          className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 flex items-center justify-between gap-2 cursor-pointer active:scale-[0.99] transition-all"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-lg bg-white shadow-xs flex items-center justify-center text-green-600 shrink-0">
+              <CheckCircle size={15} />
             </div>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-green-600 shadow-sm">
-                {latestSuccess.type === 'instansi' ? <Building2 size={24}/> : <FileText size={24} />}
-              </div>
-              <div className="z-10">
-                <p className="font-extrabold text-gray-900 text-base leading-tight">
-                  {latestSuccess.type === 'instansi' ? latestSuccess.instansiName : latestSuccess.customerName}
-                </p>
-                <p className="text-[10px] font-bold text-green-600 flex items-center gap-1 mt-0.5">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                  {latestSuccess.payment_method === 'CS' ? 'SUKSES VIA CS' : 'SUKSES BARU SAJA'}
-                </p>
-              </div>
-              <p className="ml-auto font-black text-gray-900 text-base z-10">{formatRupiah(latestSuccess.price)}</p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500 bg-white/70 px-1.5 py-0.5 rounded shrink-0">Barusan</span>
+              <span className="text-xs font-bold text-gray-900 truncate">
+                {latestSuccess.type === 'instansi' ? latestSuccess.instansiName : latestSuccess.customerName}
+              </span>
+              <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-green-600 shrink-0">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                {latestSuccess.payment_method === 'CS' ? 'Sukses CS' : 'Sukses'}
+              </span>
             </div>
           </div>
+          <span className="text-xs font-extrabold text-gray-900 shrink-0">{formatRupiah(latestSuccess.price)}</span>
         </div>
       )}
 
