@@ -926,221 +926,176 @@ const Pelanggan = ({
           )}
         </div>
       ) : (
-        /* LIST VIEW: Detailed & Complete Table (Klik baris mana saja untuk buka detail) */
-        <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-gray-50/90 border-b border-gray-200 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                  <th className="py-2.5 px-3">Pelanggan & PPPoE</th>
-                  <th className="py-2.5 px-2.5">Status & Tagihan</th>
-                  <th className="py-2.5 px-2.5">Paket & Biaya</th>
-                  <th className="py-2.5 px-2.5">Kontak & IP</th>
-                  <th className="py-2.5 px-2.5">Lokasi & Alamat</th>
-                  <th className="py-2.5 px-3 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredCustomers.map((cust) => {
-                  const pppoe = cust.pppoe_id || cust.pppoeId;
-                  const isEbilling = cust.source === 'E-Billing' || pppoe;
-                  const paidMonth = isPaidThisMonth(cust, transactions);
-                  const visitStatus = visitStatusById[cust.id];
-                  const hasGps = cust.lat != null && cust.lng != null && !isNaN(Number(cust.lat));
+        /* LIST VIEW: Clean Mobile-First Table (Klik baris mana saja untuk buka detail) */
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-gray-50/90 border-b border-gray-200 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                <th className="py-2.5 px-3">Pelanggan & Paket</th>
+                <th className="py-2.5 px-2.5">Tagihan & Status</th>
+                <th className="py-2.5 px-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredCustomers.map((cust) => {
+                const displayName = cust.name || cust.customer_name || cust.customerName || cust.nama || 'Pelanggan';
+                const pppoe = cust.pppoe_id || cust.pppoeId;
+                const paidMonth = isPaidThisMonth(cust, transactions);
+                const visitStatus = visitStatusById[cust.id];
 
-                  return (
-                    <tr
-                      key={cust.id}
-                      onClick={() => setSelectedDetailCust(cust)}
-                      className={`hover:bg-blue-50/40 transition-colors cursor-pointer group ${
-                        cust.status !== 'aktif' ? 'bg-red-50/10' : ''
-                      }`}
-                      title={`Klik untuk lihat rincian lengkap ${cust.name}`}
-                    >
-                      {/* Pelanggan & PPPoE */}
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-lg bg-gradient-to-tr ${getAvatarColor(cust.name)} text-white font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs`}>
-                            {getInitials(cust.name)}
+                return (
+                  <tr
+                    key={cust.id}
+                    onClick={() => setSelectedDetailCust(cust)}
+                    className={`hover:bg-blue-50/40 transition-colors cursor-pointer group ${
+                      cust.status !== 'aktif' ? 'bg-red-50/15' : ''
+                    }`}
+                    title={`Klik untuk lihat rincian lengkap ${displayName}`}
+                  >
+                    {/* Column 1: Pelanggan & Paket */}
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-start gap-2 sm:gap-2.5 min-w-0">
+                        <div className="relative shrink-0 mt-0.5">
+                          <div className={`w-8 h-8 rounded-lg bg-gradient-to-tr ${getAvatarColor(displayName)} text-white font-extrabold flex items-center justify-center text-xs shadow-xs`}>
+                            {getInitials(displayName)}
                           </div>
-                          <div className="min-w-0 max-w-[190px]">
-                            <div className="font-bold text-gray-900 truncate" title={cust.name}>{cust.name}</div>
-                            {cust.nickname && <div className="text-[10px] text-gray-400 font-medium">({cust.nickname})</div>}
-                            <div className="flex items-center gap-1 mt-0.5">
-                              {pppoe ? (
-                                <span className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 truncate max-w-[120px]">
-                                  <Key size={8} className="text-blue-500 shrink-0" />
-                                  <span className="truncate">{pppoe}</span>
-                                </span>
-                              ) : (
-                                <span className="text-[9px] text-gray-400 font-mono">ID: {cust.id}</span>
-                              )}
-                              {isEbilling && (
-                                <span className="text-[8px] font-bold bg-indigo-50 text-indigo-700 px-1 rounded border border-indigo-100">
-                                  Runsnet
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${
+                              cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'
+                            }`}
+                            title={cust.status}
+                          />
                         </div>
-                      </td>
-
-                      {/* Status & Tagihan */}
-                      <td className="py-2.5 px-2.5">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                            <span className="font-bold text-gray-800 text-[11px] capitalize">{cust.status}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-gray-900 text-xs leading-tight truncate" title={displayName}>
+                            {displayName}
                           </div>
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                              paidMonth ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
-                            }`}>
-                              {paidMonth ? <CheckCircle2 size={8} /> : <Clock size={8} />}
-                              {paidMonth ? 'Lunas' : 'Belum Bayar'}
+                          {cust.nickname && (
+                            <div className="text-[10px] text-gray-400 font-medium truncate">
+                              ({cust.nickname})
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                            <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-600 font-medium">
+                              <Wifi size={10} className="text-blue-500 shrink-0" />
+                              <span className="truncate max-w-[90px] sm:max-w-[130px]">{cust.package || 'Net Home'}</span>
                             </span>
-                            {visitStatus && (
-                              <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatus.tone]}`}>
-                                {visitStatus.label}
+                            {pppoe && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-100 truncate max-w-[85px] sm:max-w-[110px]" title={pppoe}>
+                                <Key size={8} className="text-blue-500 shrink-0" />
+                                <span className="truncate">{pppoe}</span>
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-gray-400">Tempo: Tgl {cust.due_date || cust.dueDate || '-'}</div>
                         </div>
-                      </td>
+                      </div>
+                    </td>
 
-                      {/* Paket & Biaya */}
-                      <td className="py-2.5 px-2.5">
-                        <div className="space-y-0.5">
-                          <div className="font-bold text-gray-800 truncate max-w-[130px] flex items-center gap-1">
-                            <Wifi size={11} className="text-blue-500 shrink-0" />
-                            <span>{cust.package || 'Net Home'}</span>
-                          </div>
-                          {cust.price && (
-                            <div className="font-black text-emerald-600 text-xs">
-                              {formatRupiah(cust.price)}
-                            </div>
+                    {/* Column 2: Tagihan & Status */}
+                    <td className="py-2.5 px-2.5 whitespace-nowrap">
+                      <div className="space-y-1">
+                        <div className="font-bold text-emerald-600 text-xs">
+                          {cust.price ? formatRupiah(cust.price) : '-'}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span
+                            className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                              paidMonth
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                : 'bg-amber-50 text-amber-700 border border-amber-100'
+                            }`}
+                          >
+                            {paidMonth ? <CheckCircle2 size={9} /> : <Clock size={9} />}
+                            <span>{paidMonth ? 'Lunas Bulan Ini' : 'Belum Bayar'}</span>
+                          </span>
+                          {visitStatus && (
+                            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatus.tone]}`}>
+                              {visitStatus.label}
+                            </span>
                           )}
                         </div>
-                      </td>
-
-                      {/* Kontak & IP */}
-                      <td className="py-2.5 px-2.5">
-                        <div className="space-y-1">
-                          {cust.phone ? (
-                            <a
-                              href={`https://wa.me/${cust.phone.replace(/[^0-9]/g, '')}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-emerald-700 font-bold hover:underline flex items-center gap-1 text-[11px]"
-                            >
-                              <Phone size={10} /> {cust.phone}
-                            </a>
-                          ) : (
-                            <span className="text-gray-300 text-[10px]">-</span>
-                          )}
-                          {cust.ip_address && (
-                            <div className="font-mono text-gray-600 text-[10px] flex items-center gap-1">
-                              <Network size={10} className="text-indigo-400 shrink-0" />
-                              <span>{cust.ip_address}</span>
-                            </div>
-                          )}
+                        <div className="text-[10px] text-gray-400">
+                          Tgl {cust.due_date || cust.dueDate || '-'}
                         </div>
-                      </td>
+                      </div>
+                    </td>
 
-                      {/* Lokasi & Alamat */}
-                      <td className="py-2.5 px-2.5">
-                        <div className="space-y-0.5">
-                          <div className="text-[10px] text-gray-600 truncate max-w-[150px]" title={cust.address}>
-                            {cust.address || '-'}
-                          </div>
-                          {hasGps && (
-                            <a
-                              href={`https://www.google.com/maps/dir/?api=1&destination=${cust.lat},${cust.lng}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-600 hover:underline"
-                            >
-                              <MapPin size={9} /> Buka Maps
-                            </a>
-                          )}
-                        </div>
-                      </td>
+                    {/* Column 3: Aksi */}
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuickPay(cust);
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] py-1 px-2 rounded-lg shadow-xs active:scale-95 transition-all inline-flex items-center gap-1"
+                          title="Bayar di Kasir"
+                        >
+                          <CreditCard size={11} />
+                          <span>Bayar</span>
+                        </button>
 
-                      {/* Aksi */}
-                      <td className="py-2.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        {cust.phone && (
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleQuickPay(cust);
+                              setWaModalCust(cust);
+                              setWaTemplateType(paidMonth ? 'paid' : 'reminder');
                             }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] py-1 px-2.5 rounded-lg shadow-xs active:scale-95 transition-all"
-                            title="Bayar di Kasir"
+                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg active:scale-95 transition-all"
+                            title="Kirim pesan WhatsApp / Tagihan"
                           >
-                            <CreditCard size={11} className="inline mr-1" />
-                            <span>Bayar</span>
+                            <MessageSquare size={13} />
                           </button>
+                        )}
 
-                          {cust.phone && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDetailCust(cust);
+                          }}
+                          className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg active:scale-95 transition-all"
+                          title="Lihat Detail Profil & Teknis"
+                        >
+                          <Info size={14} />
+                        </button>
+
+                        {role === 'superadmin' && (
+                          <>
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setWaModalCust(cust);
-                                setWaTemplateType(paidMonth ? 'paid' : 'reminder');
+                                setEditingCustomer(cust);
                               }}
-                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                              title="Kirim pesan WhatsApp / Tagihan"
+                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg active:scale-95 transition-all"
+                              title="Edit"
                             >
-                              <MessageSquare size={13} />
+                              <Pencil size={12} />
                             </button>
-                          )}
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedDetailCust(cust);
-                            }}
-                            className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
-                            title="Lihat Detail Profil & Teknis"
-                          >
-                            <Info size={14} />
-                          </button>
-
-                          {role === 'superadmin' && (
-                            <>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingCustomer(cust);
-                                }}
-                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                title="Edit"
-                              >
-                                <Pencil size={12} />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id);
-                                }}
-                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                title="Hapus"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Hapus pelanggan "${displayName}"?`)) onDeleteCustomer(cust.id);
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg active:scale-95 transition-all"
+                              title="Hapus"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
