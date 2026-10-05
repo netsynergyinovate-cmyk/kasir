@@ -24,6 +24,8 @@ const AVATAR_COLORS = [
   'from-violet-500 to-purple-600'
 ];
 
+const ITEMS_PER_PAGE = 6;
+
 function getAvatarColor(name = '') {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
@@ -70,6 +72,7 @@ const Pelanggan = ({
   const [viewMode, setViewMode] = useState(() => {
     return searchParams.get('view') || localStorage.getItem('kasir_pelanggan_view') || 'grid';
   });
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [selectedDetailCust, setSelectedDetailCust] = useState(null);
@@ -146,6 +149,11 @@ const Pelanggan = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Reset pagination on filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedPackage, activeTab, sortBy]);
 
   const handleSearchChange = (val) => {
     setSearchTerm(val);
@@ -234,6 +242,11 @@ const Pelanggan = ({
       return 0;
     });
   }, [customers, searchTerm, selectedPackage, activeTab, sortBy, transactions]);
+
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
+  const displayedCustomers = viewMode === 'grid'
+    ? filteredCustomers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+    : filteredCustomers;
 
   // Transaksi khusus pelanggan yang sedang dibuka detailnya
   const customerTransactions = useMemo(() => {
@@ -671,200 +684,246 @@ const Pelanggan = ({
           )}
         </div>
       ) : viewMode === 'grid' ? (
-        /* GRID VIEW: Ukuran pas seperti tadi (2 Kolom di Mobile, lapang di Desktop) */
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">
-          {filteredCustomers.map((cust) => {
-            const pppoe = cust.pppoe_id || cust.pppoeId;
-            const isEbilling = cust.source === 'E-Billing' || pppoe;
-            const paidMonth = isPaidThisMonth(cust, transactions);
-            const visitStatus = visitStatusById[cust.id];
+        /* GRID VIEW: Pure 2-Column Grid (6 items per page with sleek pagination) */
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+            {displayedCustomers.map((cust) => {
+              const displayName = cust.name || cust.customer_name || cust.customerName || cust.nama || 'Pelanggan';
+              const pppoe = cust.pppoe_id || cust.pppoeId;
+              const isEbilling = cust.source === 'E-Billing' || pppoe;
+              const paidMonth = isPaidThisMonth(cust, transactions);
+              const visitStatus = visitStatusById[cust.id];
 
-            return (
-              <div
-                key={cust.id}
-                onClick={() => setSelectedDetailCust(cust)}
-                className={`bg-white p-3 rounded-xl border shadow-xs relative flex flex-col justify-between hover:shadow-md hover:border-blue-300 transition-all group cursor-pointer ${
-                  cust.status !== 'aktif' ? 'border-red-100 bg-red-50/20' : 'border-gray-200'
-                }`}
-                title={`Klik untuk lihat rincian lengkap ${cust.name}`}
-              >
-                <div>
-                  {/* Top Bar: Status dot, Name, Detail & Edit Actions */}
-                  <div className="flex items-start justify-between gap-1">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start gap-1.5 min-w-0">
-                        <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`} title={cust.status}></span>
-                        <h3 className="font-bold text-gray-900 text-xs sm:text-sm leading-snug line-clamp-2 break-words" title={cust.name}>
-                          {cust.name}
-                        </h3>
-                      </div>
-                      {cust.nickname && (
-                        <p className="text-gray-400 font-medium text-[10px] mt-0.5 ml-3.5 truncate">
-                          ({cust.nickname})
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex gap-0.5 shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedDetailCust(cust);
-                        }}
-                        className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
-                        title="Lihat Detail Profil & Teknis"
-                      >
-                        <Info size={13} />
-                      </button>
-                      {role === 'superadmin' && (
-                        <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingCustomer(cust);
-                            }}
-                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                            title="Edit"
+              return (
+                <div
+                  key={cust.id}
+                  onClick={() => setSelectedDetailCust(cust)}
+                  className={`bg-white p-2.5 sm:p-3 rounded-xl border shadow-xs relative flex flex-col justify-between hover:shadow-md hover:border-blue-300 transition-all group cursor-pointer ${
+                    cust.status !== 'aktif' ? 'border-red-100 bg-red-50/20' : 'border-gray-200'
+                  }`}
+                  title={`Klik untuk lihat rincian lengkap ${displayName}`}
+                >
+                  <div>
+                    {/* Top Bar: Avatar with status dot, Name, Detail & Edit Actions */}
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="flex items-start gap-2 min-w-0 flex-1">
+                        <div className="relative shrink-0">
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-tr ${getAvatarColor(displayName)} text-white font-bold text-xs flex items-center justify-center shadow-xs`}>
+                            {getInitials(displayName)}
+                          </div>
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                              cust.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'
+                            }`}
+                            title={cust.status}
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3
+                            className="font-bold text-gray-900 text-xs sm:text-sm leading-snug break-words"
+                            title={displayName}
                           >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (window.confirm(`Hapus pelanggan "${cust.name}"?`)) onDeleteCustomer(cust.id);
-                            }}
-                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                            title="Hapus"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Visit Status if any */}
-                  {visitStatus && (
-                    <div className="mt-1 ml-3.5">
-                      <span className={`inline-block text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatus.tone]}`}>
-                        {visitStatus.label}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Status Pills: PPPoE, E-Billing, Lunas/Belum Bayar */}
-                  <div className="flex flex-wrap gap-1 mt-1.5 ml-3.5">
-                    {pppoe && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-100 max-w-[100px] truncate">
-                        <Key size={8} className="text-blue-500 shrink-0" />
-                        <span className="truncate">{pppoe}</span>
-                      </span>
-                    )}
-
-                    {isEbilling && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                        <CheckCircle2 size={8} /> Runsnet
-                      </span>
-                    )}
-
-                    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                      paidMonth ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
-                    }`}>
-                      {paidMonth ? <CheckCircle2 size={8} /> : <Clock size={8} />}
-                      {paidMonth ? 'Lunas Bulan Ini' : 'Belum Bayar'}
-                    </span>
-                  </div>
-
-                  {/* Customer Information Lines */}
-                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1 text-[10px]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400 flex items-center gap-1"><Wifi size={10} /> Paket</span>
-                      <span className="font-bold text-gray-700 truncate max-w-[90px]" title={cust.package}>
-                        {cust.package || 'Net Home'}
-                      </span>
-                    </div>
-
-                    {cust.price && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Tagihan</span>
-                        <span className="font-black text-emerald-600">{formatRupiah(cust.price)}</span>
+                            {displayName}
+                          </h3>
+                          {cust.nickname && (
+                            <p className="text-gray-400 font-medium text-[10px] mt-0.5 truncate">
+                              ({cust.nickname})
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    )}
 
-                    {cust.phone && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400 flex items-center gap-1"><Phone size={10} /> WA</span>
-                        <a
-                          href={`https://wa.me/${cust.phone.replace(/[^0-9]/g, '')}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-bold text-green-600 hover:underline flex items-center gap-0.5"
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDetailCust(cust);
+                          }}
+                          className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                          title="Lihat Detail Profil & Teknis"
                         >
-                          {cust.phone} <ExternalLink size={8} />
-                        </a>
+                          <Info size={13} />
+                        </button>
+                        {role === 'superadmin' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCustomer(cust);
+                              }}
+                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Hapus pelanggan "${displayName}"?`)) onDeleteCustomer(cust.id);
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Hapus"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Visit Status if any */}
+                    {visitStatus && (
+                      <div className="mt-1.5">
+                        <span className={`inline-block text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatus.tone]}`}>
+                          {visitStatus.label}
+                        </span>
                       </div>
                     )}
 
-                    {cust.ip_address && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400 flex items-center gap-1"><Network size={10} /> IP</span>
-                        <span className="font-mono font-bold text-gray-700">{cust.ip_address}</span>
-                      </div>
-                    )}
+                    {/* Status Pills: PPPoE, E-Billing, Lunas/Belum Bayar */}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {pppoe && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-100 max-w-[100px] truncate">
+                          <Key size={8} className="text-blue-500 shrink-0" />
+                          <span className="truncate">{pppoe}</span>
+                        </span>
+                      )}
 
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400 flex items-center gap-1"><Calendar size={10} /> Tgl Bayar</span>
-                      <span className={`font-bold ${cust.status === 'aktif' ? 'text-gray-700' : 'text-red-600'}`}>
-                        {cust.due_date || cust.dueDate || '-'}
+                      {isEbilling && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          <CheckCircle2 size={8} /> Runsnet
+                        </span>
+                      )}
+
+                      <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                        paidMonth ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
+                      }`}>
+                        {paidMonth ? <CheckCircle2 size={8} /> : <Clock size={8} />}
+                        {paidMonth ? 'Lunas Bulan Ini' : 'Belum Bayar'}
                       </span>
                     </div>
+
+                    {/* Customer Information Lines */}
+                    <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1 text-[10px]">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 flex items-center gap-1"><Wifi size={10} /> Paket</span>
+                        <span className="font-bold text-gray-700 truncate max-w-[90px]" title={cust.package}>
+                          {cust.package || 'Net Home'}
+                        </span>
+                      </div>
+
+                      {cust.price && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Tagihan</span>
+                          <span className="font-black text-emerald-600">{formatRupiah(cust.price)}</span>
+                        </div>
+                      )}
+
+                      {cust.phone && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400 flex items-center gap-1"><Phone size={10} /> WA</span>
+                          <a
+                            href={`https://wa.me/${cust.phone.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-bold text-green-600 hover:underline flex items-center gap-0.5"
+                          >
+                            {cust.phone} <ExternalLink size={8} />
+                          </a>
+                        </div>
+                      )}
+
+                      {cust.ip_address && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400 flex items-center gap-1"><Network size={10} /> IP</span>
+                          <span className="font-mono font-bold text-gray-700">{cust.ip_address}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 flex items-center gap-1"><Calendar size={10} /> Tgl Bayar</span>
+                        <span className={`font-bold ${cust.status === 'aktif' ? 'text-gray-700' : 'text-red-600'}`}>
+                          {cust.due_date || cust.dueDate || '-'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Compact Action Buttons */}
-                <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center gap-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleQuickPay(cust);
-                    }}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] py-1 px-2 rounded-lg flex items-center justify-center gap-1 shadow-xs active:scale-95 transition-all"
-                  >
-                    <CreditCard size={11} />
-                    <span>{paidMonth ? 'Bayar +' : 'Bayar'}</span>
-                  </button>
-
-                  {cust.phone && (
+                  {/* Compact Action Buttons */}
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center gap-1">
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setWaModalCust(cust);
-                        setWaTemplateType(paidMonth ? 'paid' : 'reminder');
+                        handleQuickPay(cust);
                       }}
-                      className="p-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg active:scale-95 transition-all"
-                      title="Kirim pesan WhatsApp / Tagihan"
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] py-1 px-2 rounded-lg flex items-center justify-center gap-1 shadow-xs active:scale-95 transition-all"
                     >
-                      <MessageSquare size={12} />
+                      <CreditCard size={11} />
+                      <span>{paidMonth ? 'Bayar +' : 'Bayar'}</span>
                     </button>
-                  )}
 
-                  {cust.lat && cust.lng && (
-                    <a
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${cust.lat},${cust.lng}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="p-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg active:scale-95 transition-all"
-                      title="Buka Navigasi Maps"
-                    >
-                      <MapPin size={12} />
-                    </a>
-                  )}
+                    {cust.phone && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWaModalCust(cust);
+                          setWaTemplateType(paidMonth ? 'paid' : 'reminder');
+                        }}
+                        className="p-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg active:scale-95 transition-all"
+                        title="Kirim pesan WhatsApp / Tagihan"
+                      >
+                        <MessageSquare size={12} />
+                      </button>
+                    )}
+
+                    {cust.lat && cust.lng && (
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${cust.lat},${cust.lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg active:scale-95 transition-all"
+                        title="Buka Navigasi Maps"
+                      >
+                        <MapPin size={12} />
+                      </a>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+
+          {/* Sleek Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-700 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-2.5 py-1 rounded-lg border border-gray-200 font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                ‹ Sebelumnya
+              </button>
+              <span className="font-medium text-gray-500 text-[11px] sm:text-xs">
+                Halaman {currentPage} dari {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-2.5 py-1 rounded-lg border border-gray-200 font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                Selanjutnya ›
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* LIST VIEW: Detailed & Complete Table (Klik baris mana saja untuk buka detail) */
