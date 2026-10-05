@@ -357,7 +357,7 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 gap-2">
         {/* Target Sisa Card */}
-        <div className="bg-indigo-600 py-2.5 px-3 super-rounded text-white shadow-sm relative overflow-hidden flex flex-col justify-between">
+        <div className="bg-[#5b3cf5] py-2.5 px-3 super-rounded text-white shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
             <p className="text-[8px] font-bold text-indigo-100 uppercase tracking-widest">Target Sisa</p>
             <span className="text-[7px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full shrink-0">Ekskl. CS</span>
@@ -370,7 +370,7 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
         </div>
 
         {/* Jasa Admin / Komisi Card */}
-        <div className="bg-emerald-600 py-2.5 px-3 super-rounded text-white shadow-sm relative overflow-hidden flex flex-col justify-between">
+        <div className="bg-[#0ea569] py-2.5 px-3 super-rounded text-white shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
             <p className="text-[8px] font-bold text-emerald-100 uppercase tracking-widest">Jasa Kasir & Komisi</p>
             <div className="flex items-center gap-1 shrink-0">
@@ -439,8 +439,8 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
           <div className="flex items-center justify-between mt-1 leading-none">
             <span className="text-[11px] font-bold text-gray-800">{paidCustomers.length} <span className="text-[8px] font-medium text-gray-400">/ {totalActiveCustomers} plg</span></span>
             <div className="flex items-center gap-1 text-[7px] shrink-0">
-              <span className="px-1 py-0.5 bg-emerald-50 text-emerald-700 rounded font-bold">{paidCustomers.length} Lunas</span>
-              <span className="px-1 py-0.5 bg-amber-50 text-amber-700 rounded font-bold">{unpaidCustomers.length} Belum</span>
+              <span className="px-1 py-0.5 bg-[#ebfbf3] text-[#0ea569] rounded font-bold">{paidCustomers.length} Lunas</span>
+              <span className="px-1 py-0.5 bg-[#fef3c7] text-[#f95f00] rounded font-bold">{unpaidCustomers.length} Belum</span>
             </div>
           </div>
 

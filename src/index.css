@@ -17,7 +17,7 @@ body::-webkit-scrollbar,
 }
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   background-color: #f3f4f6;
@@ -76,7 +76,7 @@ body {
 }
 
 @theme {
-  --font-sans: "Inter", "system-ui", "sans-serif";
+  --font-sans: "Plus Jakarta Sans", "system-ui", "sans-serif";
 }
 
 /* ========================================================
