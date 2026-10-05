@@ -66,8 +66,9 @@ describe('Dashboard route overview (what an admin sees on the home page)', () =>
     visited_at: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 9, 0, 0).toISOString(),
   });
 
-  // Hanya kartu rute (sampai bagian "Periode" milik dashboard lain).
-  const routeCard = (html) => html.slice(html.indexOf('Rute Kunjungan'), html.indexOf('Periode'));
+  // Hanya kartu rute (sampai bagian "Pendapatan 6 Bulan" milik dashboard lain — Rute sekarang
+  // tampil SETELAH Periode/Metrics/Barusan, jadi batas akhirnya bukan lagi "Periode").
+  const routeCard = (html) => html.slice(html.indexOf('Rute Kunjungan'), html.indexOf('Pendapatan 6 Bulan'));
 
   it('hides customers who already have visit info so the dashboard only lists who still needs a visit', () => {
     const card = routeCard(render({ customers: routeCustomers, visits: [visitToday('c1')] }));

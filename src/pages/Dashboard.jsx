@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Info } from 'lucide-react';
+import { FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Info } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
@@ -179,133 +179,26 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
   });
 
   return (
-    <div className="dashboard-container p-4 space-y-6 pb-32 animate-in fade-in duration-300">
-      
-      {/* Welcome Header (disembunyikan saat dipakai di bawah Dashboard Superadmin) */}
+    <div className="dashboard-container p-4 space-y-4 pb-32 animate-in fade-in duration-300">
+
+      {/* Greeting Section (disembunyikan saat dipakai di bawah Dashboard Superadmin) */}
       {!hideHeader && (
-        <div className="flex justify-between items-center mb-2">
-          <div>
-            <p className="text-blue-600 text-xs font-bold mb-0.5">
-              {getGreeting(new Date().getHours())} · {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </p>
-            <h1 className="text-2xl font-black text-gray-900 leading-tight">
-              Halo, <span className="text-blue-600">{companyInfo.adminName || 'Admin'}</span> 👋
-            </h1>
-            <p className="text-gray-500 text-xs font-medium">Laporan ISP KAsir</p>
-          </div>
-          <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 shadow-sm border border-blue-100">
-            <Users size={24} />
-          </div>
-        </div>
-      )}
-
-      {/* Sisa Client Belum Bayar — chip kecil paling atas, bukan kartu besar. Disembunyikan saat
-          embedded, superadmin sudah punya ringkasan belum-bayar sendiri. */}
-      {!embedded && (
-        <Link
-          to="/customers?tab=belum_bayar"
-          className="flex items-center justify-between gap-2 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 active:scale-[0.99] transition-all"
-        >
-          <span className="flex items-center gap-1.5 text-[11px] font-bold text-orange-700">
-            <Users size={13} /> Sisa Client Belum Bayar
+        <div className="flex flex-col">
+          <span className="text-[13px] font-semibold text-blue-600">
+            {getGreeting(new Date().getHours())} · {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}
           </span>
-          <span className="text-xs font-black text-orange-700">
-            {unpaidCustomers.length}<span className="text-[10px] font-semibold text-orange-400"> / {totalActiveCustomers}</span>
-          </span>
-        </Link>
-      )}
-
-      {/* Peta + jalur rute kunjungan dan tujuan berikutnya */}
-      <RouteOverview customers={customers} transactions={transactions} visits={visits} onAddVisit={onAddVisit} canManageRoute={canManageRoute} origin={origin} myPosition={myPosition} locationStatus={locationStatus} adminLocations={adminLocations} onRetryLocation={onRetryLocation} />
-
-      {/* Pengingat Tagihan (due-date reminders, always real-time) — disembunyikan saat embedded,
-          DashboardSuperadmin.jsx punya versi barunya sendiri (Tagihan & Pengingat Pelanggan) */}
-      {!embedded && reminderList.length > 0 && (
-        <div id="reminder-section">
-          <div className="flex items-center justify-between mb-2 ml-1">
-            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
-              <span>⏰ Pengingat Tagihan & Isolir</span>
-              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-full font-bold text-[9px]">
-                {reminderList.length}
-              </span>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <h2 className="text-[20px] font-bold text-gray-900 leading-snug">
+              Halo, <span className="text-blue-600">{companyInfo.adminName || 'Admin'}</span>
             </h2>
-            {reminderList.some(c => c.phone) && (
-              <button
-                type="button"
-                onClick={() => sendBatchReminders(reminderList)}
-                disabled={isSendingBatch}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1 rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition-all disabled:opacity-50"
-                title="Kirim pengingat tagihan dan peringatan isolir otomatis ke semua pelanggan ber-nomor WA"
-              >
-                <Send size={11} />
-                <span>{isSendingBatch ? 'Mengirim Masal...' : 'Kirim WA Masal (H-2 / H-1)'}</span>
-              </button>
-            )}
-          </div>
-
-          {reminderFeedback && (
-            <div className={`mb-3 p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200 ${
-              reminderFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
-              reminderFeedback.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
-              'bg-blue-50 text-blue-800 border border-blue-200'
-            }`}>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
-                <span>{reminderFeedback.message}</span>
-              </div>
-              <button onClick={() => setReminderFeedback(null)} className="text-gray-400 hover:text-gray-600 text-[10px] ml-2 font-bold">✕</button>
-            </div>
-          )}
-
-          <div className="bg-white p-5 super-rounded border border-gray-100 shadow-sm">
-            <div className="space-y-2">
-              {(reminderExpanded ? reminderList : reminderList.slice(0, 5)).map(cust => {
-                const badge = getReminderBadge(cust.dueDiff);
-                const isItemSending = sendingReminderId === cust.id;
-                return (
-                  <div key={cust.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100/60 transition-colors">
-                    <div className="min-w-0 pr-2">
-                      <p className="font-bold text-gray-800 text-xs leading-tight truncate">{cust.name}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5 truncate">
-                        {cust.package} · Tgl {cust.due_date || '-'} {cust.phone ? `· ${cust.phone}` : '· (Tanpa WA)'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${badge.className}`}>
-                        {badge.text}
-                      </span>
-                      {cust.phone && (
-                        <button
-                          type="button"
-                          onClick={() => sendSingleReminder(cust)}
-                          disabled={isItemSending || isSendingBatch}
-                          title="Kirim pesan pengingat jatuh tempo & peringatan isolir via WhatsApp"
-                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/60 rounded-lg text-[10px] font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1"
-                        >
-                          <MessageCircle size={12} className={isItemSending ? 'animate-spin' : ''} />
-                          <span>{isItemSending ? 'Mengirim...' : 'Kirim WA'}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {reminderList.length > 5 && (
-              <button
-                onClick={() => setReminderExpanded(v => !v)}
-                className="w-full text-center text-[10px] font-bold text-blue-600 mt-2 py-1.5 hover:underline"
-              >
-                {reminderExpanded ? 'Tutup' : `Lihat Selengkapnya (${reminderList.length - 5})`}
-              </button>
-            )}
+            <span className="text-[22px] animate-wave-hand select-none" title="Halo!">👋</span>
           </div>
         </div>
       )}
 
-      {/* Professional Period Filter (Compact), Metrics Grid, dan Revenue Chart — disembunyikan saat
-          embedded: superadmin punya filter periode & kartu finansialnya sendiri di section-section baru
-          (Finansial Eksekutif, Target/Penagihan, Pendapatan Harian + Omset 7/14/Bulan). */}
+      {/* Periode, Metrics Grid, dan banner "Barusan" — disembunyikan saat embedded: superadmin punya
+          filter periode & kartu finansialnya sendiri di section-section baru (Finansial Eksekutif,
+          Target/Penagihan, Pendapatan Harian + Omset 7/14/Bulan, Aktivitas Transaksi Terbaru). */}
       {!embedded && (
       <>
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-white border border-gray-100 rounded-xl shadow-xs">
@@ -470,14 +363,129 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
         )}
       </div>
 
-      {/* Revenue Chart Section */}
+      {/* Banner "Barusan" (transaksi sukses terakhir) */}
+      {latestSuccess && (
+        <div
+          onClick={() => latestSuccess.type === 'instansi' ? setInstansiReceiptToView(latestSuccess) : setReceiptToView(latestSuccess)}
+          className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 flex items-center justify-between gap-2 cursor-pointer active:scale-[0.99] transition-all"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-lg bg-white shadow-xs flex items-center justify-center text-green-600 shrink-0">
+              <CheckCircle size={15} />
+            </div>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500 bg-white/70 px-1.5 py-0.5 rounded shrink-0">Barusan</span>
+              <span className="text-xs font-bold text-gray-900 truncate">
+                {latestSuccess.type === 'instansi' ? latestSuccess.instansiName : latestSuccess.customerName}
+              </span>
+              <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-green-600 shrink-0">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                {latestSuccess.payment_method === 'CS' ? 'Sukses CS' : 'Sukses'}
+              </span>
+            </div>
+          </div>
+          <span className="text-xs font-extrabold text-gray-900 shrink-0">{formatRupiah(latestSuccess.price)}</span>
+        </div>
+      )}
+      </>
+      )}
+
+      {/* Peta + jalur rute kunjungan dan tujuan berikutnya (selalu tampil, termasuk saat embedded) */}
+      <RouteOverview customers={customers} transactions={transactions} visits={visits} onAddVisit={onAddVisit} canManageRoute={canManageRoute} origin={origin} myPosition={myPosition} locationStatus={locationStatus} adminLocations={adminLocations} onRetryLocation={onRetryLocation} />
+
+      {/* Pengingat Tagihan (due-date reminders, always real-time) — disembunyikan saat embedded,
+          DashboardSuperadmin.jsx punya versi barunya sendiri (Tagihan & Pengingat Pelanggan) */}
+      {!embedded && reminderList.length > 0 && (
+        <div id="reminder-section">
+          <div className="flex items-center justify-between mb-2 ml-1">
+            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+              <span>⏰ Pengingat Tagihan & Isolir</span>
+              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-full font-bold text-[9px]">
+                {reminderList.length}
+              </span>
+            </h2>
+            {reminderList.some(c => c.phone) && (
+              <button
+                type="button"
+                onClick={() => sendBatchReminders(reminderList)}
+                disabled={isSendingBatch}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1 rounded-xl flex items-center gap-1 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+                title="Kirim pengingat tagihan dan peringatan isolir otomatis ke semua pelanggan ber-nomor WA"
+              >
+                <Send size={11} />
+                <span>{isSendingBatch ? 'Mengirim Masal...' : 'Kirim WA Masal (H-2 / H-1)'}</span>
+              </button>
+            )}
+          </div>
+
+          {reminderFeedback && (
+            <div className={`mb-3 p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200 ${
+              reminderFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+              reminderFeedback.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+              'bg-blue-50 text-blue-800 border border-blue-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
+                <span>{reminderFeedback.message}</span>
+              </div>
+              <button onClick={() => setReminderFeedback(null)} className="text-gray-400 hover:text-gray-600 text-[10px] ml-2 font-bold">✕</button>
+            </div>
+          )}
+
+          <div className="bg-white p-5 super-rounded border border-gray-100 shadow-sm">
+            <div className="space-y-2">
+              {(reminderExpanded ? reminderList : reminderList.slice(0, 5)).map(cust => {
+                const badge = getReminderBadge(cust.dueDiff);
+                const isItemSending = sendingReminderId === cust.id;
+                return (
+                  <div key={cust.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100/60 transition-colors">
+                    <div className="min-w-0 pr-2">
+                      <p className="font-bold text-gray-800 text-xs leading-tight truncate">{cust.name}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+                        {cust.package} · Tgl {cust.due_date || '-'} {cust.phone ? `· ${cust.phone}` : '· (Tanpa WA)'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${badge.className}`}>
+                        {badge.text}
+                      </span>
+                      {cust.phone && (
+                        <button
+                          type="button"
+                          onClick={() => sendSingleReminder(cust)}
+                          disabled={isItemSending || isSendingBatch}
+                          title="Kirim pesan pengingat jatuh tempo & peringatan isolir via WhatsApp"
+                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/60 rounded-lg text-[10px] font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          <MessageCircle size={12} className={isItemSending ? 'animate-spin' : ''} />
+                          <span>{isItemSending ? 'Mengirim...' : 'Kirim WA'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {reminderList.length > 5 && (
+              <button
+                onClick={() => setReminderExpanded(v => !v)}
+                className="w-full text-center text-[10px] font-bold text-blue-600 mt-2 py-1.5 hover:underline"
+              >
+                {reminderExpanded ? 'Tutup' : `Lihat Selengkapnya (${reminderList.length - 5})`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Revenue Chart Section — disembunyikan saat embedded, superadmin punya chart Omset sendiri */}
+      {!embedded && (
       <div>
         <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Pendapatan 6 Bulan Terakhir</h2>
         <div className="bg-white p-5 super-rounded border border-gray-100 shadow-sm">
           <RevenueBarChart data={revenueChartData} />
         </div>
       </div>
-      </>
       )}
 
       {/* Payment Status Section — disembunyikan saat embedded, DashboardSuperadmin.jsx punya versinya sendiri */}
@@ -552,35 +560,9 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
       </div>
       )}
 
-      {/* Latest Highlight & Transaction List — disembunyikan saat embedded, superadmin punya section
+      {/* Transaction List — disembunyikan saat embedded, superadmin punya section
           "Aktivitas Transaksi Terbaru" sendiri di DashboardSuperadmin.jsx */}
       {!embedded && (
-      <>
-      {latestSuccess && (
-        <div
-          onClick={() => latestSuccess.type === 'instansi' ? setInstansiReceiptToView(latestSuccess) : setReceiptToView(latestSuccess)}
-          className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 flex items-center justify-between gap-2 cursor-pointer active:scale-[0.99] transition-all"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-lg bg-white shadow-xs flex items-center justify-center text-green-600 shrink-0">
-              <CheckCircle size={15} />
-            </div>
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500 bg-white/70 px-1.5 py-0.5 rounded shrink-0">Barusan</span>
-              <span className="text-xs font-bold text-gray-900 truncate">
-                {latestSuccess.type === 'instansi' ? latestSuccess.instansiName : latestSuccess.customerName}
-              </span>
-              <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-green-600 shrink-0">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                {latestSuccess.payment_method === 'CS' ? 'Sukses CS' : 'Sukses'}
-              </span>
-            </div>
-          </div>
-          <span className="text-xs font-extrabold text-gray-900 shrink-0">{formatRupiah(latestSuccess.price)}</span>
-        </div>
-      )}
-
-      {/* Transaction List */}
       <div>
         <div className="flex justify-between items-center mb-4 ml-1">
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Riwayat Terakhir</h2>
@@ -638,7 +620,6 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
           </div>
         )}
       </div>
-      </>
       )}
 
       {/* Modal Riwayat Pencairan Komisi */}
