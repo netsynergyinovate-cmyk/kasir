@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, Target, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Info } from 'lucide-react';
+import { Users, FileText, Building2, ChevronLeft, ChevronRight, CheckCircle, Calendar, TrendingUp, ChevronDown, MessageCircle, Send, CheckCircle2, DollarSign, History, X, Info } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
@@ -64,6 +64,11 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
 
   // 3. Remaining Target
   const remainingTarget = totalPotentialTarget - grossRevenue;
+  const remainingTargetPercent = totalPotentialTarget > 0
+    ? Math.max(0, Math.min(100, Math.round((remainingTarget / totalPotentialTarget) * 100)))
+    : 0;
+  // Transaksi retail yang benar-benar lunas di periode ini (dasar nominal Total Kotor)
+  const lunasTrxCount = filteredTransactions.filter((t) => t.status === 'LUNAS' || t.type === 'instansi').length;
 
   // Piutang KASBON periode ini (kekurangan bayar yang belum ditutup pelanggan) — sama periodenya
   // dengan "Total Kotor" di atas.
@@ -303,104 +308,100 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
           (Finansial Eksekutif, Target/Penagihan, Pendapatan Harian + Omset 7/14/Bulan). */}
       {!embedded && (
       <>
-      <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Calendar size={14} className="text-blue-600" />
-          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Periode</h2>
+      <div className="flex items-center justify-between px-2.5 py-1.5 bg-white border border-gray-100 rounded-xl shadow-xs">
+        <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[10px] shrink-0">
+          <Calendar size={13} />
+          <span className="tracking-wide uppercase">Periode</span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <div className="relative group">
-            <select 
+            <select
               value={selectedDay}
               onChange={(e) => setSelectedDay(e.target.value)}
-              className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 pl-2 pr-7 py-1.5 appearance-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
+              className="bg-gray-50 border border-gray-200/80 rounded-lg outline-none text-[10px] font-semibold text-gray-700 pl-2 pr-6 py-1 appearance-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
             >
               <option value="all">Semua Hari</option>
               {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => i + 1).map(day => (
                 <option key={day} value={day}>{day}</option>
               ))}
             </select>
-            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
+            <ChevronDown size={11} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
           </div>
           <div className="relative group">
-            <select 
+            <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 pl-2 pr-7 py-1.5 appearance-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
+              className="bg-gray-50 border border-gray-200/80 rounded-lg outline-none text-[10px] font-semibold text-gray-700 pl-2 pr-6 py-1 appearance-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
             >
               {months.map((name, index) => (
                 <option key={index} value={index}>{name}</option>
               ))}
             </select>
-            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
+            <ChevronDown size={11} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
           </div>
           <div className="relative group">
-            <select 
+            <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px] font-bold text-gray-700 pl-2 pr-7 py-1.5 appearance-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
+              className="bg-gray-50 border border-gray-200/80 rounded-lg outline-none text-[10px] font-semibold text-gray-700 pl-2 pr-6 py-1 appearance-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
             >
               {[2024, 2025, 2026, 2027].map(year => (
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
-            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
+            <ChevronDown size={11} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-blue-500 transition-colors" />
           </div>
         </div>
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-2">
         {/* Target Sisa Card */}
-        <div className="bg-indigo-600 p-5 super-rounded text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
-          <div className="absolute -right-4 -top-4 w-20 h-20 bg-white opacity-10 rounded-full"></div>
-          <p className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest mb-1">Target Sisa</p>
-          <p className="text-lg font-black leading-none">{formatRupiah(remainingTarget > 0 ? remainingTarget : 0)}</p>
-          <div className="mt-4 flex items-center gap-1 text-[8px] bg-white/20 w-fit px-2 py-0.5 rounded-full border border-white/10">
-             <Target size={8} />
-             <span>Ekskl. Pembayaran CS</span>
+        <div className="bg-indigo-600 py-2.5 px-3 super-rounded text-white shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <p className="text-[8px] font-bold text-indigo-100 uppercase tracking-widest">Target Sisa</p>
+            <span className="text-[7px] font-bold bg-white/20 px-1.5 py-0.5 rounded-full shrink-0">Ekskl. CS</span>
           </div>
+          <div className="mt-1 flex items-baseline justify-between gap-1">
+            <p className="text-sm font-extrabold leading-none truncate">{formatRupiah(remainingTarget > 0 ? remainingTarget : 0)}</p>
+            <span className="text-emerald-200 text-[8px] font-bold shrink-0">{remainingTargetPercent}% sisa</span>
+          </div>
+          <p className="text-[8px] text-indigo-100/80 font-medium mt-0.5">Target: {formatRupiah(totalPotentialTarget)}</p>
         </div>
 
         {/* Jasa Admin / Komisi Card */}
-        <div className="bg-emerald-600 p-5 super-rounded text-white shadow-xl shadow-emerald-100 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-4 -top-4 w-20 h-20 bg-white opacity-10 rounded-full"></div>
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest">Jasa Kasir & Komisi</p>
-              <div className="flex items-center gap-1">
+        <div className="bg-emerald-600 py-2.5 px-3 super-rounded text-white shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <p className="text-[8px] font-bold text-emerald-100 uppercase tracking-widest">Jasa Kasir & Komisi</p>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowCommissionHistoryModal(true)}
+                className="text-[7px] font-bold bg-white/20 hover:bg-white/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 transition-colors"
+              >
+                <Info size={8} /> Cara hitung
+              </button>
+              {myCommissionData.history.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowCommissionHistoryModal(true)}
-                  className="text-[9px] font-bold bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors"
+                  className="text-[7px] font-bold bg-white/20 hover:bg-white/30 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 transition-colors"
                 >
-                  <Info size={10} /> Cara hitung
+                  <History size={8} /> Riwayat ({myCommissionData.history.length})
                 </button>
-                {myCommissionData.history.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowCommissionHistoryModal(true)}
-                    className="text-[9px] font-bold bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors"
-                  >
-                    <History size={10} /> Riwayat ({myCommissionData.history.length})
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-            <p className="text-[9px] text-emerald-100/90 mb-1">Hak komisi {commissionMonthLabel}</p>
-            <p className="text-lg font-black leading-none">{formatRupiah(myCommissionData.totalEarned)}</p>
-            <p className="text-[9px] text-emerald-100 mt-1">
-              {myCommissionData.earnedTrxCount} transaksi × {formatRupiah(myCommissionData.feePerTransaction)}
-              {myCommissionData.bonusTotal > 0 && ` = ${formatRupiah(myCommissionData.autoEarned)}`}
-            </p>
-            {myCommissionData.bonusTotal > 0 && (
-              <p className="text-[9px] text-amber-200 font-bold mt-0.5">
-                + Tambahan dari Superadmin {formatRupiah(myCommissionData.bonusTotal)}
-              </p>
-            )}
           </div>
-
-          <div className="mt-3 pt-2 border-t border-white/15 space-y-1 text-[9px] text-emerald-100">
+          <p className="text-[8px] text-emerald-100/90 mt-0.5">Hak komisi {commissionMonthLabel}</p>
+          <p className="text-sm font-extrabold leading-none mt-0.5">{formatRupiah(myCommissionData.totalEarned)}</p>
+          <p className="text-[8px] text-emerald-100 mt-0.5">
+            {myCommissionData.earnedTrxCount} transaksi × {formatRupiah(myCommissionData.feePerTransaction)}
+            {myCommissionData.bonusTotal > 0 && ` = ${formatRupiah(myCommissionData.autoEarned)}`}
+          </p>
+          {myCommissionData.bonusTotal > 0 && (
+            <p className="text-[8px] text-amber-200 font-bold mt-0.5 truncate">+ Tambahan dari Superadmin {formatRupiah(myCommissionData.bonusTotal)}</p>
+          )}
+          <div className="mt-1.5 pt-1 border-t border-white/15 space-y-0.5 text-[8px] text-emerald-100">
             <div className="flex items-center justify-between font-bold">
               <span>Sudah cair bulan ini (Superadmin): <b className="text-white">{formatRupiah(myCommissionData.totalPaid)}</b></span>
             </div>
@@ -419,25 +420,31 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
         </div>
 
         {/* Total Kotor Card */}
-        <div className="stat-card p-5 super-rounded flex flex-col justify-center">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Kotor</p>
-          <p className="text-lg font-black text-gray-900">{formatRupiah(grossRevenue)}</p>
-          <p className="text-[9px] text-gray-400 mt-1 italic font-medium leading-none">Sebelum Potong Jasa</p>
+        <div className="stat-card py-2.5 px-3 super-rounded flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Total Kotor</p>
+            <span className="text-[7px] text-gray-500 font-semibold bg-gray-100 px-1.5 py-0.5 rounded shrink-0">Sblm Potong</span>
+          </div>
+          <p className="text-sm font-extrabold text-gray-900 leading-none mt-1">{formatRupiah(grossRevenue)}</p>
+          <p className="text-[8px] text-gray-400 font-medium mt-0.5">{lunasTrxCount} transaksi lunas</p>
         </div>
 
         {/* Progres Penagihan Card */}
-        <div className="stat-card p-5 super-rounded flex flex-col justify-center">
-          <div className="flex justify-between items-end mb-2">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Progres Penagihan</p>
-            <p className="text-[10px] font-bold text-blue-600">{activePaidPercent}%</p>
+        <div className="stat-card py-2.5 px-3 super-rounded flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Progres</p>
+            <span className="text-[8px] font-extrabold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">{activePaidPercent}%</span>
           </div>
 
-          <div className="flex items-baseline gap-1 mb-3">
-            <p className="text-2xl font-black text-gray-900 leading-none">{paidCustomers.length}</p>
-            <p className="text-xs font-bold text-gray-400">/ {totalActiveCustomers} plg aktif</p>
+          <div className="flex items-center justify-between mt-1 leading-none">
+            <span className="text-[11px] font-bold text-gray-800">{paidCustomers.length} <span className="text-[8px] font-medium text-gray-400">/ {totalActiveCustomers} plg</span></span>
+            <div className="flex items-center gap-1 text-[7px] shrink-0">
+              <span className="px-1 py-0.5 bg-emerald-50 text-emerald-700 rounded font-bold">{paidCustomers.length} Lunas</span>
+              <span className="px-1 py-0.5 bg-amber-50 text-amber-700 rounded font-bold">{unpaidCustomers.length} Belum</span>
+            </div>
           </div>
 
-          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-1.5">
+          <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden mt-1.5">
             <div
               className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${activePaidPercent}%` }}
