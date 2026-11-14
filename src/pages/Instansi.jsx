@@ -21,6 +21,7 @@ const mapProfile = (row) => ({
   address: row?.address || '',
   logoUrl: row?.logo_url || '',
   companyId: row?.invoice_company_id || '',
+  csName: row?.invoice_cs_name || '',
   csEmail: row?.invoice_cs_email || '',
   csPhone: row?.invoice_cs_phone || '',
   bankName: row?.invoice_bank_name || '',

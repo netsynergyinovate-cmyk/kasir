@@ -3,10 +3,20 @@ import { formatRupiah, formatDate, getInvoiceNumber } from '../utils/format';
 
 const ReceiptA4 = ({ transaction, companyInfo, onClose, onPrint }) => {
   if (!transaction || transaction.type !== 'instansi') return null;
+  // Pemanggil berbeda mengirim camelCase atau kolom mentah (snake_case) — ambil yang ada.
+  const t = transaction;
+  const instansiName = t.instansiName || t.instansi_name;
+  const serviceName = t.serviceName || t.service_name;
+  const packageName = t.packageName || t.package_name;
+  const paymentMethod = t.paymentMethod || t.payment_method;
+  const amountPaid = t.amountPaid ?? t.amount_paid;
+  const cashierName = t.cashierName || t.cashier_name;
+  const customerCode = t.custid || t.customer_id;
+  const isPaid = String(t.status || '').toUpperCase() === 'LUNAS';
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex p-4 overflow-y-auto print:bg-white print:p-0">
-      <div className="print-a4-container bg-white w-full max-w-[210mm] min-h-[297mm] mx-auto m-auto shadow-[0_20px_60px_rgba(0,0,0,0.6)] p-12 sm:p-16 relative flex flex-col print:shadow-none print:m-0 print:p-12">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex p-4 overflow-y-auto print:static print:block print:overflow-visible print:bg-white print:p-0">
+      <div className="print-a4-container bg-white w-full max-w-[210mm] min-h-[297mm] mx-auto m-auto shadow-[0_20px_60px_rgba(0,0,0,0.6)] p-12 sm:p-16 relative flex flex-col print:shadow-none print:m-0 print:p-12 print:max-w-none print:min-h-[296mm]">
         
         <div className="flex justify-between items-start border-b-4 border-gray-900 pb-8 mb-10">
           <div className="flex items-center gap-6">
@@ -19,7 +29,7 @@ const ReceiptA4 = ({ transaction, companyInfo, onClose, onPrint }) => {
                 <h1 className="text-3xl font-black uppercase text-gray-900 tracking-tight leading-tight">{companyInfo.name}</h1>
                 <p className="text-sm text-gray-600 mt-2 font-medium max-w-xs">{companyInfo.address}</p>
                 <div className="flex gap-4 mt-3 text-sm font-bold text-gray-800">
-                  <span className="flex items-center gap-1">WA: {companyInfo.phone}</span>
+                  <span className="flex items-center gap-1">WA: {companyInfo.phone || '-'}</span>
                 </div>
               </div>
           </div>
@@ -37,12 +47,13 @@ const ReceiptA4 = ({ transaction, companyInfo, onClose, onPrint }) => {
         <div className="grid grid-cols-2 gap-10 mb-12">
           <div className="p-6 bg-gray-50 border-l-4 border-blue-600 rounded-r-2xl">
             <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Ditagihkan Kepada:</p>
-            <h3 className="text-2xl font-black text-gray-900 leading-tight">{transaction.instansiName}</h3>
-            <p className="text-gray-600 mt-2 font-medium">{transaction.address}</p>
+            <h3 className="text-2xl font-black text-gray-900 leading-tight">{instansiName}</h3>
+            {customerCode && <p className="text-gray-500 mt-1 text-sm font-bold">ID: {customerCode}</p>}
+            {t.address && <p className="text-gray-600 mt-2 font-medium">{t.address}</p>}
           </div>
           <div className="p-6 bg-gray-50 border-l-4 border-gray-300 rounded-r-2xl flex flex-col justify-center">
             <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Status Pembayaran:</p>
-            <span className="inline-flex items-center px-4 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-black uppercase tracking-wider w-fit">PENDING / DUE</span>
+            <span className={`inline-flex items-center px-4 py-1 rounded-full text-sm font-black uppercase tracking-wider w-fit ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{t.status || 'PENDING / DUE'}</span>
           </div>
         </div>
 
@@ -59,7 +70,8 @@ const ReceiptA4 = ({ transaction, companyInfo, onClose, onPrint }) => {
               <tr className="border-b border-gray-100">
                 <td className="py-6 px-6 text-center font-bold text-gray-400">01</td>
                 <td className="py-6 px-6">
-                  <p className="font-black text-gray-900 text-lg uppercase">{transaction.serviceName}</p>
+                  <p className="font-black text-gray-900 text-lg uppercase">{serviceName || packageName || '-'}</p>
+                  {packageName && packageName !== serviceName && <p className="text-sm text-gray-700 mt-1 font-bold">Paket: {packageName}</p>}
                   <p className="text-sm text-gray-500 mt-1 italic font-medium">Layanan internet dedicated / broadband sesuai kontrak.</p>
                 </td>
                 <td className="py-6 px-6 text-right font-black text-gray-900 text-xl">{formatRupiah(transaction.price)}</td>
@@ -82,19 +94,25 @@ const ReceiptA4 = ({ transaction, companyInfo, onClose, onPrint }) => {
               <span className="font-black text-xl uppercase tracking-widest">Grand Total</span>
               <span className="font-black text-2xl">{formatRupiah(transaction.price)}</span>
             </div>
+            {amountPaid != null && (
+              <div className="flex justify-between py-2 border-b border-gray-100 text-gray-600 font-bold">
+                <span>Dibayar</span>
+                <span>{formatRupiah(amountPaid)}</span>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="mt-20 flex justify-between items-end">
           <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100 max-w-xs">
              <p className="font-black text-[10px] text-blue-400 uppercase tracking-widest mb-3">Metode Pembayaran:</p>
-             <p className="font-black text-blue-900 text-sm">BANK TRANSFER / CASH</p>
+             <p className="font-black text-blue-900 text-sm uppercase">{paymentMethod || 'BANK TRANSFER / CASH'}</p>
              <p className="text-xs text-blue-700 mt-1 font-medium italic">*Harap konfirmasi setelah melakukan pembayaran.</p>
           </div>
           <div className="text-center w-64">
             <p className="mb-24 text-sm font-bold text-gray-400 uppercase tracking-widest">Hormat Kami,</p>
             <div className="border-b-2 border-gray-900 w-full mb-2"></div>
-            <p className="font-black text-gray-900 uppercase">{transaction.cashierName || 'Bagian Keuangan'}</p>
+            <p className="font-black text-gray-900 uppercase">{cashierName || 'Bagian Keuangan'}</p>
             <p className="text-xs text-gray-500 font-bold mt-1 tracking-widest opacity-50">{companyInfo.name}</p>
           </div>
         </div>

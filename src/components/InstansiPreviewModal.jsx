@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X, Printer, Download, Loader2 } from 'lucide-react';
 import InstansiA4Preview from './InstansiA4Preview';
@@ -46,8 +47,9 @@ const InstansiPreviewModal = ({ invoiceData, lineItems, subtotal, profile, onClo
     setDownloading(false);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col print:bg-white print:block">
+  // Portal ke body: halaman /instansi berada di dalam wrapper print:hidden milik App.
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col print:bg-white print:block print:static instansi-print-root">
       <div className="flex items-center justify-between px-4 py-3 print:hidden">
         <span className="text-white font-bold text-sm truncate">{invoiceData.invoiceNumber}</span>
         <button type="button" onClick={onClose} aria-label="Tutup" className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white">
@@ -56,7 +58,7 @@ const InstansiPreviewModal = ({ invoiceData, lineItems, subtotal, profile, onClo
       </div>
 
       <div ref={outerRef} className="instansi-preview-outer flex-1 overflow-auto px-2 pb-28 print:p-0 print:overflow-visible print:block print:pb-0">
-        <div style={{ width: naturalSize.w * scale, height: naturalSize.h * scale }} className="mx-auto print:w-auto print:h-auto">
+        <div style={{ width: naturalSize.w * scale, height: naturalSize.h * scale }} className="mx-auto instansi-preview-frame">
           <div
             ref={contentRef}
             className="instansi-preview-scale origin-top-left"
@@ -78,7 +80,8 @@ const InstansiPreviewModal = ({ invoiceData, lineItems, subtotal, profile, onClo
           <Printer size={18} /> Cetak
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { X, Printer } from 'lucide-react';
 import InstansiA4Preview from './InstansiA4Preview';
@@ -28,8 +29,9 @@ const InstansiMultiPreviewModal = ({ items, profile, onClose }) => {
     return () => ro.disconnect();
   }, [items]);
 
-  return (
-    <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md flex flex-col print:bg-white print:block">
+  // Portal ke body: halaman /instansi berada di dalam wrapper print:hidden milik App.
+  return createPortal(
+    <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md flex flex-col print:bg-white print:block print:static instansi-print-root">
       <div className="flex items-center justify-between px-4 py-3 print:hidden">
         <span className="text-white font-bold text-sm">Pratinjau Cetak Massal — {items.length} dokumen</span>
         <button type="button" onClick={onClose} aria-label="Tutup" className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white">
@@ -38,7 +40,7 @@ const InstansiMultiPreviewModal = ({ items, profile, onClose }) => {
       </div>
 
       <div ref={outerRef} className="instansi-preview-outer flex-1 overflow-auto px-2 pb-28 print:p-0 print:overflow-visible print:block print:pb-0">
-        <div style={{ width: naturalSize.w * scale, height: naturalSize.h * scale }} className="mx-auto print:w-auto print:h-auto">
+        <div style={{ width: naturalSize.w * scale, height: naturalSize.h * scale }} className="mx-auto instansi-preview-frame">
           <div
             ref={contentRef}
             className="instansi-preview-scale flex flex-col gap-8 print:gap-0"
@@ -59,7 +61,8 @@ const InstansiMultiPreviewModal = ({ items, profile, onClose }) => {
           <Printer size={18} /> Cetak Semua ({items.length})
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

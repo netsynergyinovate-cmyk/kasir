@@ -4,10 +4,14 @@ import JSZip from 'jszip';
 
 // Merasterisasi satu elemen preview A4 (.printable-invoice) jadi satu halaman PDF A4 (210x297mm).
 // Dipakai untuk "Unduh PDF" satu invoice dan untuk membangun arsip ZIP di Multipate.
+// Isi yang lebih tinggi dari A4 tidak dipencet: gambar dipotong per 297mm ke halaman PDF berikutnya.
 async function renderPageToPdf(pdf, pageEl, isFirstPage) {
   const dataUrl = await toJpeg(pageEl, { quality: 0.95, pixelRatio: 2, backgroundColor: '#ffffff' });
-  if (!isFirstPage) pdf.addPage();
-  pdf.addImage(dataUrl, 'JPEG', 0, 0, 210, 297);
+  const imgHeight = pageEl.offsetWidth ? (210 * pageEl.offsetHeight) / pageEl.offsetWidth : 297;
+  for (let y = 0; y === 0 || y < imgHeight - 1; y += 297) {
+    if (!isFirstPage || y > 0) pdf.addPage();
+    pdf.addImage(dataUrl, 'JPEG', 0, -y, 210, imgHeight);
+  }
 }
 
 // containerEl = elemen yang membungkus satu atau lebih .printable-invoice (untuk invoice multi-halaman).

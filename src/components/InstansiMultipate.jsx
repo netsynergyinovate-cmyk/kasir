@@ -5,7 +5,7 @@ import InstansiA4Preview from './InstansiA4Preview';
 import InstansiMultiPreviewModal from './InstansiMultiPreviewModal';
 import { downloadInvoicesZip } from '../utils/instansiPdfExport';
 import {
-  generateInvoiceNumber, nextSequence, billingPeriod, resolvePackagePrice, monthRange, amountInWords,
+  generateInvoiceNumber, nextSequence, billingPeriod, resolvePackagePrice, monthRange, amountInWords, formatDateIndo,
 } from '../utils/instansiInvoice';
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -140,6 +140,8 @@ const InstansiMultipate = ({ clients, profile, internetPackages, existingInvoice
         dueDate: item.due_date || item.dueDate,
         method: item.method,
         status: item.status === 'paid' ? 'LUNAS' : 'PENDING',
+        issuancePlace: item.issuance_place,
+        issuanceDate: item.issuance_date ? formatDateIndo(item.issuance_date) : '',
         amountInWords: amountInWords(amount),
       },
       lineItems: [

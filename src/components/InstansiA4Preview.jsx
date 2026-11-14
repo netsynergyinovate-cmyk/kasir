@@ -85,6 +85,7 @@ const InstansiA4Preview = ({ invoiceData, lineItems, subtotal, profile }) => {
               )}
               <div>
                 <h1 className="font-bold text-[24px] text-[#1b2b48] mb-0 tracking-tight leading-tight uppercase">{profile?.companyName || 'PT NET SYNERGY INOVATE'}</h1>
+                {profile?.companyId && <p className="text-[11px] text-[#006591] italic font-semibold">{profile.companyId}</p>}
                 <p className="text-[12px] text-[#44474d] max-w-md leading-tight opacity-90 whitespace-pre-line">
                   {profile?.address || '-'}
                   {'\n'}Email: {profile?.csEmail || '-'}
@@ -110,6 +111,11 @@ const InstansiA4Preview = ({ invoiceData, lineItems, subtotal, profile }) => {
               <div className="flex items-center gap-2 text-[12px] text-[#44474d] mb-1">
                 <IdCard size={14} className="text-[#1b2b48]" /> ID Pelanggan: {invoiceData.clientId || '-'}
               </div>
+              {invoiceData.email && (
+                <div className="flex items-center gap-2 text-[12px] text-[#44474d] mb-1">
+                  <Mail size={14} className="text-[#1b2b48]" /> {invoiceData.email}
+                </div>
+              )}
               <div className="flex items-start gap-2 text-[12px] text-[#44474d] leading-tight">
                 <MapPin size={14} className="mt-0.5 shrink-0" /> <div>{invoiceData.address || '-'}</div>
               </div>
@@ -162,7 +168,7 @@ const InstansiA4Preview = ({ invoiceData, lineItems, subtotal, profile }) => {
             <div className="flex items-center gap-2 mb-1 text-[#1b2b48]"><Info size={18} /><h3 className="text-[11px] font-semibold tracking-wider uppercase">Catatan Administrasi</h3></div>
             <p className="text-[11px] text-[#44474d] leading-snug whitespace-pre-line">
               Biaya langganan mencakup pemeliharaan rutin dan dukungan teknis 24/7. Pastikan pembayaran sebelum jatuh tempo untuk menghindari penangguhan otomatis.
-              <span className="block font-semibold text-[#1b2b48] mt-1">{profile?.csPhone ? `Layanan Pengaduan: ${profile.csPhone} | WA: ${profile.csPhone}` : 'Layanan Pengaduan: -'}</span>
+              <span className="block font-semibold text-[#1b2b48] mt-1">{profile?.csPhone ? `Layanan Pengaduan${profile.csName ? ` (${profile.csName})` : ''}: ${profile.csPhone} | WA: ${profile.csPhone}` : 'Layanan Pengaduan: -'}</span>
             </p>
           </div>
 
@@ -199,6 +205,7 @@ const InstansiA4Preview = ({ invoiceData, lineItems, subtotal, profile }) => {
                 ) : (
                   <span className="bg-[#ffdad6] text-[#ba1a1a] px-3 py-0.5 rounded font-bold text-[10px] tracking-widest uppercase border border-[#ba1a1a]/20">BELUM LUNAS</span>
                 )}
+                {invoiceData.method && <span className="ml-2">METODE: {invoiceData.method}</span>}
               </div>
             </div>
 
@@ -336,9 +343,10 @@ const InstansiA4Preview = ({ invoiceData, lineItems, subtotal, profile }) => {
                       <div className="px-3 py-2"><p className="text-[17px] font-black text-[#00288e] tracking-tight leading-none">{invoiceData.invoiceNumber}</p></div>
                     </div>
                     <div className="grid grid-cols-2 border border-slate-100 rounded-xl p-3 gap-3 shadow-sm bg-white">
-                      <div className="flex flex-col"><p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1">Tanggal</p><p className="font-bold text-[11px] text-slate-800">{invoiceData.issuedDate}</p></div>
-                      <div className="flex flex-col items-end text-right"><p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1">Tempo</p><p className="font-bold text-[11px] text-rose-600">{invoiceData.dueDate}</p></div>
+                      <div className="flex flex-col"><p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1">Tanggal</p><p className="font-bold text-[11px] text-slate-800">{formatDateIndo(invoiceData.issuedDate)}</p></div>
+                      <div className="flex flex-col items-end text-right"><p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1">Tempo</p><p className="font-bold text-[11px] text-rose-600">{formatDateIndo(invoiceData.dueDate)}</p></div>
                     </div>
+                    {servicePeriod && <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider px-1">Periode: {servicePeriod}</p>}
                     <div className="flex gap-2">
                       <div className="flex-1 border border-amber-100 bg-amber-50/50 rounded-xl p-2 text-center"><p className="text-[8px] text-amber-700 font-bold uppercase">Metode</p><p className="font-black text-[11px] text-amber-700 uppercase tracking-tight">{invoiceData.method || 'TRANSFER'}</p></div>
                       <div className={`flex-1 rounded-xl p-2 text-center shadow-md ${isPaid ? 'bg-emerald-500' : 'bg-amber-500'}`}><p className="text-[8px] text-white/90 font-bold uppercase">Status</p><p className="font-black text-[11px] text-white uppercase tracking-tight">{invoiceData.status}</p></div>
@@ -386,6 +394,7 @@ const InstansiA4Preview = ({ invoiceData, lineItems, subtotal, profile }) => {
                       </div>
                       <div className="space-y-1.5">
                         <p className="font-black text-[9px] text-[#00288e] uppercase tracking-widest flex items-center gap-1.5"><Headset size={14} /> DUKUNGAN PELANGGAN <span className="italic font-normal opacity-70 ml-1">/ Customer Support</span></p>
+                        {profile?.csName && <div className="text-[10px] font-bold text-slate-800 ml-5 mt-1">CS: {profile.csName}</div>}
                         <div className="text-[10px] font-bold text-slate-800 ml-5 mt-1">WhatsApp: {profile?.csPhone || '-'}</div>
                         <div className="text-[8px] text-slate-500 leading-tight border-t border-slate-50 pt-1 ml-5">
                           <p>• Bayar sebelum tempo untuk menghindari denda.</p>
