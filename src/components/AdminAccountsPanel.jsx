@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2, ShieldCheck, Crown, Mail, DollarSign } from 'lucide-react';
+import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2, ShieldCheck, Crown, Mail, DollarSign, Pencil } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import AdminAccessModal from './AdminAccessModal';
 import AdminCommissionModal from './AdminCommissionModal';
@@ -133,6 +133,16 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
     setLockingId(null);
   };
 
+  // Nama tiap akun (sapaan Beranda, nama kasir di struk, komisi) — superadmin boleh mengubah milik siapa pun
+  // (policy "profiles superadmin update any"); admin mengubah miliknya sendiri di tab Umum.
+  const handleRename = async (acc) => {
+    const name = window.prompt(`Nama untuk akun ${acc.email || acc.full_name}:`, acc.full_name || '')?.trim();
+    if (!name || name === acc.full_name) return;
+    const { error } = await supabase.from('admin_profiles').update({ full_name: name }).eq('id', acc.id);
+    if (error) alert('Gagal mengubah nama: ' + error.message);
+    else await loadAdmins();
+  };
+
   const handleDeleteAdmin = async (acc) => {
     if (!window.confirm(`Hapus admin "${acc.full_name}" (${acc.email || 'tanpa email'})? Akunnya tidak bisa login lagi. Riwayat kunjungan yang pernah dicatat tetap tersimpan.`)) return;
     setDeletingId(acc.id);
@@ -227,6 +237,9 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <p className="text-sm font-black text-gray-900 truncate">{acc.full_name}</p>
+                        <button type="button" onClick={() => handleRename(acc)} aria-label={`Ubah nama ${acc.full_name}`} title="Ubah nama" className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md shrink-0">
+                          <Pencil size={12} />
+                        </button>
                       </div>
                       {acc.email && (
                         <p className="text-[11px] text-gray-400 flex items-center gap-1 truncate"><Mail size={11} className="shrink-0" />{acc.email}</p>

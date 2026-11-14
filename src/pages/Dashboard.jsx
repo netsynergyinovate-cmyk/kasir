@@ -189,7 +189,7 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
           </span>
           <div className="flex items-center gap-1.5 mt-0.5">
             <h2 className="text-[20px] font-bold text-gray-900 leading-snug">
-              Halo, <span className="text-blue-600">{companyInfo.adminName || 'Admin'}</span>
+              Halo, <span className="text-blue-600">{session?.profile?.full_name || companyInfo.adminName || 'Admin'}</span>
             </h2>
             <span className="text-[22px] animate-wave-hand select-none" title="Halo!">👋</span>
           </div>
