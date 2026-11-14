@@ -1,5 +1,5 @@
-// Menu yang bisa diatur superadmin per-admin (dicentang di panel Akun Admin). Rute (/rute) sengaja tidak
-// masuk sini — itu pelacakan lokasi live khusus superadmin, bukan menu yang bisa dipindah ke admin.
+// Menu yang bisa diatur superadmin per-admin (dicentang di panel Akun Admin). Rute (/rute) tidak masuk
+// sini: aksesnya ikut hak akses fitur 'rute.view' (lihat isPathAllowedForRole).
 export const CONFIGURABLE_ADMIN_MENUS = [
   { path: '/', label: 'Beranda' },
   { path: '/pos', label: 'Transaksi' },
@@ -117,7 +117,7 @@ export const DEFAULT_ADMIN_PERMISSIONS = [
   'pos.view', 'pos.retail', 'pos.voucher', 'pos.print',
   'customers.view', 'customers.create', 'customers.edit',
   'history.view', 'history.proof_view', 'history.proof_upload',
-  'rute.view', 'rute.visit',
+  'rute.visit', // rute.view sengaja tidak bawaan: halaman Rute hanya untuk admin yang dicentang superadmin
   'whatsapp.invoice',
   'finance.view_activity',
   'settings.view', 'settings.printer',
@@ -191,6 +191,7 @@ export function isPathAllowedForRole(role, pathname, allowedPaths = null) {
   if (role === 'superadmin') return true;
   const cleanPath = (pathname || '').split('?')[0].split('#')[0];
   const access = normalizeAdminAccess(allowedPaths);
+  if (cleanPath === '/rute') return access.permissions.includes('rute.view');
   return access.paths.includes(cleanPath);
 }
 

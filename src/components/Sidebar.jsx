@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { X, Home, Users, Printer, Settings as SettingsIcon, Building2, ChevronRight, Activity, LogOut, ShieldCheck, Crown, Route as RouteIcon, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { isPathAllowedForRole } from '../utils/permissions';
 
 // session: profil EFEKTIF yang dipakai buat tampilan (bisa hasil pratinjau "Lihat sebagai Admin").
 // actualRole: role SESUNGGUHNYA dari sesi login (dipakai buat nampilkan tombol pratinjau, hanya superadmin asli).
@@ -60,7 +61,7 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewA
             <NavLink to="/pelanggan-runsnet-baru" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
               <UserPlus size={18} /> Tambah Pelanggan
             </NavLink>
-            {isSuper && (
+            {isPathAllowedForRole(session?.profile?.role, '/rute', session?.profile?.allowed_paths) && (
               <NavLink to="/rute" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
                 <RouteIcon size={18} /> Rute Kunjungan
               </NavLink>

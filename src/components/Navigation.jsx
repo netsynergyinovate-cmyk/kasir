@@ -45,7 +45,7 @@ const Navigation = ({ role, allowedPaths }) => {
 
         <div className="flex justify-around w-[42%]">
           {can('/history') && <NavItem to="/history" icon={History} label="Riwayat" />}
-          {role === 'superadmin' && <NavItem to="/rute" icon={RouteIcon} label="Rute" />}
+          {can('/rute') && <NavItem to="/rute" icon={RouteIcon} label="Rute" />}
           {can('/settings') && <NavItem to="/settings" icon={SettingsIcon} label="Setting" />}
         </div>
 

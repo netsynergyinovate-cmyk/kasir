@@ -28,9 +28,14 @@ describe('isPathAllowedForRole', () => {
     expect(isPathAllowedForRole('admin', '/aktivitas')).toBe(true);
   });
 
-  it('does not get the visit route page (admin sees the route on the dashboard instead)', () => {
+  it('does not get the visit route page by default (admin sees the route on the dashboard instead)', () => {
     expect(isPathAllowedForRole('admin', '/rute')).toBe(false);
     expect(isPathAllowedForRole('superadmin', '/rute')).toBe(true);
+  });
+
+  it('opens the visit route page for an admin once superadmin grants rute.view', () => {
+    expect(isPathAllowedForRole('admin', '/rute', { paths: ['/pos'], permissions: ['rute.view'] })).toBe(true);
+    expect(isPathAllowedForRole('admin', '/rute', { paths: ['/pos'], permissions: ['rute.visit'] })).toBe(false);
   });
 
   it('blocks admin on paths outside the allow-list', () => {
