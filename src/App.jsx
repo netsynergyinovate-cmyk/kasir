@@ -1150,6 +1150,7 @@ export default function App() {
                 transactions={transactions.map(t => ({...t, customerName: t.customer_name}))}
                 visits={visits}
                 role={effectiveSession?.profile?.role}
+                allowedPaths={effectiveSession?.profile?.allowed_paths}
                 onAddVisit={handleAddVisit}
                 adminLocations={adminLocations}
                 onUpdateCustomerRoute={handleUpdateCustomerRoute}

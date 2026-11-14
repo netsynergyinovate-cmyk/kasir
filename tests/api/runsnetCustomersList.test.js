@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../api/_lib/verifySuperadmin.js', () => ({ verifySuperadmin: vi.fn() }));
+vi.mock('../../api/_lib/verifySuperadmin.js', () => ({ verifyPermission: vi.fn() }));
 vi.mock('../../api/_lib/runsnetClient.js', () => ({ getRunsnetSession: vi.fn(), fetchAllCustomers: vi.fn() }));
 
-import { verifySuperadmin } from '../../api/_lib/verifySuperadmin.js';
+import { verifyPermission } from '../../api/_lib/verifySuperadmin.js';
 import { getRunsnetSession, fetchAllCustomers } from '../../api/_lib/runsnetClient.js';
 import handler from '../../api/runsnet/customers-list.js';
 
@@ -24,7 +24,7 @@ describe('POST /api/runsnet/customers-list', () => {
   });
 
   it('requires a valid superadmin token', async () => {
-    verifySuperadmin.mockResolvedValue({ error: { status: 401, message: 'Token tidak valid.' } });
+    verifyPermission.mockResolvedValue({ error: { status: 401, message: 'Token tidak valid.' } });
     const res = makeRes();
     await handler({ method: 'POST', headers: {} }, res);
     expect(res.statusCode).toBe(401);
@@ -33,7 +33,7 @@ describe('POST /api/runsnet/customers-list', () => {
 
   it('returns the Runsnet customer list without writing anything', async () => {
     const adminClient = { from: vi.fn() };
-    verifySuperadmin.mockResolvedValue({ adminClient });
+    verifyPermission.mockResolvedValue({ adminClient });
     getRunsnetSession.mockResolvedValue({ cookie: 'cookie123', menu: {} });
     fetchAllCustomers.mockResolvedValue([{ custid: 'C1', name: 'Budi', package: 'X', type: 'Postpaid', status: 'aktif' }]);
 

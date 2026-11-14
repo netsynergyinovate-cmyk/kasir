@@ -18,7 +18,7 @@ import RunsnetSyncPanel from '../components/RunsnetSyncPanel';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { resizeImageFile } from '../utils/imageResize';
 import { MAP_ICON_TYPES, MAP_ICON_COLORS, getDeterministicColor, getInitials } from '../utils/adminMapIcons';
-import { normalizeAdminAccess } from '../utils/permissions';
+import { normalizeAdminAccess, hasPermission } from '../utils/permissions';
 
 const parseLogDetail = (detail) => {
   if (!detail) return {};
@@ -269,6 +269,8 @@ const Settings = ({
 
   const currentUser = session?.user;
   const isSuper = session?.profile?.role === 'superadmin';
+  const can = (perm) => hasPermission(session?.profile?.role, perm, session?.profile?.allowed_paths);
+  const canToko = can('settings.company') || can('settings.packages');
   const myFullName = session?.profile?.full_name || '';
 
   // Kolom nama mengikuti nama profil yang sedang login; disesuaikan saat render, bukan di effect
@@ -292,8 +294,8 @@ const Settings = ({
 
   const TABS = [
     { key: 'umum', label: 'Umum', icon: SlidersHorizontal },
+    ...(canToko ? [{ key: 'toko', label: 'Toko', icon: Building2 }] : []),
     ...(isSuper ? [
-      { key: 'toko', label: 'Toko', icon: Building2 },
       { key: 'ebilling', label: 'E-Billing', icon: Activity },
       { key: 'watbiz', label: 'WhatsApp', icon: MessageCircle },
       { key: 'admin', label: 'Admin', icon: Users },
@@ -807,7 +809,7 @@ const Settings = ({
                   <span className="font-black text-emerald-600">Rp</span>
                   <MoneyInput
                     name="adminFee"
-                    readOnly={!isSuper}
+                    readOnly={!can('settings.company')}
                     value={localCompany.adminFee || ''}
                     onValueChange={(next) => setLocalCompany((prev) => ({ ...prev, adminFee: next }))}
                     onBlur={handleBlur}
@@ -822,9 +824,10 @@ const Settings = ({
         </>
         )}
 
-        {/* Tab: Toko & Paket (khusus superadmin) */}
-        {isSuper && activeTab === 'toko' && (
+        {/* Tab: Toko & Paket (superadmin, atau admin dengan hak akses settings.company / settings.packages) */}
+        {canToko && activeTab === 'toko' && (
         <>
+        {can('settings.company') && (
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Identitas Toko</h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
@@ -881,8 +884,10 @@ const Settings = ({
             </div>
           </div>
         </div>
+        )}
 
         {/* Section: Manajemen Paket */}
+        {can('settings.packages') && (
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Paket Internet</h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
@@ -906,8 +911,10 @@ const Settings = ({
             </div>
           </div>
         </div>
+        )}
 
-        {/* Section: Keamanan */}
+        {/* Section: Keamanan (khusus superadmin) */}
+        {isSuper && (
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Keamanan</h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
@@ -928,6 +935,7 @@ const Settings = ({
             </div>
           </div>
         </div>
+        )}
         </>
         )}
 

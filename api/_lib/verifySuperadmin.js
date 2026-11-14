@@ -25,7 +25,7 @@ export async function verifyStaff(req) {
   const adminClient = getServiceClient();
   const { data: callerProfile, error: profileError } = await adminClient
     .from('admin_profiles')
-    .select('role')
+    .select('role, allowed_paths')
     .eq('id', callerData.user.id)
     .maybeSingle();
 
@@ -33,7 +33,7 @@ export async function verifyStaff(req) {
     return { error: { status: 403, message: 'Akun ini belum terdaftar sebagai staf KAsir.' } };
   }
 
-  return { adminClient, callerId: callerData.user.id, role: callerProfile.role };
+  return { adminClient, callerId: callerData.user.id, role: callerProfile.role, allowedPaths: callerProfile.allowed_paths };
 }
 
 // Memverifikasi bahwa permintaan datang dari superadmin yang sedang login. Dibangun di atas
@@ -46,5 +46,19 @@ export async function verifySuperadmin(req) {
     return { error: { status: 403, message: `Hanya superadmin yang boleh melakukan aksi ini. [role: ${staff.role}]` } };
   }
 
+  return staff;
+}
+
+// Seperti verifySuperadmin, tapi admin juga lolos kalau superadmin sudah mencentang hak akses `permission`
+// untuknya (admin_profiles.allowed_paths.permissions). Hanya untuk permission yang BUKAN bawaan admin.
+export async function verifyPermission(req, permission) {
+  const staff = await verifyStaff(req);
+  if (staff.error) return staff;
+  if (staff.role === 'superadmin') return staff;
+
+  const permissions = staff.allowedPaths?.permissions;
+  if (!Array.isArray(permissions) || !permissions.includes(permission)) {
+    return { error: { status: 403, message: `Akun ini belum diberi hak akses "${permission}" oleh superadmin.` } };
+  }
   return staff;
 }

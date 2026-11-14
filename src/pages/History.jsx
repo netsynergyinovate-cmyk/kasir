@@ -12,6 +12,7 @@ import { formatRupiah, getInvoiceNumber } from '../utils/format';
 import { runsnetCodeOf, describeRunsnetStatus, isRunsnetMismatch } from '../utils/runsnetStatus';
 import { isEffectivelyKasbon } from '../utils/dashboardStats';
 import RunsnetProofModal from '../components/RunsnetProofModal';
+import { hasPermission } from '../utils/permissions';
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '';
@@ -666,7 +667,7 @@ const History = ({
                       </span>
                     )}
 
-                    {role === 'superadmin' && (
+                    {hasPermission(role, 'history.cancel', session?.profile?.allowed_paths) && (
                       <button
                         type="button"
                         onClick={(e) => {

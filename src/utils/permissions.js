@@ -115,7 +115,7 @@ export const ALL_PERMISSIONS = PERMISSION_MODULES.flatMap((m) => m.permissions.m
 
 export const DEFAULT_ADMIN_PERMISSIONS = [
   'pos.view', 'pos.retail', 'pos.voucher', 'pos.print',
-  'customers.view', 'customers.create', 'customers.edit',
+  'customers.view', 'customers.create', // customers.edit bukan bawaan: edit pelanggan dulu khusus superadmin
   'history.view', 'history.proof_view', 'history.proof_upload',
   'rute.visit', // rute.view sengaja tidak bawaan: halaman Rute hanya untuk admin yang dicentang superadmin
   'whatsapp.invoice',
@@ -143,7 +143,7 @@ export function normalizeAdminAccess(allowedPaths) {
     // Format array lama: tentukan permissions berdasarkan menu yang diizinkan
     const perms = [];
     if (allowedPaths.includes('/pos')) perms.push('pos.view', 'pos.retail', 'pos.voucher', 'pos.print');
-    if (allowedPaths.includes('/customers')) perms.push('customers.view', 'customers.create', 'customers.edit');
+    if (allowedPaths.includes('/customers')) perms.push('customers.view', 'customers.create');
     if (allowedPaths.includes('/history')) perms.push('history.view', 'history.proof_view', 'history.proof_upload');
     if (allowedPaths.includes('/aktivitas')) perms.push('finance.view_activity');
     if (allowedPaths.includes('/settings')) perms.push('settings.view', 'settings.printer');

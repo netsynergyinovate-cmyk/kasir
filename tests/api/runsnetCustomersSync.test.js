@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../api/_lib/verifySuperadmin.js', () => ({ verifySuperadmin: vi.fn() }));
+vi.mock('../../api/_lib/verifySuperadmin.js', () => ({ verifyPermission: vi.fn() }));
 vi.mock('../../api/_lib/runsnetClient.js', () => ({ getRunsnetSession: vi.fn(), fetchAllCustomers: vi.fn() }));
 
-import { verifySuperadmin } from '../../api/_lib/verifySuperadmin.js';
+import { verifyPermission } from '../../api/_lib/verifySuperadmin.js';
 import { getRunsnetSession, fetchAllCustomers } from '../../api/_lib/runsnetClient.js';
 import handler from '../../api/runsnet/customers.js';
 
@@ -26,7 +26,7 @@ describe('POST /api/runsnet/customers', () => {
   });
 
   it('requires a valid superadmin token', async () => {
-    verifySuperadmin.mockResolvedValue({ error: { status: 401, message: 'Token tidak valid.' } });
+    verifyPermission.mockResolvedValue({ error: { status: 401, message: 'Token tidak valid.' } });
     const res = makeRes();
     await handler({ method: 'POST', headers: {}, body: { custids: ['C1'] } }, res);
     expect(res.statusCode).toBe(401);
@@ -34,7 +34,7 @@ describe('POST /api/runsnet/customers', () => {
   });
 
   it('refuses to import when no custids are selected (prevents an accidental full pull)', async () => {
-    verifySuperadmin.mockResolvedValue({ adminClient: {} });
+    verifyPermission.mockResolvedValue({ adminClient: {} });
     const res = makeRes();
     await handler({ method: 'POST', headers: { authorization: 'Bearer x' }, body: {} }, res);
     expect(res.statusCode).toBe(400);
@@ -54,7 +54,7 @@ describe('POST /api/runsnet/customers', () => {
     const adminClient = {
       from: vi.fn(() => ({ select: () => ({ eq: () => ({ maybeSingle }) }), upsert })),
     };
-    verifySuperadmin.mockResolvedValue({ adminClient });
+    verifyPermission.mockResolvedValue({ adminClient });
     getRunsnetSession.mockResolvedValue({ cookie: 'cookie123', menu: {} });
     // Runsnet returns 3 customers, tapi superadmin cuma memilih C1 dan C2.
     fetchAllCustomers.mockResolvedValue([
@@ -75,7 +75,7 @@ describe('POST /api/runsnet/customers', () => {
   });
 
   it('reports a readable error when Runsnet is unreachable', async () => {
-    verifySuperadmin.mockResolvedValue({ adminClient: {} });
+    verifyPermission.mockResolvedValue({ adminClient: {} });
     getRunsnetSession.mockRejectedValue(new Error('Login Runsnet gagal'));
     const res = makeRes();
     await handler({ method: 'POST', headers: { authorization: 'Bearer x' }, body: { custids: ['C1'] } }, res);

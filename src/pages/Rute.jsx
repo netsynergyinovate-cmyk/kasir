@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSearchParamSync } from '../hooks/useSearchParamSync';
+import { hasPermission } from '../utils/permissions';
 import {
   Navigation, MapPin, Phone, ClipboardPen, ChevronUp, ChevronDown, X, Plus,
   Settings2, Route as RouteIcon, CheckCircle2, Loader2, Search, LocateFixed,
@@ -42,8 +43,10 @@ const Rute = ({
   onBatchUpdateCustomerRoutes,
   defaultFilter = 'perlu',
   adminLocations = [],
+  allowedPaths = null,
 }) => {
   const isSuper = role === 'superadmin';
+  const canReorder = hasPermission(role, 'rute.reorder', allowedPaths);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [filter, setFilter] = useState(() => {
@@ -194,7 +197,7 @@ const Rute = ({
             {routeCustomers.length} rumah · {pending.length} perlu didatangi · {paidCount} sudah terbayarkan
           </p>
         </div>
-        {isSuper && (
+        {canReorder && (
           <button
             type="button"
             onClick={() => {
@@ -210,7 +213,7 @@ const Rute = ({
       </div>
 
       {/* Banner Mode Puzzle & Penyusunan Urutan Rute */}
-      {isSuper && editMode && (
+      {canReorder && editMode && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3.5 space-y-2.5 animate-in fade-in">
           <div className="flex items-start gap-2.5">
             <span className="text-xl shrink-0 mt-0.5">🧩</span>
@@ -424,7 +427,7 @@ const Rute = ({
           return (
             <div key={customer.id} className="space-y-1.5">
               {/* Slot Target Tombol Letakkan di Sini (Mode Pilih & Letakkan HP) */}
-              {isSuper && editMode && selectedForMove && !isCurrentSelectedForMove && listIdx === 0 && (
+              {canReorder && editMode && selectedForMove && !isCurrentSelectedForMove && listIdx === 0 && (
                 <button
                   type="button"
                   onClick={() => {
@@ -439,7 +442,7 @@ const Rute = ({
 
               {/* Kepingan Kartu Pelanggan ala Puzzle */}
               <div
-                draggable={isSuper && editMode && !query.trim()}
+                draggable={canReorder && editMode && !query.trim()}
                 onDragStart={(e) => {
                   e.dataTransfer.setData('text/plain', customer.id);
                   setDraggedId(customer.id);
@@ -476,7 +479,7 @@ const Rute = ({
               >
                 <div className="flex items-start gap-3">
                   {/* Grip Handle & Nomor Urutan Interaktif */}
-                  {isSuper && editMode ? (
+                  {canReorder && editMode ? (
                     <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <div className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-indigo-600 transition-colors" title="Tahan & geser untuk menyusun kepingan rute">
                         <GripVertical size={18} />
@@ -501,7 +504,7 @@ const Rute = ({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-black text-gray-900 truncate">{customer.name}</p>
-                      {isSuper && editMode && (
+                      {canReorder && editMode && (
                         <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md shrink-0">
                           Posisi #{routeNumberById[customer.id]}
                         </span>
@@ -535,7 +538,7 @@ const Rute = ({
                 )}
 
                 {/* Bilah Tombol Pengaturan Urutan Rute (Superadmin Mode Edit) */}
-                {isSuper && editMode && (
+                {canReorder && editMode && (
                   <div className="flex flex-wrap items-center gap-1.5 pt-2.5 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
                     {/* Ke Paling Atas (#1) */}
                     <button
@@ -629,7 +632,7 @@ const Rute = ({
               </div>
 
               {/* Slot Target Tombol Letakkan di Sini setelah kartu ini */}
-              {isSuper && editMode && selectedForMove && !isCurrentSelectedForMove && (
+              {canReorder && editMode && selectedForMove && !isCurrentSelectedForMove && (
                 <button
                   type="button"
                   onClick={() => {
@@ -647,7 +650,7 @@ const Rute = ({
       </div>
 
       {/* Pelanggan di luar rute (superadmin) */}
-      {isSuper && editMode && (
+      {canReorder && editMode && (
         <div className="space-y-2">
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Belum Masuk Rute ({notInRoute.length})</h2>
           <div className="max-h-72 overflow-y-auto space-y-1.5">

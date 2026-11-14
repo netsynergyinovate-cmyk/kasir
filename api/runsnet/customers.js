@@ -1,4 +1,4 @@
-import { verifySuperadmin } from '../_lib/verifySuperadmin.js';
+import { verifyPermission } from '../_lib/verifySuperadmin.js';
 import { getRunsnetSession, fetchAllCustomers } from '../_lib/runsnetClient.js';
 import { buildCustomerUpsert } from '../../src/utils/runsnetCustomers.js';
 
@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { error, adminClient } = await verifySuperadmin(req);
+  const { error, adminClient } = await verifyPermission(req, 'runsnet.sync_customers');
   if (error) {
     res.status(error.status).json({ error: error.message });
     return;

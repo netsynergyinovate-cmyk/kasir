@@ -1,4 +1,4 @@
-import { verifySuperadmin } from '../_lib/verifySuperadmin.js';
+import { verifyPermission } from '../_lib/verifySuperadmin.js';
 import { reversePayment } from '../_lib/paymentReversal.js';
 
 // Reversal pembayaran di Runsnet untuk satu transaksi, dipanggil dari Riwayat SEBELUM transaksinya dihapus.
@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { error, adminClient } = await verifySuperadmin(req);
+  const { error, adminClient } = await verifyPermission(req, 'history.cancel');
   if (error) {
     res.status(error.status).json({ error: error.message });
     return;

@@ -12,6 +12,7 @@ import RunsnetCustomerPicker from '../components/RunsnetCustomerPicker';
 import { formatRupiah } from '../utils/format';
 import { TONE_BADGE_CLASSES, isPaidThisMonth } from '../utils/visits';
 import { formatDueReminderMessage } from '../utils/whatsappTemplates';
+import { hasPermission } from '../utils/permissions';
 
 // Helper avatar color & initials
 const AVATAR_COLORS = [
@@ -58,6 +59,7 @@ const Pelanggan = ({
   onSyncEbilling
 }) => {
   const navigate = useNavigate();
+  const can = (perm) => hasPermission(role, perm, session?.profile?.allowed_paths);
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || '');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -366,7 +368,7 @@ const Pelanggan = ({
 
         <div className="flex items-center gap-1.5">
           {/* Action Dropdown Button (Runsnet & E-Billing) */}
-          {(role === 'superadmin' || onSyncEbilling) && (
+          {(can('runsnet.sync_customers') || onSyncEbilling) && (
             <div className="relative" ref={actionDropdownRef}>
               <button
                 type="button"
@@ -380,7 +382,7 @@ const Pelanggan = ({
 
               {showActionDropdown && (
                 <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-lg border border-gray-100 p-1.5 z-30 space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
-                  {role === 'superadmin' && (
+                  {can('runsnet.sync_customers') && (
                     <button
                       onClick={() => {
                         setShowActionDropdown(false);
@@ -749,8 +751,9 @@ const Pelanggan = ({
                         >
                           <Info size={13} />
                         </button>
-                        {role === 'superadmin' && (
+                        {(can('customers.edit') || can('customers.delete')) && (
                           <>
+                            {can('customers.edit') && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -762,6 +765,8 @@ const Pelanggan = ({
                             >
                               <Pencil size={12} />
                             </button>
+                            )}
+                            {can('customers.delete') && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -773,6 +778,7 @@ const Pelanggan = ({
                             >
                               <Trash2 size={12} />
                             </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -1067,8 +1073,9 @@ const Pelanggan = ({
                           <Info size={14} />
                         </button>
 
-                        {role === 'superadmin' && (
+                        {(can('customers.edit') || can('customers.delete')) && (
                           <>
+                            {can('customers.edit') && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1080,6 +1087,8 @@ const Pelanggan = ({
                             >
                               <Pencil size={12} />
                             </button>
+                            )}
+                            {can('customers.delete') && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1091,6 +1100,7 @@ const Pelanggan = ({
                             >
                               <Trash2 size={12} />
                             </button>
+                            )}
                           </>
                         )}
                       </div>
