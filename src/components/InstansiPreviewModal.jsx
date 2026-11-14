@@ -2,7 +2,6 @@ import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X, Printer, Download, Loader2 } from 'lucide-react';
 import InstansiA4Preview from './InstansiA4Preview';
-import { downloadInvoicePdf } from '../utils/instansiPdfExport';
 
 // Pratinjau A4 layar penuh untuk HP: dokumen dirender di ukuran asli (210mm) lalu diskalakan supaya
 // muat di layar (dihitung ulang tiap resize), dan dikembalikan ke ukuran asli saat dicetak/diunduh
@@ -40,6 +39,8 @@ const InstansiPreviewModal = ({ invoiceData, lineItems, subtotal, profile, onClo
   const handleDownload = async () => {
     setDownloading(true);
     try {
+      // jsPDF/html-to-image (~400 KB) baru diunduh saat dipakai, bukan saat halaman dibuka.
+      const { downloadInvoicePdf } = await import('../utils/instansiPdfExport');
       await downloadInvoicePdf(contentRef.current, invoiceData.invoiceNumber, invoiceData.institutionName);
     } catch (err) {
       alert('Gagal membuat PDF: ' + err.message);

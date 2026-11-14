@@ -3,7 +3,6 @@ import { CheckCircle2, Loader2, Archive, Save, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import InstansiA4Preview from './InstansiA4Preview';
 import InstansiMultiPreviewModal from './InstansiMultiPreviewModal';
-import { downloadInvoicesZip } from '../utils/instansiPdfExport';
 import {
   generateInvoiceNumber, nextSequence, billingPeriod, resolvePackagePrice, monthRange, amountInWords, formatDateIndo,
 } from '../utils/instansiInvoice';
@@ -101,6 +100,8 @@ const InstansiMultipate = ({ clients, profile, internetPackages, existingInvoice
         invoiceNumber: inv.invoice_number,
         institutionName: inv.client.institution_name,
       })).filter((it) => it.el);
+      // jsPDF/JSZip/html-to-image (~400 KB) baru diunduh saat dipakai, bukan saat halaman dibuka.
+      const { downloadInvoicesZip } = await import('../utils/instansiPdfExport');
       await downloadInvoicesZip(items, (done, total, name) => setExportProgress(`${done}/${total} — ${name}`));
     } catch (err) {
       alert('Gagal membuat ZIP: ' + err.message);

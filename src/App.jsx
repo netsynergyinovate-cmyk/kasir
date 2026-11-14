@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, Building2, Search, LogOut, Lock } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
@@ -10,22 +10,24 @@ import { loadVerifiedProfile, clearLoginRecorded, updateMyName, setAdminPin } fr
 
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
-import Dashboard from './pages/Dashboard';
-import Pelanggan from './pages/Pelanggan';
-import Transaksi from './pages/Transaksi';
-import Settings from './pages/Settings';
-import Instansi from './pages/Instansi';
-import History from './pages/History';
-import Aktivitas from './pages/Aktivitas';
 import AddCustomerModal from './components/AddCustomerModal';
-import TambahPelangganRunsnet from './pages/TambahPelangganRunsnet';
 import ReceiptThermal from './components/ReceiptThermal';
 import ReceiptA4 from './components/ReceiptA4';
 import GlobalSearch from './components/GlobalSearch';
 
 import Login from './pages/Login';
-import DashboardSuperadmin from './pages/DashboardSuperadmin';
-import Rute from './pages/Rute';
+// Halaman dimuat saat dibuka (code-splitting) supaya pembukaan awal aplikasi ringan di HP lemah:
+// peta Leaflet, PDF, OCR, dll. tidak ikut diunduh & di-parse sebelum dibutuhkan.
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Pelanggan = lazy(() => import('./pages/Pelanggan'));
+const Transaksi = lazy(() => import('./pages/Transaksi'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Instansi = lazy(() => import('./pages/Instansi'));
+const History = lazy(() => import('./pages/History'));
+const Aktivitas = lazy(() => import('./pages/Aktivitas'));
+const TambahPelangganRunsnet = lazy(() => import('./pages/TambahPelangganRunsnet'));
+const DashboardSuperadmin = lazy(() => import('./pages/DashboardSuperadmin'));
+const Rute = lazy(() => import('./pages/Rute'));
 import RunsnetSyncToast from './components/RunsnetSyncToast';
 import UpdateBanner from './components/UpdateBanner';
 import { customerVisitStatus } from './utils/visits';
@@ -1095,6 +1097,7 @@ export default function App() {
         />
 
         <main className="flex-1 overflow-y-auto relative">
+          <Suspense fallback={<p className="text-center text-xs text-gray-400 italic py-10">Memuat...</p>}>
           <Routes>
             <Route path="/" element={
               effectiveSession?.profile?.role === 'superadmin' ? (
@@ -1215,6 +1218,7 @@ export default function App() {
               />
             } />
           </Routes>
+          </Suspense>
         </main>
 
         {location.pathname !== '/pelanggan-runsnet-baru' && (
