@@ -373,7 +373,29 @@ export default function App() {
       }
     };
 
-    fetchData();
+    // Tarik pelanggan, paket & harga terbaru dari Runsnet di latar belakang; muat ulang hanya kalau ada yang berubah.
+    const autoSyncRunsnet = async () => {
+      try {
+        const response = await fetch('/api/runsnet/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ mode: 'auto' }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error);
+        if (!result.customerUpdates && !result.customerInserts && !result.packageUpdates && !result.packageInserts) return;
+        const [{ data: custData }, { data: pkgData }] = await Promise.all([
+          supabase.from('customers').select('*').order('created_at', { ascending: false }),
+          supabase.from('packages').select('*').order('name'),
+        ]);
+        if (custData) setCustomers(custData);
+        if (pkgData) setPackages(pkgData);
+      } catch (e) {
+        console.warn('Sinkron otomatis Runsnet gagal:', e.message);
+      }
+    };
+
+    fetchData().then(autoSyncRunsnet);
     testConnection();
     requestNotificationPermission();
     requestLocationPermission();

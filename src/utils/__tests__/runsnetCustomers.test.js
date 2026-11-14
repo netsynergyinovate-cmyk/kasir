@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePelangganRow, mapRunsnetStatus, buildCustomerUpsert } from '../runsnetCustomers';
+import { parsePelangganRow, mapRunsnetStatus, buildCustomerUpsert, planAutoSync } from '../runsnetCustomers';
 
 const sampleRow = [
   "<input type='checkbox' name='select' value='17060001092' onclick='customeurl()'>",
@@ -67,5 +67,40 @@ describe('buildCustomerUpsert', () => {
     expect(payload.phone).toBe('0812xxxx');
     expect(payload.address).toBe('Jl. Lama');
     expect(payload.name).toBe('JEFRI NET SYNERGY');
+  });
+});
+
+describe('planAutoSync', () => {
+  const run = (over = {}) => planAutoSync({
+    runsnetCustomers: [
+      { custid: 'C1', name: 'Budi', package: 'NET 30 Mbps', status: 'aktif' },
+      { custid: 'C2', name: 'Sari', package: 'NET 10 Mbps', status: 'aktif' },
+      { custid: 'C3', name: 'Baru', package: 'NET 10 Mbps', status: 'aktif' },
+      { custid: 'C4', name: 'Lama', package: 'NET 10 Mbps', status: 'aktif' },
+    ],
+    kasirCustomers: [
+      { id: 'C1', custid: 'C1', name: 'Budi', package: 'NET 10 Mbps', status: 'aktif', phone: '08' },
+      { id: 'C2', custid: 'C2', name: 'Sari', package: 'NET 10 Mbps', status: 'aktif' },
+      { id: 'x', custid: null, name: 'lama ', package: 'NET 10 Mbps', status: 'aktif' },
+    ],
+    runsnetPackages: [{ name: 'NET 10 Mbps', price: 200000 }, { name: 'NET 30 Mbps', price: 300000 }, { name: 'Gratis', price: 0 }],
+    kasirPackages: [{ id: 1, name: 'net 10 mbps', price: 150000 }],
+    ...over,
+  });
+
+  it('paket berubah di Runsnet: hanya kolom Runsnet yang diperbarui', () => {
+    const { customerUpdates } = run();
+    expect(customerUpdates).toEqual([expect.objectContaining({ id: 'C1', package: 'NET 30 Mbps', name: 'Budi', status: 'aktif' })]);
+    expect(customerUpdates[0]).not.toHaveProperty('phone');
+  });
+
+  it('pelanggan Runsnet baru ditambah, kecuali namanya sama dengan pelanggan lama tanpa custid', () => {
+    expect(run().customerInserts.map((c) => c.custid)).toEqual(['C3']);
+  });
+
+  it('harga paket: perbarui yang beda, tambah yang belum ada, abaikan harga 0', () => {
+    const { packageUpdates, packageInserts } = run();
+    expect(packageUpdates).toEqual([{ id: 1, price: 200000 }]);
+    expect(packageInserts).toEqual([{ name: 'NET 30 Mbps', price: 300000 }]);
   });
 });

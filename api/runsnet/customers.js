@@ -1,6 +1,32 @@
-import { verifyPermission } from '../_lib/verifySuperadmin.js';
-import { getRunsnetSession, fetchAllCustomers } from '../_lib/runsnetClient.js';
-import { buildCustomerUpsert } from '../../src/utils/runsnetCustomers.js';
+import { verifyPermission, verifyStaff } from '../_lib/verifySuperadmin.js';
+import { getRunsnetSession, fetchAllCustomers, fetchCustomerFormOptions, fetchProfilePrice } from '../_lib/runsnetClient.js';
+import { buildCustomerUpsert, planAutoSync } from '../../src/utils/runsnetCustomers.js';
+import { SUPPORTED_BRANCHES } from '../../src/utils/runsnetCustomerForm.js';
+
+// Sinkron otomatis (dipanggil App tiap dibuka, semua staf): pelanggan & paket+harga ditarik dari Runsnet,
+// hanya yang berubah ditulis. Digabung ke file ini (bukan endpoint baru) karena batas 12 Function Vercel Hobby.
+async function autoSync(adminClient) {
+  const session = await getRunsnetSession(adminClient);
+  const [runsnetCustomers, { profiles }, { data: kasirCustomers, error: custErr }, { data: kasirPackages, error: pkgErr }] = await Promise.all([
+    fetchAllCustomers(session),
+    fetchCustomerFormOptions(session, SUPPORTED_BRANCHES[0].code),
+    adminClient.from('customers').select('id, custid, name, package, status'),
+    adminClient.from('packages').select('id, name, price'),
+  ]);
+  if (custErr || pkgErr) throw custErr || pkgErr;
+  const runsnetPackages = await Promise.all(profiles.map(async (p) => ({ name: p.label, price: await fetchProfilePrice(session, p.value) })));
+
+  const plan = planAutoSync({ runsnetCustomers, kasirCustomers, runsnetPackages, kasirPackages });
+  const writes = [
+    ...plan.customerUpdates.map(({ id, ...row }) => adminClient.from('customers').update(row).eq('id', id)),
+    ...plan.packageUpdates.map(({ id, ...row }) => adminClient.from('packages').update(row).eq('id', id)),
+    plan.customerInserts.length && adminClient.from('customers').insert(plan.customerInserts),
+    plan.packageInserts.length && adminClient.from('packages').insert(plan.packageInserts),
+  ].filter(Boolean);
+  const failed = (await Promise.all(writes)).find((r) => r.error);
+  if (failed) throw failed.error;
+  return Object.fromEntries(Object.entries(plan).map(([k, v]) => [k, v.length]));
+}
 
 // Mengimpor HANYA pelanggan Runsnet yang dipilih (dicentang) superadmin — bukan seluruh daftar,
 // supaya tidak ada data yang masuk tanpa sengaja. Dicocokkan ke tabel customers KAsir lewat
@@ -8,6 +34,20 @@ import { buildCustomerUpsert } from '../../src/utils/runsnetCustomers.js';
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  if (req.body?.mode === 'auto') {
+    const staff = await verifyStaff(req);
+    if (staff.error) {
+      res.status(staff.error.status).json({ error: staff.error.message });
+      return;
+    }
+    try {
+      res.status(200).json({ success: true, ...(await autoSync(staff.adminClient)) });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
     return;
   }
 

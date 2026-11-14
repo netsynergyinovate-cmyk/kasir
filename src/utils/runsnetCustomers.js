@@ -41,3 +41,38 @@ export function buildCustomerUpsert(parsed, existing) {
     last_synced: new Date().toISOString(),
   };
 }
+
+const sameName = (a, b) => String(a || '').trim().toUpperCase() === String(b || '').trim().toUpperCase();
+
+// Rencana sinkron otomatis Runsnet -> KAsir (dijalankan tiap aplikasi dibuka). Runsnet = sumber kebenaran untuk
+// nama, paket, status pelanggan dan harga paket. Hanya baris yang BERUBAH yang ditulis; tidak pernah menghapus.
+// Pelanggan Runsnet baru dilewati kalau namanya sama dengan pelanggan KAsir lama tanpa custid (biar tidak dobel,
+// itu urusan penyamaan manual).
+export function planAutoSync({ runsnetCustomers, kasirCustomers, runsnetPackages, kasirPackages }) {
+  const byCustid = new Map(kasirCustomers.filter((c) => c.custid).map((c) => [c.custid, c]));
+  const unlinked = kasirCustomers.filter((c) => !c.custid);
+
+  const customerUpdates = [];
+  const customerInserts = [];
+  runsnetCustomers.forEach((r) => {
+    const existing = byCustid.get(r.custid);
+    if (existing) {
+      if (existing.name !== r.name || existing.package !== r.package || existing.status !== r.status) {
+        customerUpdates.push({ id: existing.id, name: r.name, package: r.package, status: r.status, last_synced: new Date().toISOString() });
+      }
+    } else if (!unlinked.some((c) => sameName(c.name, r.name))) {
+      customerInserts.push(buildCustomerUpsert(r, null));
+    }
+  });
+
+  const packageUpdates = [];
+  const packageInserts = [];
+  runsnetPackages.forEach((p) => {
+    if (!p.name || !(p.price > 0)) return;
+    const existing = kasirPackages.find((k) => sameName(k.name, p.name));
+    if (!existing) packageInserts.push({ name: p.name, price: p.price });
+    else if (Number(existing.price) !== p.price) packageUpdates.push({ id: existing.id, price: p.price });
+  });
+
+  return { customerUpdates, customerInserts, packageUpdates, packageInserts };
+}
