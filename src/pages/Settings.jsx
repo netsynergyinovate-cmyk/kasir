@@ -7,7 +7,7 @@ import {
   Key, Eye, EyeOff, Activity, CheckCircle2, XCircle, Send,
   Zap, RefreshCw, Server, ShieldCheck, Crown, SlidersHorizontal, Users, MessageCircle,
   Copy, Check, Webhook, ExternalLink, ZoomIn, X, ChevronDown, ChevronUp, 
-  ImagePlus, Loader2
+  ImagePlus, Loader2, FileText
 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import MoneyInput from '../components/MoneyInput';
@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { testBillingSystemConnection, getEbillingLogs, clearEbillingLogs } from '../utils/billingApi';
 import AdminAccountsPanel from '../components/AdminAccountsPanel';
 import RunsnetSyncPanel from '../components/RunsnetSyncPanel';
+import InstansiInvoiceSettingsPanel from '../components/InstansiInvoiceSettingsPanel';
 import ToggleSwitch from '../components/ToggleSwitch';
 import { resizeImageFile } from '../utils/imageResize';
 import { MAP_ICON_TYPES, MAP_ICON_COLORS, getDeterministicColor, getInitials } from '../utils/adminMapIcons';
@@ -295,6 +296,7 @@ const Settings = ({
   const TABS = [
     { key: 'umum', label: 'Umum', icon: SlidersHorizontal },
     ...(canToko ? [{ key: 'toko', label: 'Toko', icon: Building2 }] : []),
+    { key: 'invoice-instansi', label: 'Invoice Instansi', icon: FileText },
     ...(isSuper ? [
       { key: 'ebilling', label: 'E-Billing', icon: Activity },
       { key: 'watbiz', label: 'WhatsApp', icon: MessageCircle },
@@ -580,7 +582,7 @@ const Settings = ({
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all ${active ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+                  className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-bold text-center leading-tight transition-all ${active ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
                 >
                   <Icon size={17} strokeWidth={active ? 2.5 : 2} />
                   {tab.label}
@@ -2038,6 +2040,9 @@ const Settings = ({
 
         {/* Tab: Akun Admin (khusus superadmin) */}
         {isSuper && activeTab === 'admin' && <AdminAccountsPanel transactions={transactions} companyInfo={localCompany} session={session} />}
+
+        {/* Tab: Invoice Instansi (superadmin & admin) */}
+        {activeTab === 'invoice-instansi' && <InstansiInvoiceSettingsPanel />}
 
         {/* Tab: Runsnet (khusus superadmin) */}
         {isSuper && activeTab === 'runsnet' && <RunsnetSyncPanel session={session} />}
