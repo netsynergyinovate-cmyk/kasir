@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Lock, Delete, Fingerprint } from 'lucide-react';
+import { Lock, Delete, Fingerprint, Smartphone, MapPin } from 'lucide-react';
 import { supabase } from '../lib/supabase'; 
+import { getDeviceLabel } from '../utils/deviceId';
+import { fetchApproxLocation } from '../utils/authProfile';
 
-const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup, onSkip }) => {
+// accountPin: PIN milik akun yang login (admin_profiles.app_pin); kalau kosong, cocokkan ke PIN bersama (dbPin, hash).
+const PinPad = ({ mode = 'unlock', dbPin, accountPin = null, accountName = '', onUnlock, onSetup, onSkip }) => {
+  const [deviceLabel] = useState(getDeviceLabel);
+  const [geo, setGeo] = useState({ loaded: false, location: null, ip: null });
+  useEffect(() => {
+    let alive = true;
+    fetchApproxLocation().then((r) => { if (alive) setGeo({ loaded: true, ...r }); });
+    return () => { alive = false; };
+  }, []);
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [step, setStep] = useState(mode === 'setup' ? 'create' : 'enter'); // 'create', 'confirm', 'enter'
@@ -39,8 +49,8 @@ const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup, onSkip }) => {
             setTimeout(() => setError(null), 3000);
           }
         } else if (step === 'enter') {
-          const hashedInput = await hashPin(pin);
-          if (hashedInput === dbPin) { // Compare with DB Pin instead of localStorage
+          const ok = accountPin ? pin === accountPin : (await hashPin(pin)) === dbPin;
+          if (ok) {
             // Save to localStorage just to remember this device is unlocked
             localStorage.setItem('device_unlocked', 'true'); 
             onUnlock();
@@ -53,7 +63,7 @@ const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup, onSkip }) => {
       }
     };
     processPin();
-  }, [pin, step, confirmPin, onSetup, onUnlock, dbPin]);
+  }, [pin, step, confirmPin, onSetup, onUnlock, dbPin, accountPin]);
 
   const handleKeyPress = (num) => {
     if (pin.length < PIN_LENGTH) {
@@ -96,7 +106,7 @@ const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup, onSkip }) => {
         <p className="text-gray-500 text-sm font-medium mb-10 text-center">
           {step === 'create' && 'Buat Master PIN untuk aplikasi ini.'}
           {step === 'confirm' && 'Masukkan kembali PIN yang baru saja dibuat.'}
-          {step === 'enter' && 'Buka kunci aplikasi KAsir.'}
+          {step === 'enter' && (accountName ? `Masuk sebagai ${accountName}` : 'Buka kunci aplikasi KAsir.')}
         </p>
 
         <div className="flex gap-4 mb-12 justify-center h-4">
@@ -144,6 +154,14 @@ const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup, onSkip }) => {
           </button>
         )}
 
+        <div className="mt-8 text-[11px] text-gray-500 space-y-1 text-center">
+          <p className="flex items-center justify-center gap-1.5"><Smartphone size={12} className="shrink-0" /> {deviceLabel}</p>
+          <p className="flex items-center justify-center gap-1.5">
+            <MapPin size={12} className="shrink-0" />
+            {!geo.loaded ? 'Mendeteksi lokasi...' : (geo.location ? `${geo.location}${geo.ip ? ` (${geo.ip})` : ''}` : 'Lokasi tidak terdeteksi')}
+          </p>
+        </div>
+
         {step === 'enter' && (
           <button 
             onClick={async () => {
@@ -156,7 +174,7 @@ const PinPad = ({ mode = 'unlock', dbPin, onUnlock, onSetup, onSkip }) => {
               }
               window.location.reload();
             }} 
-            className="mt-12 text-xs font-bold text-gray-400 hover:text-red-500 transition-colors"
+            className="mt-6 text-xs font-bold text-gray-400 hover:text-red-500 transition-colors"
           >
             Keluar (Logout)
           </button>

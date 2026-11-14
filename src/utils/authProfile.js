@@ -56,6 +56,13 @@ export async function updateMyName(supabase, fullName) {
   return { error: error ? error.message : null };
 }
 
+// PIN buka aplikasi milik satu akun (fungsi database set_admin_pin): akun sendiri, atau akun lain kalau
+// pemanggilnya superadmin. pin kosong = hapus (kembali ke PIN bersama company_settings.app_pin).
+export async function setAdminPin(supabase, adminId, pin) {
+  const { error } = await supabase.rpc('set_admin_pin', { p_admin_id: adminId, p_pin: pin || null });
+  return { error: error ? error.message : null };
+}
+
 export function clearLoginRecorded() {
   try {
     sessionStorage.removeItem(RECORDED_KEY);
@@ -113,5 +120,8 @@ export async function loadVerifiedProfile(supabase, authSession) {
     if (!recordError) sessionStorage.setItem(RECORDED_KEY, userId);
   }
 
-  return { profile };
+  // Dibaca terpisah: kolom app_pin baru ada setelah supabase_admin_pin.sql dijalankan, dan login tidak boleh
+  // gagal hanya karena kolom itu belum ada (error diabaikan -> pakai PIN bersama).
+  const { data: pinRow } = await supabase.from('admin_profiles').select('app_pin').eq('id', userId).maybeSingle();
+  return { profile: pinRow?.app_pin ? { ...profile, app_pin: pinRow.app_pin } : profile };
 }

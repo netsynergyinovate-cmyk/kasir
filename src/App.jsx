@@ -6,7 +6,7 @@ import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
 import { isPathAllowedForRole, ADMIN_DEFAULT_PATH } from './utils/permissions';
 import { saveLastPath, getLastPath } from './utils/lastPage';
-import { loadVerifiedProfile, clearLoginRecorded, updateMyName } from './utils/authProfile';
+import { loadVerifiedProfile, clearLoginRecorded, updateMyName, setAdminPin } from './utils/authProfile';
 
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
@@ -232,23 +232,36 @@ export default function App() {
     return error;
   };
 
+  // PIN buka aplikasi milik akun yang sedang login (tiap admin/superadmin punya PIN sendiri).
+  const handleUpdateMyPin = async (pin) => {
+    const { error } = await setAdminPin(supabase, session?.user?.id, pin);
+    if (!error) {
+      setSession((prev) => (prev ? { ...prev, profile: { ...prev.profile, app_pin: pin || null } } : prev));
+    }
+    return error;
+  };
+
+  // PIN akun sendiri kalau sudah diatur; kalau belum, PIN bersama lama (company_settings.app_pin).
+  const myPin = session?.profile?.app_pin || null;
+  const hasPin = Boolean(myPin || companyInfo.appPin);
+
   // Kunci otomatis: setelah 15 menit tanpa disentuh (atau tombol Kunci), minta kode PIN lagi.
   const lockApp = () => {
     localStorage.removeItem('device_unlocked');
     setIsLocked(true);
   };
   const isSuperExemptFromIdleLock = session?.profile?.role === 'superadmin' && companyInfo.idleLockExemptSuperadmin;
-  const idleLockEnabled = Boolean(session) && !isLoading && Boolean(companyInfo.appPin) && !isLocked && !isSuperExemptFromIdleLock;
+  const idleLockEnabled = Boolean(session) && !isLoading && hasPin && !isLocked && !isSuperExemptFromIdleLock;
   const idleRemaining = useIdleLock({ enabled: idleLockEnabled, onLock: lockApp });
 
   // Tentukan status kunci dari sesi, PIN di DB, dan flag buka-kunci lokal. Dihitung ulang saat salah satu
   // masukan berubah; disesuaikan saat render, bukan di effect.
-  const [lockInputs, setLockInputs] = useState({ session: null, appPin: null, isLoading: true });
-  if (lockInputs.session !== session || lockInputs.appPin !== companyInfo.appPin || lockInputs.isLoading !== isLoading) {
-    setLockInputs({ session, appPin: companyInfo.appPin, isLoading });
+  const [lockInputs, setLockInputs] = useState({ session: null, hasPin: false, isLoading: true });
+  if (lockInputs.session !== session || lockInputs.hasPin !== hasPin || lockInputs.isLoading !== isLoading) {
+    setLockInputs({ session, hasPin, isLoading });
     if (session && !isLoading) {
       const isDeviceUnlocked = localStorage.getItem('device_unlocked') === 'true';
-      setIsLocked(!isDeviceUnlocked && Boolean(companyInfo.appPin));
+      setIsLocked(!isDeviceUnlocked && hasPin);
     }
   }
 
@@ -991,7 +1004,7 @@ export default function App() {
   }
 
   // If session exists, data is loaded, but no DB Pin exists and not bypassed -> Setup mode
-  if (session && !isLoading && session.profile?.role !== 'admin' && !companyInfo.appPin && localStorage.getItem('bypass_pin') !== 'true') {
+  if (session && !isLoading && session.profile?.role !== 'admin' && !hasPin && localStorage.getItem('bypass_pin') !== 'true') {
     return (
       <PinPad 
         mode="setup" 
@@ -1006,8 +1019,8 @@ export default function App() {
   }
 
   // If session exists, DB Pin exists, but device is locked -> Unlock mode
-  if (session && !isLoading && companyInfo.appPin && isLocked) {
-    return <PinPad mode="unlock" dbPin={companyInfo.appPin} onUnlock={handleUnlock} />;
+  if (session && !isLoading && hasPin && isLocked) {
+    return <PinPad mode="unlock" dbPin={companyInfo.appPin} accountPin={myPin} accountName={session.profile?.full_name} onUnlock={handleUnlock} />;
   }
 
   return (
@@ -1176,6 +1189,7 @@ export default function App() {
                 onInstall={installApp}
                 onSyncEbilling={handleSyncCustomersFromEbilling}
                 onUpdateMyName={handleUpdateMyName}
+                onUpdateMyPin={handleUpdateMyPin}
                 transactions={transactions}
                 />
             } />

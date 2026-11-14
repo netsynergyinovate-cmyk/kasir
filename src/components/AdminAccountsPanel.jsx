@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2, ShieldCheck, Crown, Mail, DollarSign, Pencil } from 'lucide-react';
+import { UserPlus, RotateCcw, Smartphone, Loader2, X, Clock, MapPin, Lock, Trash2, ShieldCheck, Crown, Mail, DollarSign, Pencil, Key, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import AdminAccessModal from './AdminAccessModal';
 import AdminCommissionModal from './AdminCommissionModal';
@@ -7,6 +7,7 @@ import { normalizeAdminAccess } from '../utils/permissions';
 import { calculateAdminCommissions, monthKey } from '../utils/commissions';
 import { MAP_ICON_TYPES, getDeterministicColor } from '../utils/adminMapIcons';
 import { formatRupiah } from '../utils/format';
+import { setAdminPin } from '../utils/authProfile';
 
 const ACCOUNT_COLUMNS = 'id, full_name, email, role, device_id, device_label, allowed_paths, last_login_at, last_login_device, last_login_device_id, last_login_location, last_login_ip';
 
@@ -31,6 +32,8 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
   const [deletingId, setDeletingId] = useState(null);
   const [accessAdmin, setAccessAdmin] = useState(null);
   const [commissionAdmin, setCommissionAdmin] = useState(null);
+  const [pins, setPins] = useState({}); // id -> PIN akun; null = kolom app_pin belum ada
+  const [shownPinId, setShownPinId] = useState(null);
 
   const fetchAll = () => Promise.all([
     supabase
@@ -41,11 +44,14 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
       .from('admin_invites')
       .select('email, full_name, created_at')
       .order('created_at', { ascending: false }),
+    // Terpisah dari ACCOUNT_COLUMNS: kolom app_pin baru ada setelah supabase_admin_pin.sql dijalankan.
+    supabase.from('admin_profiles').select('id, app_pin'),
   ]);
 
-  const applyResults = ([accountsRes, invitesRes]) => {
+  const applyResults = ([accountsRes, invitesRes, pinsRes]) => {
     if (!accountsRes.error && accountsRes.data) setAccounts(accountsRes.data);
     if (!invitesRes.error && invitesRes.data) setInvites(invitesRes.data);
+    setPins(pinsRes?.error ? null : Object.fromEntries((pinsRes?.data || []).map((p) => [p.id, p.app_pin])));
     setIsLoading(false);
   };
 
@@ -140,6 +146,14 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
     if (!name || name === acc.full_name) return;
     const { error } = await supabase.from('admin_profiles').update({ full_name: name }).eq('id', acc.id);
     if (error) alert('Gagal mengubah nama: ' + error.message);
+    else await loadAdmins();
+  };
+
+  const handleChangePin = async (acc) => {
+    const pin = window.prompt(`PIN baru (6 angka) untuk ${acc.full_name}. Kosongkan untuk kembali ke PIN bersama:`, '');
+    if (pin === null) return;
+    const { error } = await setAdminPin(supabase, acc.id, pin.trim());
+    if (error) alert('Gagal mengubah PIN: ' + error);
     else await loadAdmins();
   };
 
@@ -262,6 +276,21 @@ const AdminAccountsPanel = ({ transactions = [], companyInfo = {}, session }) =>
                           Belum cair: {formatRupiah(commData.pendingBalance)}
                         </span>
                       </div>
+                    </div>
+                  )}
+
+                  {pins && (
+                    <div className="mx-3.5 mb-2.5 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-2 text-[11px]">
+                      <span className="flex items-center gap-1.5 font-bold text-gray-500"><Key size={12} /> PIN:</span>
+                      <span className="flex-1 font-mono font-black text-gray-800 tracking-widest">
+                        {pins[acc.id] ? (shownPinId === acc.id ? pins[acc.id] : '••••••') : <span className="font-sans font-semibold tracking-normal text-gray-400">PIN bersama</span>}
+                      </span>
+                      {pins[acc.id] && (
+                        <button type="button" onClick={() => setShownPinId(shownPinId === acc.id ? null : acc.id)} aria-label={shownPinId === acc.id ? 'Sembunyikan PIN' : 'Lihat PIN'} className="p-1 text-gray-400 hover:text-blue-600">
+                          {shownPinId === acc.id ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      )}
+                      <button type="button" onClick={() => handleChangePin(acc)} className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg">Ubah PIN</button>
                     </div>
                   )}
 

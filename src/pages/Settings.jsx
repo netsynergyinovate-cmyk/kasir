@@ -34,7 +34,7 @@ const parseLogDetail = (detail) => {
 const Settings = ({ 
   packages, onAddPackage, onDeletePackage, companyInfo, setCompanyInfo, 
   btDevice, isConnecting, connectBluetooth, disconnectBluetooth, reconnectBluetooth, savedDeviceName,
-  deferredPrompt, onInstall, onSyncEbilling, onUpdateMyName, session,
+  deferredPrompt, onInstall, onSyncEbilling, onUpdateMyName, onUpdateMyPin, session,
   customers = [], transactions = []
 }) => {
   const [newPkgName, setNewPkgName] = useState('');
@@ -42,6 +42,9 @@ const Settings = ({
   const [myName, setMyName] = useState('');
   const [savingMyName, setSavingMyName] = useState(false);
   const [myNameError, setMyNameError] = useState(null);
+  const [myPinInput, setMyPinInput] = useState('');
+  const [savingMyPin, setSavingMyPin] = useState(false);
+  const [myPinMsg, setMyPinMsg] = useState(null);
 
   // Kustomisasi Icon Map Akun Sendiri
   const myAccess = normalizeAdminAccess(session?.profile?.allowed_paths);
@@ -291,6 +294,17 @@ const Settings = ({
     const error = await onUpdateMyName?.(trimmed);
     if (error) setMyNameError(error);
     setSavingMyName(false);
+  };
+
+  // PIN buka aplikasi akun ini sendiri (bukan PIN bersama) — lihat handleUpdateMyPin di App.jsx.
+  const saveMyPin = async (e) => {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(myPinInput)) { setMyPinMsg({ ok: false, text: 'PIN harus 6 angka.' }); return; }
+    setSavingMyPin(true);
+    const error = await onUpdateMyPin?.(myPinInput);
+    setMyPinMsg(error ? { ok: false, text: error } : { ok: true, text: 'PIN tersimpan. Dipakai saat membuka aplikasi berikutnya.' });
+    if (!error) setMyPinInput('');
+    setSavingMyPin(false);
   };
 
   const TABS = [
@@ -689,6 +703,32 @@ const Settings = ({
                 {myNameError && <p className="text-[10px] text-red-600 font-semibold mt-0.5">{myNameError}</p>}
               </div>
             </div>
+
+            {/* PIN buka aplikasi milik akun ini sendiri — tiap admin/superadmin punya PIN berbeda. */}
+            <form onSubmit={saveMyPin} className="flex items-center gap-4 pt-1">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                <Key size={22} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <label htmlFor="myPin" className="block text-[10px] font-bold text-gray-400 uppercase">PIN Saya (buka aplikasi)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="myPin"
+                    value={myPinInput}
+                    onChange={(e) => setMyPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    placeholder={session?.profile?.app_pin ? 'PIN baru (6 angka)' : 'Belum diatur — pakai PIN bersama'}
+                    className="font-bold text-gray-800 bg-transparent border-none p-0 w-full outline-none text-base tracking-widest"
+                  />
+                  <button type="submit" disabled={savingMyPin || myPinInput.length !== 6} className="shrink-0 text-[11px] font-bold text-white bg-blue-600 px-3 py-1.5 rounded-lg disabled:opacity-40">
+                    {savingMyPin ? 'Menyimpan...' : 'Simpan'}
+                  </button>
+                </div>
+                {myPinMsg && <p className={`text-[10px] font-semibold mt-0.5 ${myPinMsg.ok ? 'text-emerald-600' : 'text-red-600'}`}>{myPinMsg.text}</p>}
+              </div>
+            </form>
 
             {/* Custom Icon & Marker Peta Saya (Live Preview) */}
             <div className="pt-4 border-t border-gray-100 space-y-3.5">
