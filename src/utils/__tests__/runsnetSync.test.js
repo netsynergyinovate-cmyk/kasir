@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber, pickPaymentTarget, describePayResponse, parsePaymentRows, buildStatusCheckLog } from '../runsnetSync';
+import { shouldSyncTransaction, buildSearchQuery, isConfigPlaceholder, describeSyncStatus, stripHtml, parseInvoiceListResponse, syncToastTone, describeLogStage, buildInvoiceLookupLog, pickInvoiceNumber, pickPaymentTarget, describePayResponse, parsePaymentRows, buildStatusCheckLog, describeRunsnetPayment, describePayer, pickPaidPaymentForTransaction } from '../runsnetSync';
 
 const trx = (over) => ({
   id: 't1', status: 'LUNAS', type: 'retail', payment_method: 'CASH',
@@ -230,7 +230,11 @@ describe('parsePaymentRows', () => {
 
   it('returns the payment(s) of exactly the requested invoice, with the payment code from the checkbox', () => {
     const json = { data: [row('PAY202609000941', 'INVRT202609001239'), row('PAY202609000942', 'INVRT202609002184')] };
-    expect(parsePaymentRows(json, 'INVRT202609001239')).toEqual([{ paymentCode: 'PAY202609000941', amount: '200,000', payDate: '2026-09-21', custName: 'ANITA' }]);
+    expect(parsePaymentRows(json, 'INVRT202609001239')).toEqual([{
+      paymentCode: 'PAY202609000941', invoiceCode: 'INVRT202609001239', custId: '17060001554', custName: 'ANITA',
+      periode: '2026-09-01', payDate: '2026-09-21', amount: '200,000', method: 'Pembayaran Tunai', operator: 'Operator',
+    }]);
+    expect(parsePaymentRows(json)).toHaveLength(2);
   });
 
   it('returns nothing when the invoice has no payment (so a fuzzy search hit is never reversed by mistake)', () => {
@@ -254,5 +258,33 @@ describe('buildStatusCheckLog', () => {
 
   it('reports NOT_FOUND as failed, since the check itself did not find anything useful', () => {
     expect(buildStatusCheckLog('INVRT1', 'NOT_FOUND').status).toBe('failed');
+  });
+});
+
+describe('describePayer', () => {
+  it('names the cashier with the account role', () => {
+    expect(describePayer({ cashierName: 'AGUS PITONO', role: 'admin' })).toBe('AGUS PITONO (Admin)');
+    expect(describePayer({ cashierName: 'CS NET.SI', role: 'superadmin' })).toBe('CS NET.SI (Superadmin)');
+    expect(describePayer({ cashierName: 'X' })).toBe('X');
+    expect(describePayer({})).toBe('staf KAsir');
+  });
+});
+
+describe('pickPaidPaymentForTransaction', () => {
+  const pay = (over) => ({ paymentCode: 'PAY1', invoiceCode: 'INVRT1', custName: 'SUYONO', periode: '2026-11-01', payDate: '2026-11-22', amount: '250,000', method: 'Pembayaran Tunai', ...over });
+  const tx = { customer_name: 'Suyono ', date: '2026-11-22T14:04:30+00:00' };
+
+  it('picks the single payment of the same customer for the same month', () => {
+    expect(pickPaidPaymentForTransaction([pay(), pay({ paymentCode: 'PAY0', periode: '2026-10-01' })], tx)?.paymentCode).toBe('PAY1');
+  });
+
+  it('refuses when unsure: other customer, other month, or more than one match', () => {
+    expect(pickPaidPaymentForTransaction([pay({ custName: 'SUYONO B' })], tx)).toBeNull();
+    expect(pickPaidPaymentForTransaction([pay({ periode: '2026-10-01' })], tx)).toBeNull();
+    expect(pickPaidPaymentForTransaction([pay(), pay({ paymentCode: 'PAY2' })], tx)).toBeNull();
+  });
+
+  it('describes a payment in one line', () => {
+    expect(describeRunsnetPayment(pay())).toBe('INVRT1 dibayar 2026-11-22 (PAY1, Rp 250,000, Pembayaran Tunai)');
   });
 });

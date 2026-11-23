@@ -1,5 +1,38 @@
-import { shouldSyncTransaction, pickPaymentTarget } from '../../src/utils/runsnetSync.js';
-import { getRunsnetSession, searchInvoice, payInvoiceCash, verifyInvoicePaid, isRunsnetConfigured } from './runsnetClient.js';
+import { shouldSyncTransaction, pickPaymentTarget, describeRunsnetPayment, describePayer, pickPaidPaymentForTransaction } from '../../src/utils/runsnetSync.js';
+import { getRunsnetSession, searchInvoice, payInvoiceCash, verifyInvoicePaid, isRunsnetConfigured, findPaymentsForInvoice, searchPayments } from './runsnetClient.js';
+
+// Kasir transaksi + role akunnya (admin/superadmin), untuk dicatat di log sebagai pembayar lewat KAsir.
+async function getPayer(supabase, transaction) {
+  let role = null;
+  if (transaction.cashier_id) {
+    try {
+      const { data } = await supabase.from('admin_profiles').select('role').eq('id', transaction.cashier_id).maybeSingle();
+      role = data?.role || null;
+    } catch { /* role best-effort */ }
+  }
+  return describePayer({ cashierName: transaction.cashier_name, role });
+}
+
+// Siapa yang membayar invoice yang SUDAH PAID sebelum KAsir mengirim: lewat KAsir di transaksi lain (ada log
+// pembayaran sukses untuk kode yang sama), atau langsung di aplikasi billing Runsnet. Ditambah detail pembayaran
+// dari menu Payment Runsnet kalau ketemu.
+async function describeExistingPayment(supabase, session, transaction, invoiceCode, payment) {
+  const { data: other } = await supabase
+    .from('runsnet_sync_log')
+    .select('transaction_id')
+    .eq('stage', 'payment')
+    .eq('status', 'success')
+    .eq('runsnet_ref', invoiceCode)
+    .neq('transaction_id', transaction.id)
+    .limit(1)
+    .maybeSingle();
+  const who = other ? `dibayar lewat KAsir di transaksi lain (${other.transaction_id})` : 'dibayar langsung di aplikasi billing Runsnet (bukan lewat KAsir)';
+  let found = payment;
+  if (!found) {
+    try { [found] = await findPaymentsForInvoice(session, invoiceCode); } catch { /* detail best-effort */ }
+  }
+  return found ? `${who}: ${describeRunsnetPayment(found)}` : who;
+}
 
 // Mengirim pembayaran satu transaksi KAsir ke Runsnet dan MEMBUKTIKAN hasilnya: status 'success' di log
 // hanya dicatat kalau Runsnet sendiri menunjukkan invoice itu berstatus PAID setelah dibayar. Dipanggil
@@ -67,7 +100,8 @@ export async function syncPayment(supabase, transaction) {
         try {
           await supabase.from('transactions').update({ invoice_number: String(target.code) }).eq('id', transaction.id);
         } catch { /* sinkronisasi nomor invoice best-effort */ }
-        return log('success', { search_query: label, runsnet_ref: target.code, message: `Invoice ${target.code} sudah berstatus PAID di Runsnet (terverifikasi), tidak dibayar ulang.` });
+        const who = await describeExistingPayment(supabase, session, transaction, target.code);
+        return log('success', { search_query: label, runsnet_ref: target.code, message: `Invoice ${target.code} sudah PAID di Runsnet, tidak dibayar ulang — ${who}.` });
       }
       invoice = await searchInvoice(session, target.code, 'P');
       if (!invoice || invoice.id !== target.code) {
@@ -76,7 +110,20 @@ export async function syncPayment(supabase, transaction) {
     } else {
       invoice = await searchInvoice(session, target.query, 'P');
       if (!invoice) {
-        return log('failed', { search_query: label, message: `Tidak ada satu pun invoice PENDING yang cocok dengan "${target.query}" di Runsnet (nol atau lebih dari satu hasil).` });
+        // Bukan sekadar "gagal": baca menu Payment Runsnet, mungkin tagihan bulan ini memang sudah dibayar.
+        const payments = await searchPayments(session, target.query).catch(() => []);
+        const paid = pickPaidPaymentForTransaction(payments, transaction);
+        if (paid) {
+          try {
+            await supabase.from('transactions').update({ invoice_number: String(paid.invoiceCode) }).eq('id', transaction.id);
+          } catch { /* sinkronisasi nomor invoice best-effort */ }
+          const who = await describeExistingPayment(supabase, session, transaction, paid.invoiceCode, paid);
+          return log('success', { search_query: label, runsnet_ref: paid.invoiceCode, message: `Tagihan ${paid.periode} sudah PAID di Runsnet, tidak dibayar ulang — ${who}.` });
+        }
+        const info = payments.length > 0
+          ? `Pembayaran terakhir di menu Payment Runsnet untuk "${target.query}": ${payments.slice(0, 2).map(describeRunsnetPayment).join('; ')}.`
+          : `Menu Payment Runsnet juga tidak punya pembayaran untuk "${target.query}" (1 tahun terakhir).`;
+        return log('failed', { search_query: label, message: `Tidak ada satu pun invoice PENDING yang cocok dengan "${target.query}" di Runsnet (nol atau lebih dari satu hasil). ${info}` });
       }
     }
 
@@ -109,7 +156,8 @@ export async function syncPayment(supabase, transaction) {
       } catch { /* sinkronisasi nomor invoice best-effort */ }
     }
 
-    return log('success', { search_query: label, runsnet_ref: String(invoice.id), message: `Invoice ${invoice.id} terbukti berstatus PAID di Runsnet.` });
+    const payer = await getPayer(supabase, transaction);
+    return log('success', { search_query: label, runsnet_ref: String(invoice.id), message: `Invoice ${invoice.id} terbukti berstatus PAID di Runsnet — dibayar lewat KAsir oleh ${payer}.` });
   } catch (error) {
     return log('failed', { search_query: label, message: `Gagal menghubungi Runsnet: ${error.message}` });
   }

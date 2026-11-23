@@ -88,7 +88,7 @@ export function buildInvoiceLookupLog({ configured, invoice, query }) {
     return { status: 'skipped_not_configured', runsnet_ref: null, message: 'Field Runsnet belum dikonfigurasi, nomor invoice lokal dipakai.' };
   }
   if (invoice) {
-    return { status: 'success', runsnet_ref: String(invoice.id), message: `Nomor invoice Runsnet ${invoice.id} ditemukan untuk "${query}" dan dipakai.` };
+    return { status: 'success', runsnet_ref: String(invoice.id), message: `Nomor invoice Runsnet ${invoice.id} ditemukan untuk "${query}"${invoice.paid ? ' (sudah PAID di Runsnet)' : ''} dan dipakai.` };
   }
   return { status: 'failed', runsnet_ref: null, message: `Invoice Runsnet tidak ditemukan untuk "${query}", nomor invoice lokal dipakai.` };
 }
@@ -121,20 +121,48 @@ export function describePayResponse({ status, location }) {
   return { ok: true, reason: `HTTP ${status}${where}` };
 }
 
-// Mengurai respons DataTables daftar PEMBAYARAN Runsnet (model/previewc/query/payment.php) dan mengambil
-// pembayaran milik SATU invoice: [{ paymentCode, amount, payDate }]. Kolom: 0 checkbox (value = kode
-// pembayaran), 2 InvoiceCode, 6 PayDate, 7 PayAmount. Kode pembayaran divalidasi (PAY + angka) karena akan
-// dimasukkan ke URL reversal.
+// Mengurai respons DataTables daftar PEMBAYARAN Runsnet (model/previewc/query/payment.php). Kolom: 0 checkbox
+// (value = kode pembayaran), 2 InvoiceCode, 3 CustID, 4 CustNama, 5 Periode, 6 PayDate, 7 PayAmount, 8 Methode,
+// 10 Operator. invoiceCode (opsional) = hanya pembayaran milik invoice itu. Kode pembayaran divalidasi (PAY + angka)
+// karena akan dimasukkan ke URL reversal.
 export function parsePaymentRows(json, invoiceCode) {
   return (json?.data || [])
-    .filter((row) => stripHtml(row[2]) === invoiceCode)
+    .filter((row) => !invoiceCode || stripHtml(row[2]) === invoiceCode)
     .map((row) => ({
       paymentCode: (String(row[0]).match(/value=['"]([^'"]+)['"]/) || [])[1] || null,
-      amount: stripHtml(row[7]),
-      payDate: stripHtml(row[6]),
+      invoiceCode: stripHtml(row[2]) || null,
+      custId: stripHtml(row[3]) || null,
       custName: stripHtml(row[4]) || null,
+      periode: stripHtml(row[5]) || null,
+      payDate: stripHtml(row[6]),
+      amount: stripHtml(row[7]),
+      method: stripHtml(row[8]) || null,
+      operator: stripHtml(row[10]) || null,
     }))
     .filter((payment) => /^PAY\d+$/.test(payment.paymentCode || ''));
+}
+
+// Satu pembayaran Runsnet dalam kalimat untuk log: invoice, tanggal bayar, kode, nominal, metode.
+export function describeRunsnetPayment(p) {
+  return `${p.invoiceCode} dibayar ${p.payDate} (${p.paymentCode}, Rp ${p.amount}${p.method ? `, ${p.method}` : ''})`;
+}
+
+// Siapa yang membayar lewat KAsir: nama kasir + role akunnya (Admin / Superadmin).
+export function describePayer({ cashierName, role } = {}) {
+  const roleLabel = role === 'superadmin' ? 'Superadmin' : role === 'admin' ? 'Admin' : null;
+  if (!cashierName) return roleLabel ? `akun ${roleLabel}` : 'staf KAsir';
+  return roleLabel ? `${cashierName} (${roleLabel})` : cashierName;
+}
+
+// Pembayaran Runsnet yang pasti milik tagihan transaksi ini: nama pelanggan sama persis (tanpa beda huruf besar)
+// DAN periode invoice-nya di bulan yang sama dengan tanggal transaksi. Hanya kalau tepat satu — kalau ragu, null
+// (lebih baik tetap "gagal" + info daripada salah menyatakan lunas).
+export function pickPaidPaymentForTransaction(payments, transaction) {
+  const name = String(transaction.customer_name || transaction.instansi_name || '').trim().toUpperCase();
+  const month = String(transaction.date || transaction.created_at || '').slice(0, 7);
+  if (!name || !month) return null;
+  const hits = payments.filter((p) => String(p.custName || '').trim().toUpperCase() === name && String(p.periode || '').slice(0, 7) === month);
+  return hits.length === 1 ? hits[0] : null;
 }
 
 const CHECK_STATUS_MESSAGE = {

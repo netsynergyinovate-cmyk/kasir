@@ -291,9 +291,15 @@ export async function verifyInvoicePaid(session, invoiceCode) {
   return found?.id === invoiceCode;
 }
 
-// Daftar pembayaran milik satu invoice, dibaca dari halaman Payment Runsnet (hanya membaca):
-// [{ paymentCode, amount, payDate }]. Dipakai reversal untuk menemukan kode pembayaran (PAY...) dari kode invoice.
-export async function findPaymentsForInvoice({ cookie, menu }, invoiceCode) {
+// Daftar pembayaran milik satu invoice, dibaca dari halaman Payment Runsnet (hanya membaca). Dipakai reversal
+// untuk menemukan kode pembayaran (PAY...) dari kode invoice.
+export async function findPaymentsForInvoice(session, invoiceCode) {
+  return searchPayments(session, invoiceCode, invoiceCode);
+}
+
+// Pencarian di menu Payment Runsnet (1 tahun terakhir), terbaru dulu — hanya membaca. search = kode invoice / nama
+// pelanggan / CustID; invoiceCode (opsional) menyaring hanya pembayaran milik invoice itu.
+export async function searchPayments({ cookie, menu }, search, invoiceCode) {
   const now = new Date();
   const pageUrl = new URL(`${getBaseUrl()}/view/index.php`);
   pageUrl.searchParams.set(menu.menuKeyParam, menu.paymentPageMenuValue);
@@ -305,7 +311,7 @@ export async function findPaymentsForInvoice({ cookie, menu }, invoiceCode) {
   url.searchParams.set('target', MITRA_TARGET);
 
   const columnNames = ['', 'PaymentCode', 'InvoiceCode', 'CustID', 'CustNama', 'Periode', 'PayDate', 'PayAmount', 'Methode', 'Agent', 'Operator', 'Action'];
-  const body = new URLSearchParams({ draw: '1', start: '0', length: '20', 'search[value]': invoiceCode, 'search[regex]': 'false' });
+  const body = new URLSearchParams({ draw: '1', start: '0', length: '20', 'search[value]': search, 'search[regex]': 'false' });
   columnNames.forEach((name, i) => {
     body.set(`columns[${i}][data]`, String(i));
     body.set(`columns[${i}][name]`, name);

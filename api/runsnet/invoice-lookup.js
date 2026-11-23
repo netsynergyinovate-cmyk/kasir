@@ -37,6 +37,7 @@ export default async function handler(req, res) {
       // Jika tidak ada di PENDING, cari apakah invoice sudah tercatat PAID ('A') di Runsnet
       if (!invoice) {
         invoice = await searchInvoice(session, query, 'A');
+        if (invoice) invoice.paid = true;
       }
     } catch (err) {
       lookupError = err.message;
