@@ -1,4 +1,5 @@
 import process from 'node:process';
+import { Buffer } from 'node:buffer';
 import { parseInvoiceListResponse, stripHtml, describePayResponse, parsePaymentRows } from '../../src/utils/runsnetSync.js';
 import { parsePelangganRow } from '../../src/utils/runsnetCustomers.js';
 import { parseOptionListHtml } from '../../src/utils/runsnetCustomerForm.js';
@@ -24,6 +25,10 @@ const CUSTOMERS_PATH = 'model/previewc/query/pelanggan.php';
 const BRANCH_OPTIONS_PATH = 'model/previewc/fungsi/pelanggan_branch.php';
 const PROFILE_PRICE_PATH = 'model/previewc/fungsi/pelanggan_profile.php';
 const MITRA_TARGET = 'ID00000000024';
+
+// Sejak update UI Runsnet (2026-11): semua endpoint AJAX menolak (HTTP 403) tanpa header X-CSRF-Token
+// yang nilainya dari <meta name="csrf-token"> halaman. Token ini ikut disimpan di menu_map per sesi.
+const csrfHeader = (menu) => (menu?.csrfToken ? { 'X-CSRF-Token': menu.csrfToken } : {});
 
 async function loginToRunsnet() {
   const username = process.env.RUNSNET_USERNAME;
@@ -84,7 +89,7 @@ export async function discoverMenuMap(cookie) {
 
   let menuKeyParam = null;
   const byLabel = {};
-  const linkRe = /href="\?([A-Za-z0-9+/=]+)=([A-Za-z0-9+/=]+)"[^>]*>[\s\S]{0,60}?<span>([^<]+)<\/span>/g;
+  const linkRe = /href="\?([A-Za-z0-9+/=]+)=([A-Za-z0-9+/=]+)"[^>]*>[\s\S]{0,300}?<span>([^<]+)<\/span>/g;
   let m;
   while ((m = linkRe.exec(subHtml)) !== null) {
     menuKeyParam = m[1];
@@ -105,7 +110,12 @@ export async function discoverMenuMap(cookie) {
 
   // Nilai eksekusi (createpayment/createreversal) ditemukan dari isi fungsi JS itu di halaman terkait —
   // bentuknya persis window.open('?<kunciMenu>=<nilai>&data1=' + ..., '_self').
-  const extractActionValue = (html, fnName, keyParam) => {
+  // Sejak update UI Runsnet (2026-11) script halaman dibungkus <script src="data:...;base64,...">, jadi
+  // di-decode dulu supaya isi fungsi createpayment/createreversal bisa dibaca seperti dulu.
+  const withInlineScripts = (html) => html + [...html.matchAll(/data:text\/javascript;charset=utf-8;base64,([A-Za-z0-9+/=]+)/g)]
+    .map((s) => Buffer.from(s[1], 'base64').toString('utf8')).join('\n');
+  const extractActionValue = (rawHtml, fnName, keyParam) => {
+    const html = withInlineScripts(rawHtml);
     const i = html.indexOf(`function ${fnName}(`);
     if (i < 0) return null;
     const re = new RegExp(`window\\.open\\('\\?${keyParam}=([A-Za-z0-9+/=]+)&`);
@@ -138,6 +148,7 @@ export async function discoverMenuMap(cookie) {
     paymentMenuValue: paymentActionValue,
     reversalMenuValue: reversalActionValue,
     addCustomerMenuValue: addCustomerMatch ? addCustomerMatch[1] : null,
+    csrfToken: (invoiceHtml.match(/<meta name="csrf-token" content="([^"]+)"/) || [])[1] || null,
   };
 }
 
@@ -146,7 +157,7 @@ export async function discoverMenuMap(cookie) {
 // isinya), bukan cuma HTTP 200 (halaman lain pun bisa 200). Ini menangkap DUA jenis basi sekaligus:
 // cookie yang sudah tidak valid, ATAU kunci menu yang sudah berganti sejak terakhir disimpan.
 async function isMenuMapStillValid(cookie, menu) {
-  if (!menu?.menuKeyParam || !menu?.invoiceListMenuValue) return false;
+  if (!menu?.menuKeyParam || !menu?.invoiceListMenuValue || !menu?.csrfToken) return false;
   const url = new URL(`${getBaseUrl()}/view/index.php`);
   url.searchParams.set(menu.menuKeyParam, menu.invoiceListMenuValue);
   const response = await fetch(url, { method: 'GET', headers: { Cookie: cookie }, redirect: 'manual' });
@@ -223,6 +234,7 @@ async function postInvoiceSearch({ cookie, menu }, { status, search = '', length
       'X-Requested-With': 'XMLHttpRequest',
       Referer: listUrl.toString(),
       Cookie: cookie,
+      ...csrfHeader(menu),
     },
     body,
   });
@@ -312,6 +324,7 @@ export async function findPaymentsForInvoice({ cookie, menu }, invoiceCode) {
       'X-Requested-With': 'XMLHttpRequest',
       Referer: pageUrl.toString(),
       Cookie: cookie,
+      ...csrfHeader(menu),
     },
     body,
   });
@@ -402,7 +415,7 @@ export async function fetchAllCustomers({ cookie, menu }) {
 
     const response = await fetch(searchUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', Referer: listUrl.toString(), Cookie: cookie },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', Referer: listUrl.toString(), Cookie: cookie, ...csrfHeader(menu) },
       body,
     });
     if (!response.ok) throw new Error(`Mengambil daftar pelanggan Runsnet gagal: HTTP ${response.status}`);
@@ -453,7 +466,7 @@ export async function findCustomersByName({ cookie, menu }, name) {
 
   const response = await fetch(searchUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', Referer: listUrl.toString(), Cookie: cookie },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', Referer: listUrl.toString(), Cookie: cookie, ...csrfHeader(menu) },
     body,
   });
   if (!response.ok) throw new Error(`Mencari pelanggan Runsnet gagal: HTTP ${response.status}`);
@@ -477,7 +490,7 @@ export async function fetchCustomerFormOptions({ cookie, menu }, branchCode, jen
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'X-Requested-With': 'XMLHttpRequest', Referer: pageUrl.toString(), Cookie: cookie },
+    headers: { 'X-Requested-With': 'XMLHttpRequest', Referer: pageUrl.toString(), Cookie: cookie, ...csrfHeader(menu) },
   });
   if (!response.ok) throw new Error(`Mengambil daftar cluster/paket Runsnet gagal: HTTP ${response.status}`);
   const json = await response.json();
@@ -498,7 +511,7 @@ export async function fetchProfilePrice({ cookie, menu }, profileValue) {
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'X-Requested-With': 'XMLHttpRequest', Referer: pageUrl.toString(), Cookie: cookie },
+    headers: { 'X-Requested-With': 'XMLHttpRequest', Referer: pageUrl.toString(), Cookie: cookie, ...csrfHeader(menu) },
   });
   if (!response.ok) throw new Error(`Mengambil harga paket Runsnet gagal: HTTP ${response.status}`);
   const json = await response.json();
@@ -524,7 +537,7 @@ export async function submitNewCustomer({ cookie, menu }, payload) {
   const url = new URL(`${getBaseUrl()}/view/index.php`);
   url.searchParams.set(menu.menuKeyParam, menu.addCustomerMenuValue);
 
-  const body = new URLSearchParams({ ...payload, simpan: '' });
+  const body = new URLSearchParams({ ...payload, simpan: '', ...(menu.csrfToken ? { _csrf: menu.csrfToken } : {}) });
   const response = await fetch(url, {
     method: 'POST',
     headers: {
