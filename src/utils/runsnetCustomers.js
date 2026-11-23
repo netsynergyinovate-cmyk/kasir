@@ -20,6 +20,8 @@ export function parsePelangganRow(row) {
     package: stripHtml(row[3]),
     type: stripHtml(row[5]),
     status: mapRunsnetStatus(row[10]),
+    connection: stripHtml(row[9]) || null, // Terhubung / Sambungan Terputus / Tidak Terhubung
+    runsnetStatus: stripHtml(row[10]) || null, // Active / Terminate
   };
 }
 

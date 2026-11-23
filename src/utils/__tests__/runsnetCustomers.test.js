@@ -41,6 +41,13 @@ describe('parsePelangganRow', () => {
     expect(parsed.status).toBe('aktif');
   });
 
+  it('keeps the connectivity and raw Runsnet status for the log panel', () => {
+    const row = [...sampleRow];
+    row[9] = "<span style='color: #4dbd74' class='blink'><b>Sambungan Terputus</b></span>";
+    row[10] = "<span class='u-tc-007f00'>Active</span>";
+    expect(parsePelangganRow(row)).toMatchObject({ connection: 'Sambungan Terputus', runsnetStatus: 'Active' });
+  });
+
   it('returns null when the row has no custid', () => {
     const broken = [...sampleRow];
     broken[0] = "<input type='checkbox' name='select'>";

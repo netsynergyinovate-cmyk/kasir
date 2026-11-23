@@ -112,7 +112,8 @@ export function pickPaymentTarget(transaction) {
 // tidak dijalankan sama sekali, walau HTTP-nya bukan error. Hanya status "ok" yang layak dianggap terkirim.
 export function describePayResponse({ status, location }) {
   const where = location ? ` → ${location}` : '';
-  if (status >= 300 && status < 400 && /login\.php/i.test(location || '')) {
+  // Runsnet 2026-11: sesi yang ditendang login lain dialihkan ke "../?result=Q4" (bukan login.php lagi).
+  if (status >= 300 && status < 400 && /login\.php|[?&]result=Q\d/i.test(location || '')) {
     return { ok: false, reason: `Sesi login Runsnet tidak valid (HTTP ${status}${where}); perintah bayar TIDAK dijalankan.` };
   }
   if (status >= 400) {

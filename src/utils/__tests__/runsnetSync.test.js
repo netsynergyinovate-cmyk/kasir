@@ -288,3 +288,9 @@ describe('pickPaidPaymentForTransaction', () => {
     expect(describeRunsnetPayment(pay())).toBe('INVRT1 dibayar 2026-11-22 (PAY1, Rp 250,000, Pembayaran Tunai)');
   });
 });
+
+describe('describePayResponse (sesi ditendang login lain)', () => {
+  it('treats the 2026-11 kicked-session redirect as NOT sent', () => {
+    expect(describePayResponse({ status: 302, location: '../?result=Q4' }).ok).toBe(false);
+  });
+});

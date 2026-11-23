@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Zap, Wifi, Loader2, CheckCircle2, XCircle, Search, Send, Undo2, Minus, Eye } from 'lucide-react';
+import { RefreshCw, Zap, Wifi, WifiOff, Loader2, CheckCircle2, XCircle, Search, Send, Undo2, Minus, Eye, Receipt, UserCheck, Building2, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { describeSyncStatus } from '../utils/runsnetSync';
 import { formatRupiah } from '../utils/format';
@@ -40,6 +40,41 @@ const STEP_LOOK = {
 // Panel superadmin: saklar sinkronisasi otomatis KAsir -> Runsnet + mode uji coba, dan log percobaan
 // terakhir. Toggle menulis langsung ke company_settings; keputusan sinkron sesungguhnya dijalankan
 // oleh Vercel Function (api/runsnet/webhook.js) yang membaca kolom ini.
+const isRunsnetCode = (code) => /^INV/i.test(code || '') && !/^INV-\d+$/.test(code);
+
+// Pembayaran sukses yang BUKAN dikirim KAsir sendiri: pesannya selalu memuat "tidak dibayar ulang" (invoice sudah
+// PAID sebelum KAsir mengirim — dibayar langsung di billing Runsnet atau lewat transaksi KAsir lain).
+const isAlreadyPaidMessage = (message) => /tidak dibayar ulang/i.test(message || '');
+
+const BILL_LOOK = {
+  PAID: { text: 'Sudah dibayar', tone: 'ok', icon: CheckCircle2 },
+  PENDING: { text: 'Belum dibayar', tone: 'warn', icon: Clock },
+  CANCEL: { text: 'Dibatalkan', tone: 'muted', icon: XCircle },
+  NOT_FOUND: { text: 'Tidak ditemukan', tone: 'bad', icon: XCircle },
+};
+const CONNECTION_LOOK = {
+  Terhubung: { text: 'Terhubung', tone: 'ok', icon: Wifi },
+  'Sambungan Terputus': { text: 'Terputus', tone: 'bad', icon: WifiOff },
+  'Tidak Terhubung': { text: 'Tidak terhubung', tone: 'muted', icon: WifiOff },
+};
+const TONE = {
+  ok: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+  warn: 'bg-amber-50 border-amber-200 text-amber-800',
+  bad: 'bg-red-50 border-red-200 text-red-800',
+  muted: 'bg-gray-50 border-gray-200 text-gray-600',
+};
+
+// Satu ubin ringkas status (ikon + judul kecil + nilai tebal + keterangan) di atas garis waktu kartu log.
+const StatusTile = ({ icon: Icon, label, value, sub, tone = 'muted', spin = false }) => (
+  <div className={`rounded-lg border px-2 py-1.5 min-w-0 ${TONE[tone]}`}>
+    <p className="text-[9px] font-bold uppercase tracking-wide opacity-70 flex items-center gap-1">
+      <Icon size={11} className={spin ? 'animate-spin shrink-0' : 'shrink-0'} /> {label}
+    </p>
+    <p className="text-[11px] font-black leading-tight truncate">{value}</p>
+    {sub && <p className="text-[9px] opacity-80 truncate">{sub}</p>}
+  </div>
+);
+
 const RunsnetSyncPanel = ({ session }) => {
   const [enabled, setEnabled] = useState(false);
   const [dryRun, setDryRun] = useState(true);
@@ -51,6 +86,10 @@ const RunsnetSyncPanel = ({ session }) => {
   const [retryingId, setRetryingId] = useState(null);
   const [txById, setTxById] = useState({});
   const [filter, setFilter] = useState('all');
+  const [roleById, setRoleById] = useState({});
+  // Status LANGSUNG dari Runsnet (bukan dari catatan log): tagihan, pembayaran terbaru, koneksi pelanggan.
+  const [live, setLive] = useState({ statuses: {}, payments: {}, customers: {}, checkedAt: null, error: null });
+  const [liveLoading, setLiveLoading] = useState(false);
 
   const fetchAll = () => Promise.all([
     supabase.from('company_settings').select('runsnet_sync_enabled, runsnet_dry_run').eq('id', 1).maybeSingle(),
@@ -65,6 +104,7 @@ const RunsnetSyncPanel = ({ session }) => {
     if (logsRes.data) {
       setLogs(logsRes.data);
       loadTransactionNames(logsRes.data);
+      loadLive(logsRes.data);
     }
     setIsLoading(false);
   };
@@ -73,8 +113,36 @@ const RunsnetSyncPanel = ({ session }) => {
   const loadTransactionNames = async (rows) => {
     const ids = [...new Set(rows.map((r) => r.transaction_id))];
     if (ids.length === 0) return;
-    const { data } = await supabase.from('transactions').select('id, customer_name, instansi_name, price').in('id', ids);
+    const [{ data }, { data: profiles }] = await Promise.all([
+      supabase.from('transactions').select('id, customer_name, instansi_name, price, cashier_name, cashier_id').in('id', ids),
+      supabase.from('admin_profiles').select('id, role'),
+    ]);
     if (data) setTxById(Object.fromEntries(data.map((t) => [t.id, t])));
+    if (profiles) setRoleById(Object.fromEntries(profiles.map((p) => [p.id, p.role])));
+  };
+
+  // Baca status nyata di Runsnet untuk invoice-invoice di log (hanya membaca, tidak menulis log).
+  const loadLive = async (rows) => {
+    const codes = [...new Set(rows.map((r) => r.runsnet_ref).filter(isRunsnetCode))];
+    setLiveLoading(true);
+    try {
+      const response = await fetch('/api/runsnet/invoice-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ codes, detail: true }),
+      });
+      const result = await response.json();
+      setLive({
+        statuses: result.statuses || {},
+        payments: result.payments || {},
+        customers: result.customers || {},
+        checkedAt: result.checkedAt || null,
+        error: !response.ok ? result.error || `HTTP ${response.status}` : result.error || null,
+      });
+    } catch (err) {
+      setLive((prev) => ({ ...prev, error: err.message }));
+    }
+    setLiveLoading(false);
   };
 
   const load = async () => applyResults(await fetchAll());
@@ -262,8 +330,16 @@ const RunsnetSyncPanel = ({ session }) => {
         <div className="pt-3 border-t border-gray-100 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Riwayat Pengiriman ke Runsnet</p>
-            <button type="button" onClick={load} aria-label="Muat ulang log" className="text-gray-400 hover:text-gray-600"><RefreshCw size={13} /></button>
+            <button type="button" onClick={load} aria-label="Muat ulang log dan status Runsnet" className="text-gray-400 hover:text-gray-600"><RefreshCw size={13} className={liveLoading ? 'animate-spin' : ''} /></button>
           </div>
+          <p className={`text-[10px] flex items-center gap-1 ${live.error ? 'text-red-600' : 'text-gray-400'}`}>
+            {liveLoading ? <Loader2 size={11} className="animate-spin" /> : live.error ? <XCircle size={11} /> : <CheckCircle2 size={11} className="text-emerald-500" />}
+            {liveLoading
+              ? 'Memeriksa status tagihan & koneksi langsung di Runsnet...'
+              : live.error
+                ? `Status Runsnet tidak terbaca: ${live.error}`
+                : live.checkedAt ? `Status tagihan & koneksi dibaca langsung dari Runsnet, ${formatTime(live.checkedAt)}.` : 'Status Runsnet belum dibaca.'}
+          </p>
 
           <div className="flex gap-1.5 overflow-x-auto pb-0.5">
             {FILTERS.map((f) => {
@@ -302,8 +378,22 @@ const RunsnetSyncPanel = ({ session }) => {
                 const overallBad = g.rows.some((r) => r.status === 'failed');
                 const isOrphan = !tx && paymentDone && !reversedIds.has(lastRow.transaction_id);
 
+                // Ringkasan status nyata di Runsnet untuk ubin di atas garis waktu.
+                const code = [...g.rows].reverse().find((r) => isRunsnetCode(r.runsnet_ref))?.runsnet_ref || null;
+                const billStatus = code ? live.statuses[code] : null;
+                const bill = BILL_LOOK[billStatus];
+                const payment = code ? live.payments[code] : null;
+                const isPaid = billStatus === 'PAID' || (!billStatus && paymentDone);
+                const kasirPayRow = [...g.rows].reverse().find((r) => (r.stage || 'payment') === 'payment' && r.status === 'success' && !isAlreadyPaidMessage(r.message));
+                const payTx = kasirPayRow ? txById[kasirPayRow.transaction_id] || tx : null;
+                const payRole = roleById[payTx?.cashier_id];
+                const roleLabel = payRole === 'superadmin' ? 'Superadmin' : payRole === 'admin' ? 'Admin' : 'Staf';
+                const customer = live.customers[String(name).trim().toUpperCase()];
+                const conn = CONNECTION_LOOK[customer?.connection];
+                const cardBorder = billStatus === 'PAID' ? 'border-emerald-200' : overallBad ? 'border-red-200' : 'border-gray-100';
+
                 return (
-                  <div key={g.key} className={`p-3.5 rounded-xl border bg-white shadow-sm space-y-3 ${overallBad ? 'border-red-200' : 'border-gray-100'}`}>
+                  <div key={g.key} className={`p-3.5 rounded-xl border bg-white shadow-sm space-y-3 ${cardBorder}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-gray-900 leading-tight truncate">{name}</p>
@@ -313,6 +403,28 @@ const RunsnetSyncPanel = ({ session }) => {
                         {tx?.price != null && <p className="text-xs font-black text-blue-700">{formatRupiah(tx.price)}</p>}
                         <p className="text-[10px] text-gray-400">{formatRelative(g.latest)}</p>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {liveLoading && !billStatus ? (
+                        <StatusTile icon={Loader2} spin label="Tagihan" value="Memeriksa..." />
+                      ) : bill ? (
+                        <StatusTile icon={bill.icon} label="Tagihan Runsnet" value={bill.text} tone={bill.tone} sub={payment ? `${payment.payDate} · Rp ${payment.amount}` : code} />
+                      ) : (
+                        <StatusTile icon={Receipt} label="Tagihan Runsnet" value={code ? 'Belum dicek' : 'Belum ada no.'} sub={code || 'Invoice tidak ditemukan'} />
+                      )}
+                      {!isPaid ? (
+                        <StatusTile icon={UserCheck} label="Dibayar oleh" value="Belum ada" sub="Belum dibayar" />
+                      ) : kasirPayRow ? (
+                        <StatusTile icon={UserCheck} label="Dibayar oleh" value={payTx?.cashier_name || 'KAsir'} tone="ok" sub={`${roleLabel} · via KAsir`} />
+                      ) : (
+                        <StatusTile icon={Building2} label="Dibayar oleh" value="Billing Runsnet" tone="ok" sub={payment?.paymentCode ? `Langsung · ${payment.paymentCode}` : 'Langsung di Runsnet'} />
+                      )}
+                      {conn ? (
+                        <StatusTile icon={conn.icon} label="Koneksi" value={conn.text} tone={conn.tone} sub={customer.status || null} />
+                      ) : (
+                        <StatusTile icon={liveLoading ? Loader2 : WifiOff} spin={liveLoading} label="Koneksi" value={liveLoading ? 'Memeriksa...' : 'Tidak diketahui'} sub={liveLoading ? null : 'Tidak ada di Runsnet'} />
+                      )}
                     </div>
 
                     {isOrphan && (

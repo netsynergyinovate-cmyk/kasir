@@ -124,6 +124,7 @@ export async function discoverMenuMap(cookie) {
   };
 
   const invoiceHtml = await fetchMenuPage(byLabel.Invoice);
+  if (!invoiceHtml.includes('InvoiceCode') && /name="username"/.test(invoiceHtml)) throw new Error(SESSION_KICKED_MESSAGE);
   const paymentActionValue = extractActionValue(invoiceHtml, 'createpayment', menuKeyParam);
 
   const paymentHtml = await fetchMenuPage(byLabel.Payment);
@@ -166,23 +167,44 @@ async function isMenuMapStillValid(cookie, menu) {
   return html.includes('InvoiceCode');
 }
 
-// Titik masuk utama: cookie login + kunci menu yang TERBUKTI berlaku saat ini, dari cache (tabel
-// runsnet_session) kalau masih segar (< 1 jam DAN masih valid dites nyata), kalau tidak login +
-// temukan ulang. Menggantikan ensureSession/ensureValidSession lama (kunci menu dulu dikira tetap,
-// sekarang ditemukan ulang bersama sesi karena terbukti berubah — lihat komentar di atas).
-export async function getRunsnetSession(supabaseAdmin, { force = false } = {}) {
-  const { data } = await supabaseAdmin.from('runsnet_session').select('cookie, menu_map, updated_at').eq('id', 1).maybeSingle();
-  const ageMs = data?.updated_at ? Date.now() - new Date(data.updated_at).getTime() : Infinity;
+// Sejak update Runsnet 2026-11: SATU akun hanya boleh SATU sesi. Login baru (dari browser siapa pun atau dari
+// pemanggilan KAsir lain yang berjalan bersamaan) membuat sesi lama dialihkan ke ?result=Q4.
+export const SESSION_KICKED_MESSAGE = 'Sesi Runsnet terputus karena akun yang sama login di tempat lain (Runsnet hanya mengizinkan 1 sesi per akun). Coba kirim ulang; sebaiknya KAsir memakai akun Runsnet tersendiri.';
+
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+// Titik masuk utama: cookie login + kunci menu yang TERBUKTI berlaku saat ini. Karena login baru menendang sesi
+// lain (lihat SESSION_KICKED_MESSAGE), login dihindari selama sesi tersimpan masih hidup: kalau sudah > 1 jam,
+// kunci menu ditemukan ulang memakai cookie yang SAMA. Kalau login+temukan gagal karena tertendang (biasanya
+// pemanggilan KAsir lain login bersamaan), tunggu sebentar lalu pakai sesi yang baru disimpan pemanggilan itu.
+export async function getRunsnetSession(supabaseAdmin) {
   const ONE_HOUR = 60 * 60 * 1000;
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) await sleep(1500 + Math.random() * 1500);
+    const { data } = await supabaseAdmin.from('runsnet_session').select('cookie, menu_map, updated_at').eq('id', 1).maybeSingle();
+    const ageMs = data?.updated_at ? Date.now() - new Date(data.updated_at).getTime() : Infinity;
 
-  if (!force && data?.cookie && data?.menu_map && ageMs < ONE_HOUR && (await isMenuMapStillValid(data.cookie, data.menu_map))) {
-    return { cookie: data.cookie, menu: data.menu_map };
+    if (data?.cookie && (await isMenuMapStillValid(data.cookie, data.menu_map))) {
+      if (ageMs < ONE_HOUR) return { cookie: data.cookie, menu: data.menu_map };
+      try {
+        const menu = await discoverMenuMap(data.cookie);
+        await supabaseAdmin.from('runsnet_session').upsert({ id: 1, cookie: data.cookie, menu_map: menu, updated_at: new Date().toISOString() });
+        return { cookie: data.cookie, menu };
+      } catch { /* kunci menu tak bisa dibaca ulang dengan cookie lama: login ulang di bawah */ }
+    }
+
+    try {
+      const cookie = await loginToRunsnet();
+      const menu = await discoverMenuMap(cookie);
+      await supabaseAdmin.from('runsnet_session').upsert({ id: 1, cookie, menu_map: menu, updated_at: new Date().toISOString() });
+      return { cookie, menu };
+    } catch (error) {
+      lastError = error;
+      if (error.message !== SESSION_KICKED_MESSAGE) throw error;
+    }
   }
-
-  const cookie = await loginToRunsnet();
-  const menu = await discoverMenuMap(cookie);
-  await supabaseAdmin.from('runsnet_session').upsert({ id: 1, cookie, menu_map: menu, updated_at: new Date().toISOString() });
-  return { cookie, menu };
+  throw lastError;
 }
 
 // Kolom filter tanggal endpoint pencarian (format MM/DD/YYYY, sesuai input date-range Runsnet).
@@ -299,7 +321,7 @@ export async function findPaymentsForInvoice(session, invoiceCode) {
 
 // Pencarian di menu Payment Runsnet (1 tahun terakhir), terbaru dulu — hanya membaca. search = kode invoice / nama
 // pelanggan / CustID; invoiceCode (opsional) menyaring hanya pembayaran milik invoice itu.
-export async function searchPayments({ cookie, menu }, search, invoiceCode) {
+export async function searchPayments({ cookie, menu }, search, invoiceCode, length = 20) {
   const now = new Date();
   const pageUrl = new URL(`${getBaseUrl()}/view/index.php`);
   pageUrl.searchParams.set(menu.menuKeyParam, menu.paymentPageMenuValue);
@@ -311,7 +333,7 @@ export async function searchPayments({ cookie, menu }, search, invoiceCode) {
   url.searchParams.set('target', MITRA_TARGET);
 
   const columnNames = ['', 'PaymentCode', 'InvoiceCode', 'CustID', 'CustNama', 'Periode', 'PayDate', 'PayAmount', 'Methode', 'Agent', 'Operator', 'Action'];
-  const body = new URLSearchParams({ draw: '1', start: '0', length: '20', 'search[value]': search, 'search[regex]': 'false' });
+  const body = new URLSearchParams({ draw: '1', start: '0', length: String(length), 'search[value]': search, 'search[regex]': 'false' });
   columnNames.forEach((name, i) => {
     body.set(`columns[${i}][data]`, String(i));
     body.set(`columns[${i}][name]`, name);
