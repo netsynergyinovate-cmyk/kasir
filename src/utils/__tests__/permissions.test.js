@@ -38,6 +38,12 @@ describe('isPathAllowedForRole', () => {
     expect(isPathAllowedForRole('admin', '/rute', { paths: ['/pos'], permissions: ['rute.visit'] })).toBe(false);
   });
 
+  it('opens the add-customer page for an admin with customers.create', () => {
+    expect(isPathAllowedForRole('admin', '/pelanggan-runsnet-baru')).toBe(true);
+    expect(isPathAllowedForRole('admin', '/pelanggan-runsnet-baru', { paths: ['/pos'], permissions: ['customers.create'] })).toBe(true);
+    expect(isPathAllowedForRole('admin', '/pelanggan-runsnet-baru', { paths: ['/customers'], permissions: ['customers.view'] })).toBe(false);
+  });
+
   it('blocks admin on paths outside the allow-list', () => {
     expect(isPathAllowedForRole('admin', '/instansi')).toBe(false);
   });

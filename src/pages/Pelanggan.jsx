@@ -411,13 +411,15 @@ const Pelanggan = ({
           )}
 
           {/* Tambah Pelanggan Button */}
-          <button
-            onClick={() => setShowAddCustomer && setShowAddCustomer(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm shadow-blue-200 active:scale-95 transition-all"
-          >
-            <PlusCircle size={14} />
-            <span>Tambah</span>
-          </button>
+          {can('customers.create') && (
+            <button
+              onClick={() => setShowAddCustomer && setShowAddCustomer(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm shadow-blue-200 active:scale-95 transition-all"
+            >
+              <PlusCircle size={14} />
+              <span>Tambah</span>
+            </button>
+          )}
         </div>
       </div>
 

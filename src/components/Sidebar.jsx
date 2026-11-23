@@ -9,6 +9,7 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewA
   const isSuper = session?.profile?.role === 'superadmin';
   const roleName = isSuper ? 'Super Admin' : (session?.profile?.full_name || 'Admin Kasir');
   const roleBadge = isSuper ? 'Super Administrator' : 'Admin POS';
+  const allowed = (path) => isPathAllowedForRole(session?.profile?.role, path, session?.profile?.allowed_paths);
 
   const handleLogout = async () => {
     if (window.confirm('Yakin ingin keluar dari aplikasi? Anda harus login kembali saat masuk.')) {
@@ -52,29 +53,41 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewA
          
          <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2 mt-2">Layanan Utama</div>
-            <NavLink to="/" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-              <Home size={18} /> Beranda
-            </NavLink>
-            <NavLink to="/customers" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-              <Users size={18} /> Pelanggan Retail
-            </NavLink>
-            <NavLink to="/pelanggan-runsnet-baru" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-              <UserPlus size={18} /> Tambah Pelanggan
-            </NavLink>
-            {isPathAllowedForRole(session?.profile?.role, '/rute', session?.profile?.allowed_paths) && (
+            {allowed('/') && (
+              <NavLink to="/" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+                <Home size={18} /> Beranda
+              </NavLink>
+            )}
+            {allowed('/customers') && (
+              <NavLink to="/customers" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+                <Users size={18} /> Pelanggan Retail
+              </NavLink>
+            )}
+            {allowed('/pelanggan-runsnet-baru') && (
+              <NavLink to="/pelanggan-runsnet-baru" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+                <UserPlus size={18} /> Tambah Pelanggan
+              </NavLink>
+            )}
+            {allowed('/rute') && (
               <NavLink to="/rute" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
                 <RouteIcon size={18} /> Rute Kunjungan
               </NavLink>
             )}
-            <NavLink to="/pos" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-              <Printer size={18} /> Kasir (58mm)
-            </NavLink>
-            <NavLink to="/aktivitas" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-              <Activity size={18} /> Aktivitas Kasir
-            </NavLink>
-            <NavLink to="/settings" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-              <SettingsIcon size={18} /> Pengaturan
-            </NavLink>
+            {allowed('/pos') && (
+              <NavLink to="/pos" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+                <Printer size={18} /> Kasir (58mm)
+              </NavLink>
+            )}
+            {allowed('/aktivitas') && (
+              <NavLink to="/aktivitas" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+                <Activity size={18} /> Aktivitas Kasir
+              </NavLink>
+            )}
+            {allowed('/settings') && (
+              <NavLink to="/settings" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+                <SettingsIcon size={18} /> Pengaturan
+              </NavLink>
+            )}
 
             {isSuper && (
               <>
