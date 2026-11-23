@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
+import UpdateBanner from './components/UpdateBanner'
 import { registerSW } from 'virtual:pwa-register'
 import { UPDATE_READY_EVENT, setApplyUpdate } from './utils/appUpdate'
 
@@ -29,6 +30,8 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <App />
+      {/* Di luar App supaya tetap terlihat di layar kunci & login (kalau tidak, versi lama bisa terjebak). */}
+      <UpdateBanner />
     </BrowserRouter>
   </StrictMode>,
 )

@@ -29,7 +29,6 @@ const TambahPelangganRunsnet = lazy(() => import('./pages/TambahPelangganRunsnet
 const DashboardSuperadmin = lazy(() => import('./pages/DashboardSuperadmin'));
 const Rute = lazy(() => import('./pages/Rute'));
 import RunsnetSyncToast from './components/RunsnetSyncToast';
-import UpdateBanner from './components/UpdateBanner';
 import { customerVisitStatus } from './utils/visits';
 import { describeRouteError } from './utils/dbErrors';
 import { useShareLocation } from './hooks/useShareLocation';
@@ -1199,7 +1198,6 @@ export default function App() {
       </div>
 
       <RunsnetSyncToast result={runsnetResult} onDone={() => setRunsnetResult(null)} />
-      <UpdateBanner />
 
       <AddCustomerModal
         show={showAddCustomer}
