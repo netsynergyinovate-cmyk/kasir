@@ -192,6 +192,7 @@ export function isPathAllowedForRole(role, pathname, allowedPaths = null) {
   const cleanPath = (pathname || '').split('?')[0].split('#')[0];
   const access = normalizeAdminAccess(allowedPaths);
   if (cleanPath === '/rute') return access.permissions.includes('rute.view');
+  if (cleanPath === '/pelanggan-runsnet-baru') return access.permissions.includes('customers.create');
   return access.paths.includes(cleanPath);
 }
 

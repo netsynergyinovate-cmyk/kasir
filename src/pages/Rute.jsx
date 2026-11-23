@@ -255,9 +255,9 @@ const Rute = ({
         <div className="bg-white p-5 rounded-2xl border border-gray-100 text-center space-y-3">
           <p className="text-sm font-bold text-gray-800">Belum ada rumah di rute.</p>
           <p className="text-xs text-gray-500">
-            {isSuper ? 'Tambahkan pelanggan ke rute, isi koordinat rumahnya, lalu peta dan jalur kunjungan akan muncul di sini.' : 'Superadmin belum menyusun rute.'}
+            {canReorder ? 'Tambahkan pelanggan ke rute, isi koordinat rumahnya, lalu peta dan jalur kunjungan akan muncul di sini.' : 'Superadmin belum menyusun rute.'}
           </p>
-          {isSuper && (
+          {canReorder && (
             <button type="button" onClick={() => setEditMode(true)} className="px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-indigo-200">
               Mulai Atur Rute
             </button>
@@ -309,7 +309,7 @@ const Rute = ({
         <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-center space-y-2">
           <MapPin className="mx-auto text-indigo-500" size={22} />
           <p className="text-xs font-bold text-indigo-900">Peta muncul setelah koordinat rumah diisi.</p>
-          {isSuper ? (
+          {canReorder ? (
             <button type="button" onClick={() => setEditMode(true)} className="px-3 py-2 bg-indigo-600 text-white text-[11px] font-bold rounded-lg">
               Atur Rute lalu Isi koordinat
             </button>
