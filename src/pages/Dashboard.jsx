@@ -7,7 +7,7 @@ import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
 import { getGreeting, kasbonSummary } from '../utils/dashboardStats';
 import { calculateAdminCommissions, commissionByMonth, commissionRuleNotes, monthKey, monthLabel, payoutPeriodKey, bonusPeriodKey } from '../utils/commissions';
-import { normalizeAdminAccess } from '../utils/permissions';
+import { normalizeAdminAccess, hasPermission } from '../utils/permissions';
 import { useWhatsAppReminders } from '../hooks/useWhatsAppReminders';
 import './Dashboard.css';
 
@@ -35,6 +35,7 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
     sendingReminderId, isSendingBatch, reminderFeedback, setReminderFeedback,
     sendSingleReminder, sendBatchReminders,
   } = useWhatsAppReminders({ companyInfo, session });
+  const can = (perm) => hasPermission(session?.profile?.role, perm, session?.profile?.allowed_paths);
 
   const months = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -307,6 +308,7 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
         </div>
 
         {/* Total Kotor Card */}
+        {can('finance.view_omset') && (
         <div className="stat-card py-2.5 px-3 super-rounded flex flex-col justify-between">
           <div className="flex items-center justify-between gap-1">
             <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Total Kotor</p>
@@ -315,6 +317,7 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
           <p className="text-sm font-extrabold text-gray-900 leading-none mt-1">{formatRupiah(grossRevenue)}</p>
           <p className="text-[8px] text-gray-400 font-medium mt-0.5">{lunasTrxCount} transaksi lunas</p>
         </div>
+        )}
 
         {/* Progres Penagihan Card */}
         <div className="stat-card py-2.5 px-3 super-rounded flex flex-col justify-between">
@@ -398,7 +401,7 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
                 {reminderList.length}
               </span>
             </h2>
-            {reminderList.some(c => c.phone) && (
+            {can('whatsapp.reminder') && reminderList.some(c => c.phone) && (
               <button
                 type="button"
                 onClick={() => sendBatchReminders(reminderList)}
@@ -443,7 +446,7 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${badge.className}`}>
                         {badge.text}
                       </span>
-                      {cust.phone && (
+                      {can('whatsapp.reminder') && cust.phone && (
                         <button
                           type="button"
                           onClick={() => sendSingleReminder(cust)}
@@ -473,7 +476,7 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
       )}
 
       {/* Revenue Chart Section — disembunyikan saat embedded, superadmin punya chart Omset sendiri */}
-      {!embedded && (
+      {!embedded && can('finance.view_omset') && (
       <div>
         <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Pendapatan 6 Bulan Terakhir</h2>
         <div className="bg-white p-5 super-rounded border border-gray-100 shadow-sm">

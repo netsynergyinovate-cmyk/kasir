@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import process from 'node:process';
-vi.mock('../../api/_lib/verifySuperadmin.js', () => ({
-  verifySuperadmin: vi.fn(),
-  verifyStaff: vi.fn(),
-}));
+vi.mock('../../api/_lib/verifySuperadmin.js', () => {
+  const verifyStaff = vi.fn();
+  // verifyPermission diuji sendiri (verifyPermission.test.js); di sini cukup ikut hasil verifyStaff.
+  return { verifySuperadmin: vi.fn(), verifyStaff, verifyPermission: (req) => verifyStaff(req) };
+});
 
 vi.mock('../../api/_lib/supabaseAdmin.js', () => ({
   getServiceClient: vi.fn(),

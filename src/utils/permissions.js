@@ -15,17 +15,25 @@ export const CONFIGURABLE_ADMIN_MENUS = [
 export const ADMIN_ALLOWED_PATHS = CONFIGURABLE_ADMIN_MENUS.map((m) => m.path);
 export const ADMIN_DEFAULT_PATH = '/pos';
 
+// Hak "buka halaman" per menu: menu baru bisa dibuka admin kalau menunya DAN hak ini sama-sama dicentang.
+export const PAGE_VIEW_PERMISSION = {
+  '/pos': 'pos.view',
+  '/customers': 'customers.view',
+  '/history': 'history.view',
+  '/aktivitas': 'finance.view_activity',
+  '/settings': 'settings.view',
+};
+
 // 8 Modul Pembagian Hak Akses Granular
 export const PERMISSION_MODULES = [
   {
     id: 'pos',
     label: 'Transaksi & Kasir (POS)',
-    description: 'Akses transaksi kasir harian, cetak struk, dan penjualan voucher',
+    description: 'Akses transaksi kasir harian dan cetak struk',
     path: '/pos',
     permissions: [
       { id: 'pos.view', label: 'Buka Halaman Transaksi' },
       { id: 'pos.retail', label: 'Proses Pembayaran Retail Bulanan' },
-      { id: 'pos.voucher', label: 'Penjualan Voucher WiFi/Hotspot' },
       { id: 'pos.custom_price', label: 'Ubah Harga & Diskon Manual' },
       { id: 'pos.print', label: 'Cetak Struk Transaksi' },
     ],
@@ -105,7 +113,7 @@ export const PERMISSION_MODULES = [
     description: 'Sinkronisasi tagihan dan data pelanggan ke Runsnet',
     path: '/settings',
     permissions: [
-      { id: 'runsnet.sync', label: 'Kirim Status Pembayaran ke Runsnet' },
+      { id: 'runsnet.sync', label: 'Kirim Ulang Pembayaran ke Runsnet (manual)' },
       { id: 'runsnet.sync_customers', label: 'Tarik & Sinkronkan Pelanggan Runsnet' },
     ],
   },
@@ -114,12 +122,12 @@ export const PERMISSION_MODULES = [
 export const ALL_PERMISSIONS = PERMISSION_MODULES.flatMap((m) => m.permissions.map((p) => p.id));
 
 export const DEFAULT_ADMIN_PERMISSIONS = [
-  'pos.view', 'pos.retail', 'pos.voucher', 'pos.print',
+  'pos.view', 'pos.retail', 'pos.print', 'pos.custom_price',
   'customers.view', 'customers.create', // customers.edit bukan bawaan: edit pelanggan dulu khusus superadmin
   'history.view', 'history.proof_view', 'history.proof_upload',
   'rute.visit', // rute.view sengaja tidak bawaan: halaman Rute hanya untuk admin yang dicentang superadmin
-  'whatsapp.invoice',
-  'finance.view_activity',
+  'whatsapp.invoice', 'whatsapp.reminder',
+  'finance.view_activity', 'finance.view_omset',
   'settings.view', 'settings.printer',
 ];
 
@@ -142,7 +150,8 @@ export function normalizeAdminAccess(allowedPaths) {
   if (Array.isArray(allowedPaths)) {
     // Format array lama: tentukan permissions berdasarkan menu yang diizinkan
     const perms = [];
-    if (allowedPaths.includes('/pos')) perms.push('pos.view', 'pos.retail', 'pos.voucher', 'pos.print');
+    if (allowedPaths.includes('/')) perms.push('whatsapp.reminder', 'finance.view_omset');
+    if (allowedPaths.includes('/pos')) perms.push('pos.view', 'pos.retail', 'pos.print', 'pos.custom_price', 'whatsapp.invoice');
     if (allowedPaths.includes('/customers')) perms.push('customers.view', 'customers.create');
     if (allowedPaths.includes('/history')) perms.push('history.view', 'history.proof_view', 'history.proof_upload');
     if (allowedPaths.includes('/aktivitas')) perms.push('finance.view_activity');
@@ -193,12 +202,12 @@ export function isPathAllowedForRole(role, pathname, allowedPaths = null) {
   const access = normalizeAdminAccess(allowedPaths);
   if (cleanPath === '/rute') return access.permissions.includes('rute.view');
   if (cleanPath === '/pelanggan-runsnet-baru') return access.permissions.includes('customers.create');
-  return access.paths.includes(cleanPath);
+  const viewPermission = PAGE_VIEW_PERMISSION[cleanPath];
+  return access.paths.includes(cleanPath) && (!viewPermission || access.permissions.includes(viewPermission));
 }
 
 // Menu (dari CONFIGURABLE_ADMIN_MENUS) yang tampil di navigasi untuk role+allowedPaths ini.
 export function visibleMenusForRole(role, allowedPaths = null) {
   if (role === 'superadmin') return CONFIGURABLE_ADMIN_MENUS;
-  const access = normalizeAdminAccess(allowedPaths);
-  return CONFIGURABLE_ADMIN_MENUS.filter((m) => access.paths.includes(m.path));
+  return CONFIGURABLE_ADMIN_MENUS.filter((m) => isPathAllowedForRole(role, m.path, allowedPaths));
 }

@@ -1,4 +1,4 @@
-import { verifyStaff } from '../_lib/verifySuperadmin.js';
+import { verifyPermission } from '../_lib/verifySuperadmin.js';
 
 const MAX_IMAGE_CHARS = 900_000; // ~650 KB gambar; klien sudah mengecilkan gambar sebelum mengirim
 const IMAGE_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { error, adminClient, callerId, role } = await verifyStaff(req);
+  const { error, adminClient, callerId, role } = await verifyPermission(req, 'history.proof_upload');
   if (error) {
     res.status(error.status).json({ error: error.message });
     return;

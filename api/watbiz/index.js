@@ -1,6 +1,6 @@
 import process from 'node:process';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { verifyStaff, verifySuperadmin } from '../_lib/verifySuperadmin.js';
+import { verifyStaff, verifySuperadmin, verifyPermission } from '../_lib/verifySuperadmin.js';
 import { getServiceClient } from '../_lib/supabaseAdmin.js';
 import { sendWatbizMessage, registerWatbizWebhook, getWatbizProfile } from '../_lib/watbizClient.js';
 import { syncPayment } from '../_lib/paymentSync.js';
@@ -912,7 +912,7 @@ export default async function handler(req, res) {
 
   // C. Action: 'send-invoice' (Kirim Invoice WhatsApp Resmi Pasca-Kasir)
   if (action === 'send-invoice') {
-    const staff = await verifyStaff(req);
+    const staff = await verifyPermission(req, 'whatsapp.invoice');
     if (staff.error) {
       res.status(staff.error.status).json({ error: staff.error.message });
       return;
@@ -964,7 +964,7 @@ export default async function handler(req, res) {
 
   // C. Action: 'send-reminder' (Kirim Pengingat Jatuh Tempo & Peringatan Isolir ke 1 Pelanggan)
   if (action === 'send-reminder') {
-    const staff = await verifyStaff(req);
+    const staff = await verifyPermission(req, 'whatsapp.reminder');
     if (staff.error) {
       res.status(staff.error.status).json({ error: staff.error.message });
       return;
@@ -1013,7 +1013,7 @@ export default async function handler(req, res) {
 
   // D. Action: 'send-reminders' (Kirim Pengingat Jatuh Tempo & Peringatan Isolir Masal / Batch)
   if (action === 'send-reminders') {
-    const staff = await verifyStaff(req);
+    const staff = await verifyPermission(req, 'whatsapp.reminder');
     if (staff.error) {
       res.status(staff.error.status).json({ error: staff.error.message });
       return;

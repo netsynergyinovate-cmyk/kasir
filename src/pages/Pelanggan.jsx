@@ -5,7 +5,7 @@ import {
   Search, PlusCircle, Wifi, Trash2, Pencil, MapPin, LayoutGrid, List,
   Calendar, RefreshCw, Key, Phone, Network, ShieldCheck, CheckCircle2,
   ExternalLink, Info, X, MessageSquare, CreditCard, Navigation,
-  AlertCircle, Filter, ChevronDown, User, Clock, Send
+  AlertCircle, Filter, ChevronDown, User, Clock, Send, Download
 } from 'lucide-react';
 import EditCustomerModal from '../components/EditCustomerModal';
 import RunsnetCustomerPicker from '../components/RunsnetCustomerPicker';
@@ -272,6 +272,25 @@ const Pelanggan = ({
     setEditingCustomer(null);
   };
 
+  // Ekspor daftar pelanggan yang sedang terlihat (sesuai pencarian & filter) ke CSV.
+  const handleExportCsv = () => {
+    setShowActionDropdown(false);
+    const header = ['ID', 'Nama', 'Alamat', 'Telepon', 'Paket', 'Harga', 'Jatuh Tempo', 'Status', 'PPPoE'];
+    const rows = filteredCustomers.map((c) => [
+      c.custid || c.customer_id || c.id, c.name, c.address, c.phone, c.package, c.price,
+      c.due_date || c.dueDate, c.status, c.pppoe_id || c.pppoeId,
+    ]);
+    const csv = [header, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pelanggan-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSync = async () => {
     if (onSyncEbilling) {
       setIsSyncing(true);
@@ -368,7 +387,7 @@ const Pelanggan = ({
 
         <div className="flex items-center gap-1.5">
           {/* Action Dropdown Button (Runsnet & E-Billing) */}
-          {(can('runsnet.sync_customers') || onSyncEbilling) && (
+          {(can('runsnet.sync_customers') || can('customers.export') || onSyncEbilling) && (
             <div className="relative" ref={actionDropdownRef}>
               <button
                 type="button"
@@ -392,6 +411,16 @@ const Pelanggan = ({
                     >
                       <RefreshCw size={13} className="text-indigo-600" />
                       <span>Import Runsnet</span>
+                    </button>
+                  )}
+
+                  {can('customers.export') && (
+                    <button
+                      onClick={handleExportCsv}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-700 hover:bg-blue-50 flex items-center gap-2 transition-colors"
+                    >
+                      <Download size={13} className="text-blue-600" />
+                      <span>Ekspor CSV</span>
                     </button>
                   )}
 
@@ -1394,7 +1423,7 @@ const Pelanggan = ({
                 <MessageSquare size={12} />
                 <span>Kirim ke WhatsApp</span>
               </button>
-              {companyInfo?.watbizEnabled && companyInfo?.watbizToken && (
+              {companyInfo?.watbizEnabled && companyInfo?.watbizToken && can('whatsapp.reminder') && (
                 <button
                   type="button"
                   onClick={handleSendWaApi}

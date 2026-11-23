@@ -1,4 +1,4 @@
-import { verifyStaff } from '../_lib/verifySuperadmin.js';
+import { verifyPermission } from '../_lib/verifySuperadmin.js';
 import {
   getRunsnetSession,
   findCustomersByName,
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { error, adminClient } = await verifyStaff(req);
+  const { error, adminClient } = await verifyPermission(req, 'customers.create');
   if (error) {
     res.status(error.status).json({ error: error.message });
     return;

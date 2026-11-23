@@ -4,7 +4,7 @@ import { Menu, Building2, Search, LogOut, Lock } from 'lucide-react';
 import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
-import { isPathAllowedForRole, ADMIN_DEFAULT_PATH } from './utils/permissions';
+import { isPathAllowedForRole, hasPermission, ADMIN_DEFAULT_PATH } from './utils/permissions';
 import { saveLastPath, getLastPath } from './utils/lastPage';
 import { loadVerifiedProfile, clearLoginRecorded, updateMyName } from './utils/authProfile';
 
@@ -65,6 +65,7 @@ export default function App() {
   // Hanya mengubah TAMPILAN (session efektif yang dikirim ke halaman & navigasi); sesi login
   // Supabase yang asli (dan RLS di database) tetap sebagai superadmin sesungguhnya.
   const actualRole = session?.profile?.role;
+  const can = (perm) => hasPermission(actualRole, perm, session?.profile?.allowed_paths);
   const effectiveSession = useMemo(() => (
     (actualRole === 'superadmin' && previewAsAdmin)
       ? { ...session, profile: { ...session.profile, role: 'admin', allowed_paths: null } }
@@ -199,6 +200,28 @@ export default function App() {
       subscription?.unsubscribe();
     };
   }, []);
+
+  // Hak akses admin bisa diubah superadmin kapan saja: ambil ulang tiap aplikasi kembali dibuka/difokuskan,
+  // supaya admin tidak perlu logout-login dulu agar hak barunya berlaku.
+  const userId = session?.user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    const refresh = async () => {
+      if (document.visibilityState === 'hidden') return;
+      const { data } = await supabase.from('admin_profiles').select('role, allowed_paths').eq('id', userId).maybeSingle();
+      if (!data) return;
+      setSession((prev) => {
+        if (!prev || (prev.profile?.role === data.role && JSON.stringify(prev.profile?.allowed_paths) === JSON.stringify(data.allowed_paths))) return prev;
+        return { ...prev, profile: { ...prev.profile, role: data.role, allowed_paths: data.allowed_paths } };
+      });
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [userId]);
 
   const handleUnlock = () => {
     markActivity(); // hitungan 15 menit mulai dari nol setelah kode benar
@@ -385,7 +408,7 @@ export default function App() {
         } else if (payload.eventType === 'UPDATE') {
           setTransactions((prev) => prev.map((t) => (t.id === payload.new.id ? payload.new : t)));
         } else if (payload.eventType === 'DELETE') {
-          setTransactions((prev) => prev.filter((t) => t.id === payload.old.id));
+          setTransactions((prev) => prev.filter((t) => t.id !== payload.old.id));
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, (payload) => {
@@ -636,7 +659,7 @@ export default function App() {
       sendPaymentToBillingSystem(newTrx, companyInfo);
 
       // Automasi pengiriman Invoice WhatsApp ke Pelanggan via Watbiz
-      if (companyInfo.watbizEnabled && companyInfo.watbizToken) {
+      if (companyInfo.watbizEnabled && companyInfo.watbizToken && can('whatsapp.invoice')) {
         const targetCust = customers.find(c => 
           (custId && (c.id === custId || c.custid === custId)) || 
           (c.name && newTrx.customerName && c.name.trim().toLowerCase() === newTrx.customerName.trim().toLowerCase())
@@ -1076,7 +1099,7 @@ export default function App() {
                 <DashboardSuperadmin
                   session={effectiveSession}
                   visits={visits}
-                  onAddVisit={handleAddVisit}
+                  onAddVisit={can('rute.visit') ? handleAddVisit : undefined}
                   adminLocations={adminLocations}
                   transactions={transactions.map(t => ({...t, customerName: t.customer_name, instansiName: t.instansi_name}))} 
                   customers={customers} 
@@ -1089,7 +1112,7 @@ export default function App() {
                 <Dashboard
                   session={effectiveSession}
                   visits={visits}
-                  onAddVisit={handleAddVisit}
+                  onAddVisit={can('rute.visit') ? handleAddVisit : undefined}
                   origin={shareLocation.routeOrigin}
                   myPosition={shareLocation.position}
                   locationStatus={shareLocation.status}
@@ -1139,7 +1162,7 @@ export default function App() {
                 visits={visits}
                 role={effectiveSession?.profile?.role}
                 allowedPaths={effectiveSession?.profile?.allowed_paths}
-                onAddVisit={handleAddVisit}
+                onAddVisit={can('rute.visit') ? handleAddVisit : undefined}
                 adminLocations={adminLocations}
                 onUpdateCustomerRoute={handleUpdateCustomerRoute}
                 onBatchUpdateCustomerRoutes={handleBatchUpdateCustomerRoutes}
@@ -1185,6 +1208,7 @@ export default function App() {
             } />
             <Route path="/aktivitas" element={
               <Aktivitas
+                session={effectiveSession}
                 transactions={transactions.map(t => ({ ...t, customerName: t.customer_name, instansiName: t.instansi_name, cashierName: t.cashier_name }))}
               />
             } />

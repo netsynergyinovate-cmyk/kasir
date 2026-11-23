@@ -167,9 +167,11 @@ const RouteOverview = ({
                   ) : (
                     <span className="flex-1 text-center py-2.5 rounded-xl text-[11px] font-bold bg-white/15">Koordinat belum diisi</span>
                   )}
-                  <button type="button" onClick={() => setVisitFor(nextStop)} className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-xs font-bold bg-white/15 active:scale-95 transition-all">
-                    Catat Kunjungan
-                  </button>
+                  {onAddVisit && (
+                    <button type="button" onClick={() => setVisitFor(nextStop)} className="flex-1 flex items-center justify-center py-2.5 rounded-xl text-xs font-bold bg-white/15 active:scale-95 transition-all">
+                      Catat Kunjungan
+                    </button>
+                  )}
                 </div>
                 {afterNext && <p className="text-[11px] text-indigo-100">Setelah ini: <b>{afterNext.name}</b></p>}
               </div>

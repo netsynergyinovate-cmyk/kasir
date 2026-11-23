@@ -33,4 +33,9 @@ describe('verifyPermission', () => {
     profile.current = { role: 'admin', allowed_paths: null };
     expect((await verifyPermission(req, 'history.cancel')).error.status).toBe(403);
   });
+
+  it('lets an unconfigured admin use the default admin permissions', async () => {
+    profile.current = { role: 'admin', allowed_paths: null };
+    expect((await verifyPermission(req, 'customers.create')).error).toBeUndefined();
+  });
 });

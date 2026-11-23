@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { resizeImageFile } from '../utils/imageResize';
 import { describeRunsnetStatus, isRunsnetMismatch, runsnetCodeOf } from '../utils/runsnetStatus';
 import { formatRupiah } from '../utils/format';
+import { hasPermission } from '../utils/permissions';
 
 const formatTime = (iso) =>
   new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -21,6 +22,9 @@ const RunsnetProofModal = ({ transaction, runsnetStatus, session, onClose, onRec
   const badge = describeRunsnetStatus(transaction, runsnetStatus);
   const mismatch = isRunsnetMismatch(transaction, runsnetStatus);
   const isSuper = session?.profile?.role === 'superadmin';
+  const can = (perm) => hasPermission(session?.profile?.role, perm, session?.profile?.allowed_paths);
+  const canViewProof = can('history.proof_view');
+  const canUploadProof = can('history.proof_upload');
   const isWaTrx = transaction?.payment_method === 'Transfer WA' || Boolean(transaction?.cashier_name?.includes('WhatsApp'));
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` };
 
@@ -119,7 +123,7 @@ const RunsnetProofModal = ({ transaction, runsnetStatus, session, onClose, onRec
     setBusy(false);
   };
 
-  const shown = draft || proof?.image;
+  const shown = draft || (canViewProof ? proof?.image : null);
 
   return (
     <div className="fixed inset-0 z-[70] bg-gray-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center print:hidden animate-backdrop" onClick={onClose}>
@@ -146,7 +150,7 @@ const RunsnetProofModal = ({ transaction, runsnetStatus, session, onClose, onRec
           </div>
         </div>
 
-        {mismatch && transaction.status === 'LUNAS' && (
+        {mismatch && transaction.status === 'LUNAS' && can('runsnet.sync') && (
           <button type="button" onClick={resend} disabled={busy} className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-black flex items-center justify-center gap-2 disabled:opacity-60 active:scale-95 transition-all">
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Kirim pembayaran ke Runsnet
           </button>
@@ -173,6 +177,10 @@ const RunsnetProofModal = ({ transaction, runsnetStatus, session, onClose, onRec
                 </p>
               )}
             </div>
+          ) : proof && !canViewProof ? (
+            <p className="text-xs text-gray-500 text-center py-5 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              Bukti sudah tersimpan, tapi akun ini belum diberi hak melihat foto bukti.
+            </p>
           ) : isWaTrx ? (
             <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1.5 text-center">
               <p className="text-xs font-bold text-amber-900">Belum Ada Foto Struk Dilampirkan</p>
@@ -186,7 +194,7 @@ const RunsnetProofModal = ({ transaction, runsnetStatus, session, onClose, onRec
             </p>
           )}
 
-          {draft ? (
+          {!canUploadProof ? null : draft ? (
             <div className="flex gap-2">
               <button type="button" onClick={() => setDraft(null)} disabled={busy} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-xs font-bold disabled:opacity-60">Batal</button>
               <button type="button" onClick={saveProof} disabled={busy} className="flex-[2] py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center justify-center gap-1.5 disabled:opacity-60">

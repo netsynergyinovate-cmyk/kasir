@@ -1,6 +1,7 @@
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 import { getServiceClient } from './supabaseAdmin.js';
+import { hasPermission } from '../../src/utils/permissions.js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
@@ -49,15 +50,13 @@ export async function verifySuperadmin(req) {
   return staff;
 }
 
-// Seperti verifySuperadmin, tapi admin juga lolos kalau superadmin sudah mencentang hak akses `permission`
-// untuknya (admin_profiles.allowed_paths.permissions). Hanya untuk permission yang BUKAN bawaan admin.
+// Seperti verifySuperadmin, tapi admin juga lolos kalau punya hak akses `permission` (dicentang superadmin,
+// atau termasuk hak bawaan admin yang aksesnya belum pernah diatur) — aturan yang sama dengan tampilan.
 export async function verifyPermission(req, permission) {
   const staff = await verifyStaff(req);
   if (staff.error) return staff;
-  if (staff.role === 'superadmin') return staff;
 
-  const permissions = staff.allowedPaths?.permissions;
-  if (!Array.isArray(permissions) || !permissions.includes(permission)) {
+  if (!hasPermission(staff.role, permission, staff.allowedPaths)) {
     return { error: { status: 403, message: `Akun ini belum diberi hak akses "${permission}" oleh superadmin.` } };
   }
   return staff;
