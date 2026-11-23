@@ -1216,7 +1216,8 @@ export default function App() {
           </Suspense>
         </main>
 
-        {location.pathname !== '/pelanggan-runsnet-baru' && (
+        {/* /instansi punya bottom nav sendiri (menu fitur instansi) */}
+        {!['/pelanggan-runsnet-baru', '/instansi'].includes(location.pathname) && (
           <Navigation role={effectiveSession?.profile?.role} allowedPaths={effectiveSession?.profile?.allowed_paths} />
         )}
       </div>

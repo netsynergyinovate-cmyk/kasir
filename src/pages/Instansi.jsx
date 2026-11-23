@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSearchParamSync } from '../hooks/useSearchParamSync';
 import {
   Building2, FileText, Receipt, Layers, Plus, Trash2, Pencil, Eye, Search, X,
-  Wallet, ListChecks, AlertCircle, TrendingUp,
+  Wallet, ListChecks, AlertCircle, TrendingUp, Home, Wifi, CalendarClock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import InstansiClientForm from '../components/InstansiClientForm';
@@ -11,7 +11,7 @@ import InstansiInvoiceForm from '../components/InstansiInvoiceForm';
 import InstansiMultipate from '../components/InstansiMultipate';
 import InstansiPreviewModal from '../components/InstansiPreviewModal';
 import {
-  formatDateIndo, formatNumber, amountInWords, summarizeInvoices, filterInvoices, filterClients,
+  formatDateIndo, formatDateIndoShort, formatNumber, amountInWords, summarizeInvoices, filterInvoices, filterClients,
 } from '../utils/instansiInvoice';
 import { hasPermission } from '../utils/permissions';
 
@@ -46,7 +46,50 @@ const StatCard = ({ icon: Icon, label, value, tone, onClick, active }) => (
   </button>
 );
 
+const TAB_TITLES = { clients: 'Klien Instansi', invoices: 'Invoice', faktur: 'Faktur', multipate: 'Terbit Massal' };
+
+const initialsOf = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+
+const HeroStat = ({ label, value, danger }) => (
+  <div className="bg-white/10 rounded-2xl px-3 py-2.5">
+    <p className={`text-lg font-black leading-none ${danger && value > 0 ? 'text-red-300' : ''}`}>{value}</p>
+    <p className="text-[9px] font-bold uppercase tracking-widest text-white/50 mt-1">{label}</p>
+  </div>
+);
+
+const SectionHead = ({ title, count, actionLabel, onAction, disabled }) => (
+  <div className="flex items-center justify-between pt-1">
+    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
+      {title} <span className="text-gray-300">· {count}</span>
+    </p>
+    <button type="button" onClick={onAction} disabled={disabled} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-900 text-white text-[10px] font-black uppercase tracking-wide disabled:opacity-40 active:scale-95 transition-all">
+      <Plus size={12} /> {actionLabel}
+    </button>
+  </div>
+);
+
+const EmptyState = ({ icon: Icon, text }) => (
+  <div className="flex flex-col items-center text-center py-12 text-gray-400">
+    <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3"><Icon size={24} /></div>
+    <p className="text-xs">{text}</p>
+  </div>
+);
+
+// Item bottom nav khusus Instansi: tombol (bukan link) karena berpindah tab di dalam halaman ini.
+const NavTab = ({ icon: Icon, label, active, onClick, badge }) => (
+  <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined} className="relative flex flex-col items-center gap-1 w-14 tap-bounce group">
+    <span className={`flex items-center justify-center w-9 h-8 rounded-xl transition-all duration-200 ${active ? 'bg-gray-900 text-white' : 'text-slate-400 group-hover:text-slate-600'}`}>
+      <Icon size={17} strokeWidth={active ? 2.5 : 2} />
+    </span>
+    <span className={`text-[9px] transition-all duration-200 ${active ? 'text-gray-900 font-bold' : 'text-slate-400'}`}>{label}</span>
+    {badge > 0 && (
+      <span className="absolute -top-1 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[8px] font-black flex items-center justify-center border-2 border-white">{badge}</span>
+    )}
+  </button>
+);
+
 const Instansi = ({ session }) => {
+  const navigate = useNavigate();
   const canDelete = hasPermission(session?.profile?.role, 'instansi.delete', session?.profile?.allowed_paths);
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState(() => {
@@ -99,12 +142,9 @@ const Instansi = ({ session }) => {
 
   const existingInvoiceNumbers = useMemo(() => invoices.map((i) => i.invoice_number), [invoices]);
 
-  const TABS = useMemo(() => [
-    { key: 'clients', label: 'Klien', icon: Building2, count: clients.length },
-    { key: 'invoices', label: 'Invoice', icon: FileText, count: invoices.filter((i) => i.kind === 'invoice').length },
-    { key: 'faktur', label: 'Faktur', icon: Receipt, count: invoices.filter((i) => i.kind === 'faktur').length },
-    { key: 'multipate', label: 'Massal', icon: Layers },
-  ], [clients, invoices]);
+  const allStats = useMemo(() => summarizeInvoices(invoices), [invoices]);
+  const overdueCount = useMemo(() => invoices.filter(isOverdue).length, [invoices]);
+  const pendingOf = (kind) => invoices.filter((i) => i.kind === kind && i.status !== 'paid').length;
 
   const handleSaveClient = async (form) => {
     const payload = {
@@ -193,34 +233,52 @@ const Instansi = ({ session }) => {
     return [...years].sort((a, b) => b - a);
   }, [invoicesForKind]);
 
+  const openNewClient = () => { setEditingClient(null); setShowClientForm(true); };
+  // Belum ada klien -> FAB membuka form klien dulu, karena invoice/faktur/massal butuh klien.
+  const withClient = (open) => () => (clients.length ? open() : openNewClient());
+  const fab = {
+    invoices: { label: 'Terbitkan Invoice', run: withClient(() => setShowInvoiceForm(true)) },
+    faktur: { label: 'Terbitkan Faktur', run: withClient(() => setShowInvoiceForm(true)) },
+    multipate: { label: 'Buka Generator Massal', run: withClient(() => setShowMultipate(true)) },
+  }[tab] || { label: 'Tambah Klien', run: openNewClient };
+  const docLabel = tab === 'faktur' ? 'Faktur' : 'Invoice';
+
   return (
     <div className="p-4 pb-32 animate-in fade-in duration-300">
-      <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-3xl p-6 text-white mb-4 shadow-lg flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold">Invoice Instansi</h2>
-          <p className="text-gray-300 text-xs mt-1">Klien, Invoice, Faktur & Terbit Massal (B2B)</p>
+      <div className="relative overflow-hidden bg-gradient-to-br from-gray-800 via-gray-900 to-black rounded-3xl p-5 text-white mb-5 shadow-lg">
+        <Building2 size={140} className="absolute -right-8 -bottom-10 text-white/5" />
+        <div className="relative flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0"><Building2 size={20} /></div>
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">Invoice Instansi · B2B</p>
+            <h2 className="text-lg font-black leading-tight truncate">{TAB_TITLES[tab] || TAB_TITLES.clients}</h2>
+          </div>
         </div>
-        <Building2 size={40} className="text-gray-600 opacity-50" />
-      </div>
-
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-        {TABS.map(({ key, label, icon: Icon, count }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide whitespace-nowrap transition-all ${tab === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}
-          >
-            <Icon size={14} /> {label}
-            {typeof count === 'number' && (
-              <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[9px] ${tab === key ? 'bg-white/20' : 'bg-gray-100'}`}>{count}</span>
-            )}
-          </button>
-        ))}
+        <div className="relative grid grid-cols-3 gap-2 mt-4">
+          <HeroStat label="Klien Aktif" value={clientStats.active} />
+          <HeroStat label="Belum Lunas" value={allStats.pending} />
+          <HeroStat label="Jatuh Tempo" value={overdueCount} danger />
+        </div>
+        <p className="relative text-[11px] text-white/60 mt-3">
+          Tagihan berjalan <span className="font-black text-white">Rp {formatNumber(allStats.pendingAmount)}</span>
+        </p>
       </div>
 
       {loading ? (
-        <p className="text-center text-xs text-gray-400 italic py-10">Memuat...</p>
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => <div key={i} className="h-20 rounded-2xl bg-gray-100 animate-pulse" />)}
+        </div>
+      ) : tab === 'multipate' ? (
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 text-center">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3"><Layers size={26} /></div>
+          <p className="font-black text-gray-900">Terbit Massal</p>
+          <p className="text-xs text-gray-500 mt-1">Terbitkan invoice atau faktur untuk banyak klien sekaligus dalam satu proses.</p>
+          <p className="text-[11px] font-bold text-gray-400 mt-3">{clientStats.active} klien aktif siap diproses</p>
+          <button type="button" onClick={() => setShowMultipate(true)} disabled={clients.length === 0} className="mt-4 w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
+            <Layers size={16} /> Buka Generator Massal
+          </button>
+          {clients.length === 0 && <p className="text-xs text-gray-400 italic mt-3">Tambah klien dulu di menu Klien.</p>}
+        </div>
       ) : tab === 'clients' ? (
         <div className="space-y-3">
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -231,35 +289,35 @@ const Instansi = ({ session }) => {
 
           <div className="relative">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} type="text" placeholder="Cari nama instansi / kode klien..." className="w-full pl-10 pr-3 py-3 bg-white border border-gray-200 rounded-2xl outline-none text-xs" />
+            <input value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} type="text" placeholder="Cari nama instansi / kode klien..." className="w-full pl-10 pr-3 py-3 bg-white border border-gray-200 rounded-2xl outline-none text-xs focus:border-gray-900 transition-colors" />
           </div>
 
-          <button type="button" onClick={() => { setEditingClient(null); setShowClientForm(true); }} className="w-full py-3.5 rounded-2xl bg-gray-900 hover:bg-black text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
-            <Plus size={16} /> Tambah Klien
-          </button>
+          <SectionHead title="Daftar Klien" count={visibleClients.length} actionLabel="Klien" onAction={openNewClient} />
 
           {visibleClients.length === 0 ? (
-            <p className="text-center text-xs text-gray-400 italic py-10">{clients.length === 0 ? 'Belum ada klien instansi.' : 'Tidak ada klien yang cocok.'}</p>
-          ) : visibleClients.map((c) => (
-            <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-black text-gray-900 text-sm uppercase truncate">{c.institution_name}</p>
-                <p className="text-[10px] text-gray-400 font-bold tracking-widest">{c.client_code} · {c.status === 'active' ? 'Aktif' : 'Nonaktif'}</p>
-                <p className="text-xs text-gray-500 mt-1 truncate">{c.service_package || '-'}</p>
+            <EmptyState icon={Building2} text={clients.length === 0 ? 'Belum ada klien instansi.' : 'Tidak ada klien yang cocok.'} />
+          ) : visibleClients.map((c) => {
+            const active = c.status === 'active';
+            return (
+              <div key={c.id} className="bg-white p-3.5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+                <div className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center font-black text-xs ${active ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                  {initialsOf(c.institution_name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-black text-gray-900 text-[13px] uppercase truncate">{c.institution_name}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="font-mono text-[10px] text-gray-400">{c.client_code}</span>
+                    <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase ${active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>{active ? 'Aktif' : 'Nonaktif'}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1 truncate flex items-center gap-1"><Wifi size={11} className="shrink-0" /> {c.service_package || '-'}</p>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  <button type="button" aria-label="Ubah klien" onClick={() => { setEditingClient(c); setShowClientForm(true); }} className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Pencil size={14} /></button>
+                  {canDelete && <button type="button" aria-label="Hapus klien" onClick={() => handleDeleteClient(c)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>}
+                </div>
               </div>
-              <div className="flex gap-1.5 shrink-0">
-                <button type="button" onClick={() => { setEditingClient(c); setShowClientForm(true); }} className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Pencil size={14} /></button>
-                {canDelete && <button type="button" onClick={() => handleDeleteClient(c)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : tab === 'multipate' ? (
-        <div className="space-y-3">
-          <button type="button" onClick={() => setShowMultipate(true)} disabled={clients.length === 0} className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
-            <Layers size={16} /> Buka Generator Massal
-          </button>
-          {clients.length === 0 && <p className="text-center text-xs text-gray-400 italic py-6">Tambah klien dulu di tab Klien.</p>}
+            );
+          })}
         </div>
       ) : (
         <div className="space-y-3">
@@ -271,7 +329,7 @@ const Instansi = ({ session }) => {
 
           <div className="relative">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} type="text" placeholder="Cari nomor dokumen / nama instansi..." className="w-full pl-10 pr-3 py-3 bg-white border border-gray-200 rounded-2xl outline-none text-xs" />
+            <input value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} type="text" placeholder="Cari nomor dokumen / nama instansi..." className="w-full pl-10 pr-3 py-3 bg-white border border-gray-200 rounded-2xl outline-none text-xs focus:border-gray-900 transition-colors" />
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -294,28 +352,37 @@ const Instansi = ({ session }) => {
             )}
           </div>
 
-          <button type="button" onClick={() => setShowInvoiceForm(true)} disabled={clients.length === 0} className="w-full py-3.5 rounded-2xl bg-gray-900 hover:bg-black disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
-            <Plus size={16} /> Terbitkan {tab === 'faktur' ? 'Faktur' : 'Invoice'}
-          </button>
+          <SectionHead title={`Daftar ${docLabel}`} count={visibleInvoices.length} actionLabel={docLabel} onAction={() => setShowInvoiceForm(true)} disabled={clients.length === 0} />
 
           {visibleInvoices.length === 0 ? (
-            <p className="text-center text-xs text-gray-400 italic py-10">{invoicesForKind.length === 0 ? `Belum ada ${tab === 'faktur' ? 'faktur' : 'invoice'}.` : 'Tidak ada dokumen yang cocok dengan filter.'}</p>
+            <EmptyState icon={tab === 'faktur' ? Receipt : FileText} text={invoicesForKind.length === 0 ? `Belum ada ${docLabel.toLowerCase()}.` : 'Tidak ada dokumen yang cocok dengan filter.'} />
           ) : visibleInvoices.map((inv) => {
             const overdue = isOverdue(inv);
+            const tone = inv.status === 'paid' ? 'paid' : overdue ? 'overdue' : 'pending';
+            const badgeClass = { paid: 'bg-emerald-50 text-emerald-600', overdue: 'bg-red-50 text-red-600', pending: 'bg-amber-50 text-amber-600' }[tone];
+            const stripeClass = { paid: 'bg-emerald-500', overdue: 'bg-red-500', pending: 'bg-amber-400' }[tone];
             return (
-              <div key={inv.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1" onClick={() => openPreview(inv)}>
-                  <p className="font-black text-gray-900 text-sm truncate">{inv.client?.institution_name || 'Klien terhapus'}</p>
+              <div key={inv.id} className="relative bg-white pl-5 pr-3.5 py-3.5 rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex items-center gap-3">
+                <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${stripeClass}`} />
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openPreview(inv)}>
+                  <p className="font-black text-gray-900 text-[13px] uppercase truncate">{inv.client?.institution_name || 'Klien terhapus'}</p>
                   <p className="font-mono text-[10px] text-gray-400 truncate">{inv.invoice_number}</p>
-                  <p className="text-xs font-bold text-gray-700 mt-1">Rp {formatNumber(inv.amount)}</p>
-                </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-sm font-black text-gray-900">Rp {formatNumber(inv.amount)}</p>
+                    {inv.due_date && (
+                      <p className={`text-[10px] flex items-center gap-0.5 ${overdue ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+                        <CalendarClock size={11} /> {formatDateIndoShort(inv.due_date)}
+                      </p>
+                    )}
+                  </div>
+                </button>
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${inv.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : overdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                  <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${badgeClass}`}>
                     {inv.status === 'paid' ? 'Lunas' : overdue ? 'Jatuh Tempo' : 'Pending'}
                   </span>
                   <div className="flex gap-1.5">
-                    <button type="button" onClick={() => openPreview(inv)} className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Eye size={14} /></button>
-                    {canDelete && <button type="button" onClick={() => handleDeleteInvoice(inv)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>}
+                    <button type="button" aria-label="Lihat dokumen" onClick={() => openPreview(inv)} className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Eye size={14} /></button>
+                    {canDelete && <button type="button" aria-label="Hapus dokumen" onClick={() => handleDeleteInvoice(inv)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>}
                   </div>
                 </div>
               </div>
@@ -323,6 +390,33 @@ const Instansi = ({ session }) => {
           })}
         </div>
       )}
+
+      {/* Bottom nav khusus Instansi — menggantikan nav aplikasi selama di halaman ini (lihat App.jsx). */}
+      <nav aria-label="Menu Instansi" className="bg-white/95 backdrop-blur-md border-t border-slate-200/80 h-14 flex justify-between items-center px-2 z-20 shadow-[0_-2px_12px_rgba(0,0,0,0.05)] shrink-0 fixed bottom-0 left-0 right-0 max-w-md mx-auto print:hidden">
+        <div className="flex w-full justify-between items-center relative">
+          <div className="flex justify-around w-[42%]">
+            <NavTab icon={Home} label="Beranda" onClick={() => navigate('/')} />
+            <NavTab icon={Building2} label="Klien" active={tab === 'clients'} onClick={() => setTab('clients')} />
+          </div>
+          <div className="w-[16%]" />
+          <div className="flex justify-around w-[42%]">
+            <NavTab icon={FileText} label="Invoice" active={tab === 'invoices'} onClick={() => setTab('invoices')} badge={pendingOf('invoice')} />
+            <NavTab icon={Receipt} label="Faktur" active={tab === 'faktur'} onClick={() => setTab('faktur')} badge={pendingOf('faktur')} />
+            <NavTab icon={Layers} label="Massal" active={tab === 'multipate'} onClick={() => setTab('multipate')} />
+          </div>
+          <div className="absolute left-1/2 -translate-x-1/2 -top-5 flex items-center justify-center z-30">
+            <button
+              type="button"
+              onClick={fab.run}
+              aria-label={fab.label}
+              title={fab.label}
+              className="w-[52px] h-[52px] bg-gray-900 rounded-full flex items-center justify-center text-white shadow-md shadow-gray-900/30 border-2 border-white hover:bg-black hover:scale-105 active:scale-90 transition-all duration-200"
+            >
+              {tab === 'multipate' ? <Layers size={22} /> : <Plus size={24} />}
+            </button>
+          </div>
+        </div>
+      </nav>
 
       {showClientForm && (
         <InstansiClientForm
