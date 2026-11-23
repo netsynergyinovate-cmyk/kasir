@@ -12,7 +12,7 @@ const render = (role) => renderToString(
 describe('Sidebar tidak menduplikasi bottom nav', () => {
   it('menyembunyikan menu yang sudah ada di bottom nav', () => {
     const html = render('superadmin');
-    for (const label of ['Beranda', 'Pelanggan Retail', 'Rute Kunjungan', 'Kasir (58mm)', 'Pengaturan']) {
+    for (const label of ['Pelanggan Retail', 'Rute Kunjungan', 'Kasir (58mm)', 'Pengaturan']) {
       expect(html).not.toContain(label);
     }
   });
@@ -22,5 +22,9 @@ describe('Sidebar tidak menduplikasi bottom nav', () => {
     expect(html).toContain('Tambah Pelanggan');
     expect(html).toContain('Aktivitas Kasir');
     expect(html).toContain('Invoice Instansi');
+  });
+
+  it('punya tombol Beranda di header untuk kembali ke halaman utama', () => {
+    expect(render('superadmin')).toMatch(/href="\/"[^>]*>.*Beranda/);
   });
 });

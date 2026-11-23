@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { X, Building2, ChevronRight, Activity, LogOut, ShieldCheck, Crown, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { X, Home, Building2, ChevronRight, Activity, LogOut, ShieldCheck, Crown, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { isPathAllowedForRole } from '../utils/permissions';
 
@@ -48,6 +48,12 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewA
                 <span className="text-[11px] font-bold text-white truncate">{roleName}</span>
                 <span className="text-[9px] bg-white/20 px-1 py-0.5 rounded text-blue-100 font-semibold">{roleBadge}</span>
               </div>
+              {/* Jalan pulang ke Beranda: bottom nav disembunyikan di halaman Tambah Pelanggan. */}
+              {allowed('/') && (
+                <NavLink to="/" onClick={() => setIsOpen(false)} className="mt-3 flex items-center gap-2 w-fit px-3 py-1.5 rounded-lg bg-white text-blue-700 text-xs font-bold hover:bg-blue-50 active:scale-95 transition-all">
+                  <Home size={14} /> Beranda
+                </NavLink>
+              )}
             </div>
          </div>
          
