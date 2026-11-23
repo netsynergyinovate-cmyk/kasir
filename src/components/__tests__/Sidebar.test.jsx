@@ -9,12 +9,18 @@ const render = (role) => renderToString(
   </MemoryRouter>
 ).replace(/<!-- -->/g, '');
 
-describe('Sidebar Rute Kunjungan link', () => {
-  it('is shown to the superadmin', () => {
-    expect(render('superadmin')).toContain('Rute Kunjungan');
+describe('Sidebar tidak menduplikasi bottom nav', () => {
+  it('menyembunyikan menu yang sudah ada di bottom nav', () => {
+    const html = render('superadmin');
+    for (const label of ['Beranda', 'Pelanggan Retail', 'Rute Kunjungan', 'Kasir (58mm)', 'Pengaturan']) {
+      expect(html).not.toContain(label);
+    }
   });
 
-  it('is hidden from an admin', () => {
-    expect(render('admin')).not.toContain('Rute Kunjungan');
+  it('tetap menampilkan menu yang tidak ada di bottom nav', () => {
+    const html = render('superadmin');
+    expect(html).toContain('Tambah Pelanggan');
+    expect(html).toContain('Aktivitas Kasir');
+    expect(html).toContain('Invoice Instansi');
   });
 });

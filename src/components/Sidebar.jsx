@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { X, Home, Users, Printer, Settings as SettingsIcon, Building2, ChevronRight, Activity, LogOut, ShieldCheck, Crown, Route as RouteIcon, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { X, Building2, ChevronRight, Activity, LogOut, ShieldCheck, Crown, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { isPathAllowedForRole } from '../utils/permissions';
 
@@ -52,40 +52,16 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewA
          </div>
          
          <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
+            {/* Beranda, Pelanggan, Kasir, Riwayat, Rute, Setting sudah ada di bottom nav (Navigation.jsx) — jangan diduplikasi di sini. */}
             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2 mt-2">Layanan Utama</div>
-            {allowed('/') && (
-              <NavLink to="/" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-                <Home size={18} /> Beranda
-              </NavLink>
-            )}
-            {allowed('/customers') && (
-              <NavLink to="/customers" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-                <Users size={18} /> Pelanggan Retail
-              </NavLink>
-            )}
             {allowed('/pelanggan-runsnet-baru') && (
               <NavLink to="/pelanggan-runsnet-baru" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
                 <UserPlus size={18} /> Tambah Pelanggan
               </NavLink>
             )}
-            {allowed('/rute') && (
-              <NavLink to="/rute" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-                <RouteIcon size={18} /> Rute Kunjungan
-              </NavLink>
-            )}
-            {allowed('/pos') && (
-              <NavLink to="/pos" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-                <Printer size={18} /> Kasir (58mm)
-              </NavLink>
-            )}
             {allowed('/aktivitas') && (
               <NavLink to="/aktivitas" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
                 <Activity size={18} /> Aktivitas Kasir
-              </NavLink>
-            )}
-            {allowed('/settings') && (
-              <NavLink to="/settings" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
-                <SettingsIcon size={18} /> Pengaturan
               </NavLink>
             )}
 
