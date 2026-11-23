@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
@@ -131,5 +131,37 @@ describe('Transaksi POS pre-selection via URL search params', () => {
     await act(async () => { statusButton('KASBON').click(); });
     expect(statusButton('KASBON').className).toContain('bg-white');
   });
-});
 
+  it('only lists customers not yet paid this month: hides paid in app, PAID in billing, and Terminate', async () => {
+    const fetchMock = vi.fn(async () => ({ json: async () => ({ paidCustIds: ['C-BILL'] }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    const customers = [
+      { id: 'a', custid: 'C-APP', name: 'Ani Lunas App', package: 'NET HOME 10 Mbps', status: 'aktif' },
+      { id: 'b', custid: 'C-BILL', name: 'Beni Lunas Billing', package: 'NET HOME 10 Mbps', status: 'aktif' },
+      { id: 'c', custid: 'C-TERM', name: 'Cici Terminate', package: 'NET HOME 10 Mbps', status: 'terminate' },
+      { id: 'd', custid: 'C-ISO', name: 'Dodi Isolir', package: 'NET HOME 10 Mbps', status: 'nonaktif' },
+      { id: 'e', custid: 'C-NEW', name: 'Eka Belum Bayar', package: 'NET HOME 10 Mbps', status: 'aktif' },
+    ];
+    const transactions = [{ type: 'retail', status: 'LUNAS', customerName: 'Ani Lunas App', date: new Date().toISOString() }];
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={['/pos']}>
+          <Transaksi customers={customers} transactions={transactions} packages={[]} session={{ access_token: 'tok' }} />
+        </MemoryRouter>
+      );
+    });
+    await act(async () => { container.querySelector('input[type="text"]').focus(); });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/runsnet/invoice-status', expect.objectContaining({ body: JSON.stringify({ paidThisMonth: true }) }));
+    const text = container.textContent;
+    expect(text).toContain('Eka Belum Bayar');
+    expect(text).toContain('Dodi Isolir');
+    expect(text).not.toContain('Ani Lunas App');
+    expect(text).not.toContain('Beni Lunas Billing');
+    expect(text).not.toContain('Cici Terminate');
+    expect(text).toContain('2 belum bayar');
+    expect(text).toContain('2 lunas disembunyikan');
+    expect(text).toContain('1 terminate');
+    vi.unstubAllGlobals();
+  });
+});

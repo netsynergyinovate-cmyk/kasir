@@ -274,6 +274,15 @@ export async function searchInvoice(session, query, status = 'P') {
 
 const STATUS_LABELS = { A: 'PAID', P: 'PENDING', C: 'CANCEL' };
 
+// CustID pelanggan yang punya invoice PAID di Runsnet pada bulan berjalan (tanggal 1 s/d akhir bulan). Hanya membaca.
+// Dipakai halaman Transaksi untuk menyembunyikan pelanggan yang sudah bayar lewat billing.
+export async function fetchPaidCustIdsThisMonth(session, now = new Date()) {
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const json = await postInvoiceSearch(session, { status: 'A', length: 5000, from, to });
+  return [...new Set((json?.data || []).map((row) => stripHtml(row[2])).filter(Boolean))];
+}
+
 // Status NYATA di Runsnet untuk sekumpulan kode invoice: { KODE: 'PAID' | 'PENDING' | 'CANCEL' | 'NOT_FOUND' }.
 // Mengambil daftar invoice per status untuk rentang tanggal sekitar sekarang (3 bulan ke belakang, 3 bulan ke
 // depan), lalu kode yang tidak ada di daftar dicari satu-satu di rentang lebar (maks. 10 kode).

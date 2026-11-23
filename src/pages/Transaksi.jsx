@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Wifi, Printer, UserCheck, AlertCircle, CheckCircle2, Search } from 'lucide-react';
+import { Wifi, Printer, UserCheck, AlertCircle, CheckCircle2, Search, Receipt, Clock, Info, EyeOff, CreditCard, Calendar, Wallet, User, Banknote } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import MoneyInput from '../components/MoneyInput';
 import { pickInvoiceNumber } from '../utils/runsnetSync';
@@ -73,6 +73,13 @@ const resolvePackageAndPrice = (cust, packagesList = []) => {
   return { name: rawPkg || 'NET HOME 10 Mbps', price: 200000 };
 };
 
+// Gaya bersama kartu & input halaman Transaksi (lega, tidak berdempetan di layar sempit maupun saat di-zoom).
+const cardClass = 'bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3.5';
+const sectionTitleClass = 'flex items-center gap-2 text-sm font-semibold text-gray-800';
+const labelClass = 'flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 mb-1.5';
+// Tanpa warna latar, warna teks & ukuran huruf: masing-masing input menambahkan sendiri (kelas Tailwind yang bentrok tidak saling menimpa).
+const inputClass = 'w-full border border-gray-200 rounded-xl outline-none transition-all focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100';
+
 const Transaksi = ({ customers = [], transactions = [], packages = [], companyInfo, session, onComplete }) => {
   const [searchParams] = useSearchParams();
   const can = (perm) => hasPermission(session?.profile?.role, perm, session?.profile?.allowed_paths);
@@ -113,8 +120,33 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   const activePackage = packageOverride || (selectedCustomerData ? resolvePackageAndPrice(selectedCustomerData, packages) : null);
 
   // Pelanggan yang sudah LUNAS bulan ini tidak perlu muncul lagi di daftar pembayaran.
-  const unpaidCustomers = customers.filter(c => !isPaidThisMonth(c, transactions));
-  const paidHiddenCount = customers.length - unpaidCustomers.length;
+  // CustID yang invoicenya sudah PAID di billing Runsnet bulan ini (tgl 1 s/d akhir bulan). null = belum terbaca
+  // (Runsnet lambat/mati) — daftar tetap jalan, cuma belum menyaring pembayaran dari billing.
+  const [billingPaidIds, setBillingPaidIds] = useState(null);
+  const accessToken = session?.access_token;
+  useEffect(() => {
+    if (!accessToken) return undefined;
+    let cancelled = false;
+    fetch('/api/runsnet/invoice-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ paidThisMonth: true }),
+    })
+      .then((r) => r.json())
+      .then((r) => { if (!cancelled && !r.error && Array.isArray(r.paidCustIds)) setBillingPaidIds(new Set(r.paidCustIds.map(String))); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [accessToken]);
+
+  // Daftar pembayaran hanya berisi pelanggan yang BELUM bayar bulan ini: sudah LUNAS di aplikasi, sudah PAID di
+  // billing, atau berstatus Terminate di Runsnet tidak ditampilkan.
+  const isPaidCustomer = (c) =>
+    isPaidThisMonth(c, transactions) || Boolean(billingPaidIds?.has(String(c.custid || c.customer_id || '')));
+  const terminatedCount = customers.filter(c => c.status === 'terminate').length;
+  const paidHiddenCount = customers.filter(c => c.status !== 'terminate' && isPaidCustomer(c)).length;
+  const unpaidCustomers = customers.filter(c => c.status !== 'terminate' && !isPaidCustomer(c));
+  const now = new Date();
+  const periodLabel = `1–${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()} ${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
 
   const filteredCustomers = unpaidCustomers
     .filter(c => {
@@ -228,129 +260,163 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   };
 
   return (
-    <div className="transaksi-container p-3 pb-20 animate-in fade-in duration-300">
-      <form onSubmit={handleSubmit} className="space-y-2">
-        {/* Status Toggle — otomatis ikut jumlah bayar (kurang dari harga paket = KASBON), tombol ini cuma buat override manual */}
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <h2 className="flex-1 text-sm font-bold text-gray-800 leading-tight">Transaksi Pembayaran Retail</h2>
-            <div className="flex bg-gray-100 p-0.5 rounded-lg w-40">
-               <button type="button" onClick={() => setStatusOverride('LUNAS')} className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all ${status === 'LUNAS' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>LUNAS</button>
-               <button type="button" onClick={() => setStatusOverride('KASBON')} className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all ${status === 'KASBON' ? 'bg-white text-orange-500 shadow-sm' : 'text-gray-500'}`}>KASBON</button>
+    <div className="transaksi-container px-4 pt-4 pb-24 animate-in fade-in duration-300">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Judul + status. Status otomatis ikut jumlah bayar (kurang dari harga paket = KASBON), tombol cuma buat override manual */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-10 h-10 shrink-0 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200">
+                <Receipt size={20} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-gray-900 leading-tight">Transaksi Retail</h2>
+                <p className="text-xs text-gray-500">Periode {periodLabel}</p>
+              </div>
+            </div>
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+              <button type="button" onClick={() => setStatusOverride('LUNAS')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${status === 'LUNAS' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>
+                <CheckCircle2 size={14} />
+                LUNAS
+              </button>
+              <button type="button" onClick={() => setStatusOverride('KASBON')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${status === 'KASBON' ? 'bg-white text-orange-500 shadow-sm' : 'text-gray-500'}`}>
+                <Clock size={14} />
+                KASBON
+              </button>
             </div>
           </div>
           {!statusOverride && (
-            <p className="text-[10px] text-gray-400 text-right">Otomatis dari jumlah bayar — kurang dari harga paket akan tercatat KASBON</p>
+            <p className="flex items-start gap-1.5 text-[11px] text-gray-400 leading-snug">
+              <Info size={13} className="shrink-0 mt-px" />
+              Otomatis dari jumlah bayar — kurang dari harga paket akan tercatat KASBON
+            </p>
           )}
         </div>
 
-        <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 space-y-2.5">
-          {/* Customer Selection Section (Mandatory Dropdown & Auto-complete) */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="block text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                <UserCheck size={14} className="text-blue-600"/> Pilih Pelanggan
-              </label>
-              {selectedCustomerData && (
-                <span className="bg-emerald-100 text-emerald-800 font-bold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <CheckCircle2 size={12}/> Tersambung
-                </span>
-              )}
-            </div>
-
-            {paidHiddenCount > 0 && (
-              <p className="text-[11px] text-gray-400 -mt-1">{paidHiddenCount} pelanggan yang sudah lunas bulan ini tidak ditampilkan.</p>
+        {/* Kartu Pelanggan (wajib pilih dari pencarian) */}
+        <section className={cardClass}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className={`${sectionTitleClass} whitespace-nowrap`}>
+              <UserCheck size={16} className="text-blue-600" /> Pilih Pelanggan
+            </h3>
+            {selectedCustomerData && (
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1">
+                <CheckCircle2 size={12} /> Tersambung
+              </span>
             )}
+          </div>
 
-            {/* Auto-complete Search Box */}
+          <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold">
+            <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">{unpaidCustomers.length} belum bayar</span>
+            {paidHiddenCount > 0 && (
+              <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-700 flex items-center gap-1"><EyeOff size={11} /> {paidHiddenCount} lunas disembunyikan</span>
+            )}
+            {terminatedCount > 0 && (
+              <span className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 flex items-center gap-1"><EyeOff size={11} /> {terminatedCount} terminate</span>
+            )}
+            {accessToken && !billingPaidIds && (
+              <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">Status billing belum terbaca</span>
+            )}
+          </div>
+
+          {/* Auto-complete Search Box */}
+          <div className="relative">
             <div className="relative">
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-2.5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Ketik nama, atau klik untuk lihat semua pelanggan..."
-                  value={searchCust}
-                  onChange={(e) => {
-                    setSearchCust(e.target.value);
-                    setIsSearching(true);
-                    if (!e.target.value) {
-                      setSelectedCust('');
-                      setPackageOverride(null);
-                      setAmountPaid('');
-                      setStatusOverride(null);
-                    }
-                  }}
-                  onFocus={() => setIsSearching(true)}
-                  onBlur={() => setTimeout(() => setIsSearching(false), 150)}
-                  className={`w-full pl-8 pr-3 py-2 bg-gray-50 border rounded-lg outline-none text-xs font-medium transition-all ${selectedCustomerData ? 'border-emerald-500 bg-emerald-50/20 font-bold text-emerald-900' : 'border-gray-200 focus:ring-2 focus:ring-blue-500'}`}
-                />
-              </div>
-
-              {isSearching && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
-                  {filteredCustomers.length > 0 ? filteredCustomers.map(c => {
-                    const pppoe = c.pppoe_id || c.pppoeId;
-                    const custId = c.custid || c.customer_id || c.id;
-                    return (
-                      <div 
-                        key={c.id} 
-                        onClick={() => handleSelectCustomer(c)}
-                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0"
-                      >
-                        <div className="flex justify-between items-center">
-                          <p className="font-bold text-xs text-gray-800">
-                            {c.name} {c.nickname && <span className="text-blue-600 font-normal">({c.nickname})</span>}
-                          </p>
-                          <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                            custid: {custId}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center mt-1 text-[10px] text-gray-500">
-                          <span>{c.address}</span>
-                          {pppoe && <span className="font-mono text-blue-600 font-bold">{pppoe}</span>}
-                        </div>
-                      </div>
-                    );
-                  }) : (
-                    <div className="p-4 text-center text-xs text-gray-400 italic">Pelanggan tidak ditemukan...</div>
-                  )}
-                </div>
-              )}
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Cari nama, custid, atau PPPoE..."
+                value={searchCust}
+                onChange={(e) => {
+                  setSearchCust(e.target.value);
+                  setIsSearching(true);
+                  if (!e.target.value) {
+                    setSelectedCust('');
+                    setPackageOverride(null);
+                    setAmountPaid('');
+                    setStatusOverride(null);
+                  }
+                }}
+                onFocus={() => setIsSearching(true)}
+                onBlur={() => setTimeout(() => setIsSearching(false), 150)}
+                className={`${inputClass} pl-10 pr-3 py-2.5 text-sm ${selectedCustomerData ? 'border-emerald-400 bg-emerald-50/40 font-semibold text-emerald-900' : 'bg-gray-50 text-gray-800'}`}
+              />
             </div>
 
-            {/* Selected Customer Info Box */}
-            {selectedCustomerData ? (
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-1.5 rounded-xl border border-blue-200 space-y-0.5 animate-in fade-in">
-                <div className="flex justify-between items-center gap-2">
-                  <h4 className="min-w-0 font-extrabold text-gray-900 text-xs leading-tight truncate" title="Pelanggan Terpilih">{selectedCustomerData.name}</h4>
-                  <span className="bg-indigo-600 text-white font-mono font-bold text-[10px] px-2 py-0.5 rounded-md shadow-sm shrink-0">
-                    custid: {selectedCustomerData.custid || selectedCustomerData.customer_id || selectedCustomerData.pppoe_id || selectedCustomerData.id}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="truncate">
-                    <span className="text-gray-500 text-[10px]">ID PPPoE: </span>
-                    <span className="font-mono font-bold text-blue-700">{selectedCustomerData.pppoe_id || selectedCustomerData.pppoeId || '-'}</span>
-                  </div>
-                  <div className="truncate">
-                    <span className="text-gray-500 text-[10px]">Paket: </span>
-                    <span className="font-bold text-gray-800">{selectedCustomerData.package}</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="px-3 py-2 bg-amber-50 rounded-lg border border-amber-200 text-amber-800 text-[11px] font-medium flex items-center gap-2">
-                <AlertCircle size={14} className="shrink-0 text-amber-600" />
-                <span>Kasir <strong>wajib memilih pelanggan</strong> dari pencarian di atas untuk menghindari kesalahan cocok data (no_match).</span>
+            {isSearching && (
+              <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl max-h-64 overflow-y-auto">
+                {filteredCustomers.length > 0 ? filteredCustomers.map(c => {
+                  const pppoe = c.pppoe_id || c.pppoeId;
+                  const custId = c.custid || c.customer_id || c.id;
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => handleSelectCustomer(c)}
+                      className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0"
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <p className="font-semibold text-sm text-gray-800 min-w-0">
+                          {c.name} {c.nickname && <span className="text-blue-600 font-normal">({c.nickname})</span>}
+                        </p>
+                        <span className="shrink-0 text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                          custid: {custId}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-2 mt-1 text-[11px] text-gray-500">
+                        <span className="truncate">{c.address}</span>
+                        {pppoe && <span className="shrink-0 font-mono text-blue-600 font-bold">{pppoe}</span>}
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div className="p-4 text-center text-xs text-gray-400 italic">Pelanggan tidak ditemukan...</div>
+                )}
               </div>
             )}
           </div>
 
+          {/* Selected Customer Info Box */}
+          {selectedCustomerData ? (
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5 rounded-xl border border-blue-100 space-y-2 animate-in fade-in">
+              <div className="flex flex-wrap justify-between items-start gap-2">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Pelanggan Terpilih</span>
+                  <h4 className="font-bold text-gray-900 text-sm break-words">{selectedCustomerData.name}</h4>
+                </div>
+                <span className="bg-indigo-600 text-white font-mono font-bold text-[11px] px-2 py-1 rounded-lg">
+                  custid: {selectedCustomerData.custid || selectedCustomerData.customer_id || selectedCustomerData.pppoe_id || selectedCustomerData.id}
+                </span>
+              </div>
+              <div className="space-y-1.5 text-xs pt-2 border-t border-blue-100">
+                <div className="flex justify-between gap-3">
+                  <span className="text-gray-500 shrink-0">ID PPPoE</span>
+                  <span className="font-mono font-bold text-blue-700 text-right break-all min-w-0">{selectedCustomerData.pppoe_id || selectedCustomerData.pppoeId || '-'}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-gray-500 shrink-0">Paket Internet</span>
+                  <span className="font-semibold text-gray-800 text-right min-w-0">{selectedCustomerData.package}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs flex items-start gap-2 leading-relaxed">
+              <AlertCircle size={16} className="shrink-0 mt-px text-amber-600" />
+              <span>Kasir <strong>wajib memilih pelanggan</strong> dari pencarian di atas untuk menghindari kesalahan cocok data (no_match).</span>
+            </div>
+          )}
+        </section>
+
+        {/* Kartu Paket & Detail Transaksi */}
+        <section className={cardClass}>
+          <h3 className={sectionTitleClass}>
+            <CreditCard size={16} className="text-blue-600" /> Detail Transaksi
+          </h3>
+
           {activePackage && (
-            <div className="bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 animate-in slide-in-from-top-2 flex items-end gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-blue-600 font-bold uppercase flex items-center gap-1"><Wifi size={11}/> Paket Berlangganan</p>
-              {packages && packages.length > 0 ? (
+            <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-100 animate-in slide-in-from-top-2 space-y-3">
+              <div>
+                <p className={labelClass}><Wifi size={13} /> Paket Berlangganan</p>
+                {packages && packages.length > 0 ? (
                   <select
                     aria-label="Ganti Pilihan Paket"
                     value={activePackage.name}
@@ -363,7 +429,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                         setAmountPaid(sel.price.toString());
                       }
                     }}
-                    className="w-full mt-0.5 px-2 py-1 bg-white border border-blue-200 rounded-lg text-xs font-bold text-gray-800 outline-none focus:ring-2 focus:ring-blue-400"
+                    className={`${inputClass} bg-white px-3 py-2.5 text-sm font-semibold text-gray-800 disabled:opacity-70`}
                   >
                     {packages.map(p => (
                       <option key={p.id || p.name} value={p.name}>
@@ -371,97 +437,98 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                       </option>
                     ))}
                   </select>
-              ) : (
-                <p className="font-bold text-gray-800 text-xs">{activePackage.name}</p>
-              )}
+                ) : (
+                  <p className="font-semibold text-gray-800 text-sm">{activePackage.name}</p>
+                )}
               </div>
-              <div className="text-right shrink-0">
-                <span className="block text-[10px] text-gray-500 font-semibold">Total Tagihan</span>
-                <span className="text-base font-black text-blue-700 leading-tight">{formatRupiah(activePackage.price)}</span>
+              <div className="flex items-baseline justify-between gap-3 pt-3 border-t border-blue-100">
+                <span className="text-xs text-gray-500 font-semibold">Total Tagihan</span>
+                <span className="text-lg font-extrabold text-blue-700 leading-tight">{formatRupiah(activePackage.price)}</span>
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5 ml-1">Tanggal Cetak</label>
-              <input name="printDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-1.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg outline-none text-[11px]" />
+              <label className={labelClass}><Calendar size={13} /> Tanggal Cetak</label>
+              <input name="printDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} className={`${inputClass} bg-gray-50 px-3 py-2.5 text-sm text-gray-800`} />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5 ml-1 truncate" title="Nama Penerima/Kasir">Penerima/Kasir</label>
-              <input name="cashierName" type="text" defaultValue={defaultCashierName} placeholder="Nama Admin / Kasir" className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg outline-none text-xs font-bold text-gray-800" />
+              <label className={labelClass}><Wallet size={13} /> Metode Pembayaran</label>
+              <select name="paymentMethod" required className={`${inputClass} bg-gray-50 px-3 py-2.5 text-sm text-gray-800`}>
+                <option value="Cash">Tunai (Cash)</option>
+                <option value="Transfer Bank">Transfer Bank</option>
+                <option value="QRIS">QRIS</option>
+                <option value="CS">Bayar via CS</option>
+              </select>
             </div>
-          <div>
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5 ml-1 truncate" title="Metode Pembayaran">Metode Bayar</label>
-            <select name="paymentMethod" required className="w-full px-1.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-xs">
-              <option value="Cash">Tunai (Cash)</option>
-              <option value="Transfer Bank">Transfer Bank</option>
-              <option value="QRIS">QRIS</option>
-              <option value="CS">Bayar via CS</option>
-            </select>
+            <div className="min-[360px]:col-span-2">
+              <label className={labelClass}><User size={13} /> Nama Penerima/Kasir</label>
+              <input name="cashierName" type="text" defaultValue={defaultCashierName} placeholder="Nama Admin / Kasir" className={`${inputClass} bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-800`} />
+            </div>
           </div>
-          </div>
+        </section>
 
-          <div className="space-y-2">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5 ml-1">Jumlah Bayar (Rp)</label>
-              <div className="flex gap-2">
-              <MoneyInput
-                name="amountPaid"
-                value={amountPaid}
-                onValueChange={(v) => { setAmountPaid(v); setStatusOverride(null); }}
-                prefix="Rp"
-                placeholder="0"
-                aria-label="Uang diterima"
-                wrapperClassName="flex-1 min-w-0"
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xl font-black text-blue-600 placeholder:text-gray-300"
-              />
-            {/* Change Result — sebaris dengan input supaya halaman muat satu layar */}
+        {/* Kartu Pembayaran */}
+        <section className={cardClass}>
+          <h3 className={sectionTitleClass}>
+            <Banknote size={16} className="text-blue-600" /> Jumlah Bayar
+          </h3>
+
+          <div className="flex flex-col min-[380px]:flex-row gap-3">
+            <MoneyInput
+              name="amountPaid"
+              value={amountPaid}
+              onValueChange={(v) => { setAmountPaid(v); setStatusOverride(null); }}
+              prefix="Rp"
+              placeholder="0"
+              aria-label="Uang diterima"
+              wrapperClassName="flex-1 min-w-0"
+              className={`${inputClass} bg-gray-50 px-4 py-3 text-2xl font-extrabold text-blue-600 placeholder:text-gray-300`}
+            />
+            {/* Change Result */}
             {amountPaid && (
-              <div className={`shrink-0 w-32 px-3 py-1 rounded-xl flex flex-col justify-center items-end animate-in zoom-in duration-200 ${change >= 0 ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'}`}>
-                <span className="text-[10px] font-bold text-gray-500 uppercase">{change >= 0 ? 'Kembalian' : 'Kurang'}</span>
-                <span className={`text-sm font-black leading-tight ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className={`min-[380px]:w-36 shrink-0 px-4 py-2.5 rounded-xl flex min-[380px]:flex-col justify-between min-[380px]:justify-center items-center min-[380px]:items-end gap-1 animate-in zoom-in duration-200 ${change >= 0 ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'}`}>
+                <span className="text-[11px] font-bold text-gray-500 uppercase">{change >= 0 ? 'Kembalian' : 'Kurang'}</span>
+                <span className={`text-base font-extrabold leading-tight ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {formatRupiah(Math.abs(change))}
                 </span>
               </div>
             )}
-              </div>
-            </div>
-
-            {/* Quick Amount Buttons */}
-            <div className="grid grid-cols-4 gap-2">
-              <button
-                type="button"
-                onClick={handleUangPas}
-                className="py-1.5 text-[10px] font-black bg-blue-600 text-white rounded-lg shadow-sm shadow-blue-200 active:scale-95 transition-all hover:bg-blue-700"
-              >
-                UANG PAS
-              </button>
-              {[50000, 100000, 200000].map((amt) => (
-                <button 
-                  key={amt} 
-                  type="button" 
-                  onClick={() => handleQuickPay(amt)}
-                  className="py-1.5 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 border border-gray-100 rounded-lg text-[10px] font-bold text-gray-600 active:scale-95 active:bg-blue-600 active:text-white transition-all shadow-xs tap-bounce"
-                >
-                  {formatRupiah(amt)}
-                </button>
-              ))}
-            </div>
-
           </div>
-        </div>
+
+          {/* Quick Amount Buttons */}
+          <div className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-2">
+            <button
+              type="button"
+              onClick={handleUangPas}
+              className="py-2.5 text-xs font-bold bg-blue-600 text-white rounded-xl shadow-sm shadow-blue-200 active:scale-95 transition-all hover:bg-blue-700"
+            >
+              UANG PAS
+            </button>
+            {[50000, 100000, 200000].map((amt) => (
+              <button
+                key={amt}
+                type="button"
+                onClick={() => handleQuickPay(amt)}
+                className="py-2.5 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 active:scale-95 active:bg-blue-600 active:text-white transition-all tap-bounce"
+              >
+                {formatRupiah(amt)}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <button
           type="submit"
           disabled={!canRetail || !selectedCustomerData || !activePackage || isSubmitting}
-          className={`w-full text-white font-black text-sm py-2.5 rounded-xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95 ${
+          className={`w-full text-white font-bold text-base py-3.5 rounded-2xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95 ${
             selectedCustomerData && activePackage
               ? 'bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 shadow-blue-300 animate-pulse-glow hover:scale-[1.01]'
               : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'
           }`}
         >
-          <Printer size={16} /> {!canRetail ? 'Belum diberi hak proses pembayaran' : !selectedCustomerData ? 'Pilih Pelanggan Dulu' : (isSubmitting ? 'Menyamakan Nomor Invoice...' : 'Cetak Struk (58mm)')}
+          <Printer size={18} /> {!canRetail ? 'Belum diberi hak proses pembayaran' : !selectedCustomerData ? 'Pilih Pelanggan Dulu' : (isSubmitting ? 'Menyamakan Nomor Invoice...' : 'Cetak Struk (58mm)')}
         </button>
       </form>
     </div>

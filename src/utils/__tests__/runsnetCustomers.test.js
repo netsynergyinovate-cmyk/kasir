@@ -21,9 +21,13 @@ describe('mapRunsnetStatus', () => {
     expect(mapRunsnetStatus('Active')).toBe('aktif');
   });
 
-  it('maps anything else (Isolir, Terminate, ...) to nonaktif', () => {
+  it('maps Terminate to terminate, so it can be hidden from the payment list', () => {
+    expect(mapRunsnetStatus('Terminate')).toBe('terminate');
+    expect(mapRunsnetStatus("<span style='color:red'>Terminated</span>")).toBe('terminate');
+  });
+
+  it('maps anything else (Isolir, Cuti, ...) to nonaktif', () => {
     expect(mapRunsnetStatus('Isolir')).toBe('nonaktif');
-    expect(mapRunsnetStatus('Terminate')).toBe('nonaktif');
     expect(mapRunsnetStatus('')).toBe('nonaktif');
   });
 });

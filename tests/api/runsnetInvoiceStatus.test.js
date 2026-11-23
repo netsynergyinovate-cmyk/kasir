@@ -5,10 +5,11 @@ vi.mock('../../api/_lib/runsnetClient.js', () => ({
   getRunsnetSession: vi.fn(),
   fetchInvoiceStatuses: vi.fn(),
   isRunsnetConfigured: vi.fn(() => true),
+  fetchPaidCustIdsThisMonth: vi.fn(),
 }));
 
 import { verifyStaff } from '../../api/_lib/verifySuperadmin.js';
-import { getRunsnetSession, fetchInvoiceStatuses } from '../../api/_lib/runsnetClient.js';
+import { getRunsnetSession, fetchInvoiceStatuses, fetchPaidCustIdsThisMonth } from '../../api/_lib/runsnetClient.js';
 import handler from '../../api/runsnet/invoice-status.js';
 
 const makeRes = () => {
@@ -33,6 +34,21 @@ describe('POST /api/runsnet/invoice-status', () => {
     await handler({ method: 'POST', headers: {} }, res);
     expect(res.statusCode).toBe(401);
     expect(getRunsnetSession).not.toHaveBeenCalled();
+  });
+
+  it('returns custids already PAID in billing this month for the Transaksi page, without writing logs', async () => {
+    const adminClient = { from: vi.fn() };
+    verifyStaff.mockResolvedValue({ adminClient });
+    getRunsnetSession.mockResolvedValue({ cookie: 'c', menu: {} });
+    fetchPaidCustIdsThisMonth.mockResolvedValue(['1706001', '1706002']);
+
+    const res = makeRes();
+    await handler({ method: 'POST', headers: { authorization: 'Bearer x' }, body: { paidThisMonth: true } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.paidCustIds).toEqual(['1706001', '1706002']);
+    expect(fetchInvoiceStatuses).not.toHaveBeenCalled();
+    expect(adminClient.from).not.toHaveBeenCalled();
   });
 
   it('logs a stage "check" row per invoice, so the checking itself is visible in the Runsnet log', async () => {

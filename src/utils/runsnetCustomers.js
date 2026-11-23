@@ -1,9 +1,11 @@
 import { stripHtml } from './runsnetSync.js';
 
-// Status Runsnet dipetakan ke dua nilai yang dipahami KAsir (dipakai filter pelanggan aktif
-// di Dashboard/Rute). Selain "Active" dianggap nonaktif (Isolir, Terminate, Cuti, dll).
+// Status Runsnet dipetakan ke nilai yang dipahami KAsir (dipakai filter pelanggan aktif di Dashboard/Rute).
+// Terminate dipisah supaya tidak muncul lagi di daftar pembayaran Transaksi; selain itu (Isolir, Cuti, dll) nonaktif.
 export function mapRunsnetStatus(runsnetStatus) {
-  return stripHtml(runsnetStatus) === 'Active' ? 'aktif' : 'nonaktif';
+  const status = stripHtml(runsnetStatus);
+  if (status === 'Active') return 'aktif';
+  return /^terminat/i.test(status) ? 'terminate' : 'nonaktif';
 }
 
 // Kolom tabel Pelanggan Runsnet (lihat api/_lib/runsnetClient.js fetchAllCustomers):

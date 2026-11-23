@@ -1,5 +1,5 @@
 import { verifyStaff } from '../_lib/verifySuperadmin.js';
-import { getRunsnetSession, fetchInvoiceStatuses, isRunsnetConfigured, searchPayments, fetchAllCustomers } from '../_lib/runsnetClient.js';
+import { getRunsnetSession, fetchInvoiceStatuses, isRunsnetConfigured, searchPayments, fetchAllCustomers, fetchPaidCustIdsThisMonth } from '../_lib/runsnetClient.js';
 import { buildStatusCheckLog } from '../../src/utils/runsnetSync.js';
 
 // Status NYATA invoice di Runsnet (PAID / PENDING / CANCEL / NOT_FOUND) untuk daftar kode invoice — dibaca
@@ -15,6 +15,21 @@ export default async function handler(req, res) {
   const { error, adminClient } = await verifyStaff(req);
   if (error) {
     res.status(error.status).json({ error: error.message });
+    return;
+  }
+
+  // Halaman Transaksi: { paidThisMonth: true } -> custid yang invoicenya sudah PAID di billing bulan ini.
+  if (req.body?.paidThisMonth === true) {
+    if (!isRunsnetConfigured()) {
+      res.status(200).json({ error: 'Konfigurasi Runsnet belum lengkap.', paidCustIds: [] });
+      return;
+    }
+    try {
+      const paidCustIds = await fetchPaidCustIdsThisMonth(await getRunsnetSession(adminClient));
+      res.status(200).json({ paidCustIds, checkedAt: new Date().toISOString() });
+    } catch (err) {
+      res.status(200).json({ error: `Gagal membaca Runsnet: ${err.message}`, paidCustIds: [] });
+    }
     return;
   }
 
