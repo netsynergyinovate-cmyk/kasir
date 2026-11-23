@@ -994,7 +994,7 @@ export default function App() {
   }
 
   if (session && !isLoading && isLocked) {
-    return <DeviceLock userId={session.user.id} accountName={session.profile?.full_name} onUnlock={handleUnlock} />;
+    return <DeviceLock userId={session.user.id} email={session.user.email} accountName={session.profile?.full_name} onUnlock={handleUnlock} />;
   }
 
   return (
