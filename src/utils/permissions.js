@@ -24,10 +24,11 @@ export const PAGE_VIEW_PERMISSION = {
   '/settings': 'settings.view',
 };
 
-// 8 Modul Pembagian Hak Akses Granular
+// 9 Modul Pembagian Hak Akses Granular
 export const PERMISSION_MODULES = [
   {
     id: 'pos',
+    viewPermission: 'pos.view',
     label: 'Transaksi & Kasir (POS)',
     description: 'Akses transaksi kasir harian dan cetak struk',
     path: '/pos',
@@ -40,6 +41,7 @@ export const PERMISSION_MODULES = [
   },
   {
     id: 'customers',
+    viewPermission: 'customers.view',
     label: 'Manajemen Pelanggan',
     description: 'Kelola data pelanggan, koordinat, dan status langganan',
     path: '/customers',
@@ -53,6 +55,7 @@ export const PERMISSION_MODULES = [
   },
   {
     id: 'history',
+    viewPermission: 'history.view',
     label: 'Riwayat & Bukti Pembayaran',
     description: 'Lihat riwayat transaksi dan pengelolaan foto bukti transfer asli',
     path: '/history',
@@ -65,6 +68,7 @@ export const PERMISSION_MODULES = [
   },
   {
     id: 'rute',
+    viewPermission: 'rute.view',
     label: 'Rute & Kunjungan Lapangan',
     description: 'Peta rute penagihan, survey, dan pelacakan teknisi',
     path: '/rute',
@@ -87,6 +91,7 @@ export const PERMISSION_MODULES = [
   },
   {
     id: 'finance',
+    viewPermission: 'finance.view_activity',
     label: 'Keuangan & Laporan Toko',
     description: 'Pantau aktivitas mutasi kas dan omset pendapatan toko',
     path: '/aktivitas',
@@ -96,7 +101,19 @@ export const PERMISSION_MODULES = [
     ],
   },
   {
+    id: 'instansi',
+    viewPermission: 'instansi.view',
+    label: 'Invoice Instansi (B2B)',
+    description: 'Buat, cetak & kirim invoice A4 untuk klien instansi/korporat',
+    path: '/instansi',
+    permissions: [
+      { id: 'instansi.view', label: 'Buka, Buat & Cetak Invoice Instansi' },
+      { id: 'instansi.delete', label: 'Hapus Klien & Invoice Instansi' },
+    ],
+  },
+  {
     id: 'settings',
+    viewPermission: 'settings.view',
     label: 'Pengaturan Sistem & Toko',
     description: 'Konfigurasi printer bluetooth, paket wifi, dan profil toko',
     path: '/settings',
@@ -202,6 +219,7 @@ export function isPathAllowedForRole(role, pathname, allowedPaths = null) {
   const access = normalizeAdminAccess(allowedPaths);
   if (cleanPath === '/rute') return access.permissions.includes('rute.view');
   if (cleanPath === '/pelanggan-runsnet-baru') return access.permissions.includes('customers.create');
+  if (cleanPath === '/instansi') return access.permissions.includes('instansi.view');
   const viewPermission = PAGE_VIEW_PERMISSION[cleanPath];
   return access.paths.includes(cleanPath) && (!viewPermission || access.permissions.includes(viewPermission));
 }

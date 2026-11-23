@@ -21,6 +21,7 @@ vi.mock('../../lib/supabase', () => ({
 }));
 
 import AdminAccessModal from '../AdminAccessModal';
+import { ALL_PERMISSIONS, CONFIGURABLE_ADMIN_MENUS } from '../../utils/permissions';
 
 describe('AdminAccessModal: hak akses fitur membuka menu halamannya', () => {
   let container;
@@ -40,41 +41,56 @@ describe('AdminAccessModal: hak akses fitur membuka menu halamannya', () => {
   const findByText = (selector, text) =>
     Array.from(container.querySelectorAll(selector)).find((el) => el.textContent.includes(text));
 
-  it('checking "Lihat Data Pelanggan" also enables the Pelanggan menu so the admin can actually open it', async () => {
+  const switchFor = (label) => container.querySelector(`input[aria-label="${label}"]`);
+
+  it('turning on a feature also opens its page (menu + page-view permission)', async () => {
     const admin = { id: 'adm-1', full_name: 'Admin Satu', allowed_paths: { paths: ['/pos'], permissions: ['pos.view'] } };
 
     await act(async () => {
       root.render(<AdminAccessModal admin={admin} onClose={() => {}} onSaved={() => {}} />);
     });
 
-    const menuCheckbox = () => findByText('label', 'Pelanggan').querySelector('input[type="checkbox"]');
-    expect(menuCheckbox().checked).toBe(false);
+    expect(switchFor('Buka halaman Manajemen Pelanggan').checked).toBe(false);
 
     await click(findByText('button', 'Manajemen Pelanggan'));
-    await click(findByText('label', 'Lihat Data Pelanggan').querySelector('input'));
+    await click(switchFor('Tambah Pelanggan Baru'));
 
-    expect(menuCheckbox().checked).toBe(true);
+    expect(switchFor('Buka halaman Manajemen Pelanggan').checked).toBe(true);
 
     await click(findByText('button', 'Simpan Akses'));
     const saved = updateMock.mock.calls[0][0].allowed_paths;
     expect(saved.paths).toContain('/customers');
-    expect(saved.permissions).toContain('customers.view');
+    expect(saved.permissions).toEqual(expect.arrayContaining(['customers.view', 'customers.create']));
   });
 
-  it('unchecking a permission leaves the menu as it was', async () => {
+  it('closing a page removes its menu and page-view permission together', async () => {
     const admin = { id: 'adm-2', full_name: 'Admin Dua', allowed_paths: { paths: ['/customers'], permissions: ['customers.view'] } };
 
     await act(async () => {
       root.render(<AdminAccessModal admin={admin} onClose={() => {}} onSaved={() => {}} />);
     });
 
-    await click(findByText('button', 'Manajemen Pelanggan'));
-    await click(findByText('label', 'Lihat Data Pelanggan').querySelector('input'));
+    await click(switchFor('Buka halaman Manajemen Pelanggan'));
     await click(findByText('button', 'Simpan Akses'));
 
     const saved = updateMock.mock.calls[0][0].allowed_paths;
     expect(saved.permissions).not.toContain('customers.view');
-    expect(saved.paths).toContain('/customers');
+    expect(saved.paths).not.toContain('/customers');
+  });
+
+  it('the "Akses Penuh" preset grants every permission and page', async () => {
+    const admin = { id: 'adm-4', full_name: 'Admin Empat', allowed_paths: { paths: ['/pos'], permissions: ['pos.view'] } };
+
+    await act(async () => {
+      root.render(<AdminAccessModal admin={admin} onClose={() => {}} onSaved={() => {}} />);
+    });
+
+    await click(findByText('button', 'Akses Penuh'));
+    await click(findByText('button', 'Simpan Akses'));
+
+    const saved = updateMock.mock.calls[0][0].allowed_paths;
+    expect(saved.permissions).toEqual(ALL_PERMISSIONS);
+    expect(saved.paths).toEqual(CONFIGURABLE_ADMIN_MENUS.map((m) => m.path));
   });
 
   it('keeps the bonuses and payouts granted by the Superadmin when access is saved', async () => {
