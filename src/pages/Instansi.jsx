@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useSearchParamSync } from '../hooks/useSearchParamSync';
 import {
   Building2, FileText, Receipt, Layers, Plus, Trash2, Pencil, Eye, Search, X,
-  Wallet, ListChecks, AlertCircle, TrendingUp, Home, Wifi, CalendarClock,
+  Wallet, ListChecks, AlertCircle, TrendingUp, Home, Wifi, CalendarClock, ChevronRight,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import InstansiClientForm from '../components/InstansiClientForm';
@@ -36,41 +36,39 @@ const StatCard = ({ icon: Icon, label, value, tone, onClick, active }) => (
   <button
     type="button"
     onClick={onClick}
-    className={`shrink-0 min-w-[128px] text-left p-3 rounded-2xl border transition-all ${active ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-100 text-gray-900'} ${onClick ? 'active:scale-95' : ''}`}
+    className={`shrink-0 flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-xl border transition-all active:scale-95 ${active ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-100 text-gray-900'}`}
   >
-    <div className={`w-7 h-7 rounded-lg flex items-center justify-center mb-2 ${active ? 'bg-white/15' : tone}`}>
-      <Icon size={14} className={active ? 'text-white' : ''} />
-    </div>
-    <p className={`text-[9px] font-bold uppercase tracking-widest ${active ? 'text-white/60' : 'text-gray-400'}`}>{label}</p>
-    <p className="text-sm font-black leading-tight mt-0.5">{value}</p>
+    <span className={`w-6 h-6 rounded-lg flex items-center justify-center ${active ? 'bg-white/15' : tone}`}><Icon size={13} /></span>
+    <span className={`text-[11px] ${active ? 'text-white/70' : 'text-gray-500'}`}>{label}</span>
+    <span className="text-xs font-bold">{value}</span>
   </button>
 );
 
-const TAB_TITLES = { clients: 'Klien Instansi', invoices: 'Invoice', faktur: 'Faktur', multipate: 'Terbit Massal' };
+const TAB_TITLES = { home: 'Beranda Instansi', clients: 'Klien Instansi', invoices: 'Invoice', faktur: 'Faktur', multipate: 'Terbit Massal' };
 
 const initialsOf = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
 const HeroStat = ({ label, value, danger }) => (
-  <div className="bg-white/10 rounded-2xl px-3 py-2.5">
-    <p className={`text-lg font-black leading-none ${danger && value > 0 ? 'text-red-300' : ''}`}>{value}</p>
-    <p className="text-[9px] font-bold uppercase tracking-widest text-white/50 mt-1">{label}</p>
+  <div className="bg-white/10 rounded-xl px-2.5 py-2">
+    <p className={`text-base font-bold leading-none ${danger && value > 0 ? 'text-red-300' : ''}`}>{value}</p>
+    <p className="text-[10px] text-white/60 mt-1">{label}</p>
   </div>
 );
 
 const SectionHead = ({ title, count, actionLabel, onAction, disabled }) => (
   <div className="flex items-center justify-between pt-1">
-    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
-      {title} <span className="text-gray-300">· {count}</span>
+    <p className="text-xs font-semibold text-gray-500">
+      {title} <span className="font-normal text-gray-400">· {count}</span>
     </p>
-    <button type="button" onClick={onAction} disabled={disabled} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-900 text-white text-[10px] font-black uppercase tracking-wide disabled:opacity-40 active:scale-95 transition-all">
+    <button type="button" onClick={onAction} disabled={disabled} className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-900 text-white text-[11px] font-semibold disabled:opacity-40 active:scale-95 transition-all">
       <Plus size={12} /> {actionLabel}
     </button>
   </div>
 );
 
 const EmptyState = ({ icon: Icon, text }) => (
-  <div className="flex flex-col items-center text-center py-12 text-gray-400">
-    <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3"><Icon size={24} /></div>
+  <div className="flex flex-col items-center text-center py-8 text-gray-400">
+    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mb-2"><Icon size={18} /></div>
     <p className="text-xs">{text}</p>
   </div>
 );
@@ -89,14 +87,13 @@ const NavTab = ({ icon: Icon, label, active, onClick, badge }) => (
 );
 
 const Instansi = ({ session }) => {
-  const navigate = useNavigate();
   const canDelete = hasPermission(session?.profile?.role, 'instansi.delete', session?.profile?.allowed_paths);
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState(() => {
-    return searchParams.get('tab') || localStorage.getItem('kasir_instansi_tab') || 'clients';
+    return searchParams.get('tab') || localStorage.getItem('kasir_instansi_tab') || 'home';
   });
 
-  useSearchParamSync(setSearchParams, 'tab', tab, 'clients', 'kasir_instansi_tab');
+  useSearchParamSync(setSearchParams, 'tab', tab, 'home', 'kasir_instansi_tab');
   const [clients, setClients] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [profile, setProfile] = useState(mapProfile(null));
@@ -236,46 +233,151 @@ const Instansi = ({ session }) => {
   const openNewClient = () => { setEditingClient(null); setShowClientForm(true); };
   // Belum ada klien -> FAB membuka form klien dulu, karena invoice/faktur/massal butuh klien.
   const withClient = (open) => () => (clients.length ? open() : openNewClient());
+  const openDocForm = (kind) => withClient(() => { setTab(kind === 'faktur' ? 'faktur' : 'invoices'); setShowInvoiceForm(true); })();
   const fab = {
+    home: { label: 'Terbitkan Invoice', run: withClient(() => setShowInvoiceForm(true)) },
     invoices: { label: 'Terbitkan Invoice', run: withClient(() => setShowInvoiceForm(true)) },
     faktur: { label: 'Terbitkan Faktur', run: withClient(() => setShowInvoiceForm(true)) },
     multipate: { label: 'Buka Generator Massal', run: withClient(() => setShowMultipate(true)) },
   }[tab] || { label: 'Tambah Klien', run: openNewClient };
   const docLabel = tab === 'faktur' ? 'Faktur' : 'Invoice';
 
-  return (
-    <div className="p-4 pb-32 animate-in fade-in duration-300">
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-800 via-gray-900 to-black rounded-3xl p-5 text-white mb-5 shadow-lg">
-        <Building2 size={140} className="absolute -right-8 -bottom-10 text-white/5" />
-        <div className="relative flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0"><Building2 size={20} /></div>
-          <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">Invoice Instansi · B2B</p>
-            <h2 className="text-lg font-black leading-tight truncate">{TAB_TITLES[tab] || TAB_TITLES.clients}</h2>
+  // Beranda: yang belum lunas (jatuh tempo duluan, lalu tanggal jatuh tempo terdekat) & dokumen terbaru.
+  const toBill = invoices
+    .filter((i) => i.status !== 'paid')
+    .sort((x, y) => (isOverdue(y) - isOverdue(x)) || String(x.due_date || '9').localeCompare(String(y.due_date || '9')))
+    .slice(0, 5);
+  const totalBilled = allStats.paidAmount + allStats.pendingAmount;
+  const paidPct = totalBilled ? Math.round((allStats.paidAmount / totalBilled) * 100) : 0;
+  const quickActions = [
+    { icon: Building2, label: 'Klien Baru', run: openNewClient },
+    { icon: FileText, label: 'Invoice', run: () => openDocForm('invoice') },
+    { icon: Receipt, label: 'Faktur', run: () => openDocForm('faktur') },
+    { icon: Layers, label: 'Massal', run: () => setTab('multipate') },
+  ];
+
+  const renderInvoiceCard = (inv) => {
+    const overdue = isOverdue(inv);
+    const tone = inv.status === 'paid' ? 'paid' : overdue ? 'overdue' : 'pending';
+    const badgeClass = { paid: 'bg-emerald-50 text-emerald-600', overdue: 'bg-red-50 text-red-600', pending: 'bg-amber-50 text-amber-600' }[tone];
+    const stripeClass = { paid: 'bg-emerald-500', overdue: 'bg-red-500', pending: 'bg-amber-400' }[tone];
+    return (
+      <div key={inv.id} className="relative bg-white pl-4 pr-3 py-3 rounded-xl border border-gray-100 overflow-hidden flex items-center gap-3">
+        <span className={`absolute left-0 top-0 bottom-0 w-1 ${stripeClass}`} />
+        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openPreview(inv)}>
+          <p className="font-semibold text-gray-900 text-[13px] truncate">{inv.client?.institution_name || 'Klien terhapus'}</p>
+          <p className="font-mono text-[10px] text-gray-400 truncate">{inv.invoice_number}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-[13px] font-semibold text-gray-900">Rp {formatNumber(inv.amount)}</p>
+            {inv.due_date && (
+              <p className={`text-[10px] flex items-center gap-0.5 ${overdue ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+                <CalendarClock size={11} /> {formatDateIndoShort(inv.due_date)}
+              </p>
+            )}
+          </div>
+        </button>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${badgeClass}`}>
+            {inv.status === 'paid' ? 'Lunas' : overdue ? 'Jatuh Tempo' : 'Pending'}
+          </span>
+          <div className="flex gap-1.5">
+            <button type="button" aria-label="Lihat dokumen" onClick={() => openPreview(inv)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Eye size={13} /></button>
+            {canDelete && <button type="button" aria-label="Hapus dokumen" onClick={() => handleDeleteInvoice(inv)} className="p-1.5 bg-red-50 text-red-500 rounded-lg"><Trash2 size={13} /></button>}
           </div>
         </div>
-        <div className="relative grid grid-cols-3 gap-2 mt-4">
-          <HeroStat label="Klien Aktif" value={clientStats.active} />
-          <HeroStat label="Belum Lunas" value={allStats.pending} />
-          <HeroStat label="Jatuh Tempo" value={overdueCount} danger />
+      </div>
+    );
+  };
+
+
+  return (
+    <div className="p-4 pb-32 animate-in fade-in duration-300">
+      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-4 text-white mb-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0"><Building2 size={17} /></div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-white/50">Invoice Instansi · B2B</p>
+            <h2 className="text-base font-bold leading-tight truncate">{TAB_TITLES[tab] || TAB_TITLES.clients}</h2>
+          </div>
         </div>
-        <p className="relative text-[11px] text-white/60 mt-3">
-          Tagihan berjalan <span className="font-black text-white">Rp {formatNumber(allStats.pendingAmount)}</span>
-        </p>
+        {tab === 'home' && (
+          <>
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              <HeroStat label="Klien aktif" value={clientStats.active} />
+              <HeroStat label="Belum lunas" value={allStats.pending} />
+              <HeroStat label="Jatuh tempo" value={overdueCount} danger />
+            </div>
+            <p className="text-[11px] text-white/60 mt-2.5">
+              Tagihan berjalan <span className="font-semibold text-white">Rp {formatNumber(allStats.pendingAmount)}</span>
+            </p>
+          </>
+        )}
       </div>
 
       {loading ? (
         <div className="space-y-3">
-          {[0, 1, 2].map((i) => <div key={i} className="h-20 rounded-2xl bg-gray-100 animate-pulse" />)}
+          {[0, 1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-gray-100 animate-pulse" />)}
+        </div>
+      ) : tab === 'home' ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-4 gap-2">
+            {quickActions.map(({ icon: Icon, label, run }) => (
+              <button key={label} type="button" onClick={run} className="flex flex-col items-center gap-1 py-2.5 bg-white rounded-xl border border-gray-100 active:scale-95 transition-all">
+                <span className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center"><Icon size={15} /></span>
+                <span className="text-[10px] font-medium text-gray-600">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-100 p-3.5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-gray-500">Penagihan</p>
+              <p className="text-xs font-semibold text-gray-900">{paidPct}% lunas</p>
+            </div>
+            <div className="h-1.5 rounded-full bg-amber-100 overflow-hidden mt-2.5">
+              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${paidPct}%` }} />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <p className="text-[10px] text-emerald-600">Lunas · {allStats.paid}</p>
+                <p className="text-sm font-semibold text-gray-900">Rp {formatNumber(allStats.paidAmount)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-amber-600">Belum Lunas · {allStats.pending}</p>
+                <p className="text-sm font-semibold text-gray-900">Rp {formatNumber(allStats.pendingAmount)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-gray-500">Perlu Ditagih</p>
+              {toBill.length > 0 && (
+                <button type="button" onClick={() => { setInvoiceStatusFilter('pending'); setTab('invoices'); }} className="flex items-center text-[11px] font-semibold text-gray-500">
+                  Lihat semua <ChevronRight size={12} />
+                </button>
+              )}
+            </div>
+            {toBill.length === 0
+              ? <EmptyState icon={ListChecks} text={invoices.length === 0 ? 'Belum ada dokumen terbit.' : 'Semua tagihan sudah lunas.'} />
+              : toBill.map(renderInvoiceCard)}
+          </div>
+
+          {invoices.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-gray-500">Terbit Terakhir</p>
+              {invoices.slice(0, 3).map(renderInvoiceCard)}
+            </div>
+          )}
         </div>
       ) : tab === 'multipate' ? (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 text-center">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3"><Layers size={26} /></div>
-          <p className="font-black text-gray-900">Terbit Massal</p>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
+          <div className="w-11 h-11 mx-auto rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-2.5"><Layers size={20} /></div>
+          <p className="text-sm font-semibold text-gray-900">Terbit Massal</p>
           <p className="text-xs text-gray-500 mt-1">Terbitkan invoice atau faktur untuk banyak klien sekaligus dalam satu proses.</p>
-          <p className="text-[11px] font-bold text-gray-400 mt-3">{clientStats.active} klien aktif siap diproses</p>
-          <button type="button" onClick={() => setShowMultipate(true)} disabled={clients.length === 0} className="mt-4 w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all">
-            <Layers size={16} /> Buka Generator Massal
+          <p className="text-[11px] text-gray-400 mt-2">{clientStats.active} klien aktif siap diproses</p>
+          <button type="button" onClick={() => setShowMultipate(true)} disabled={clients.length === 0} className="mt-4 w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all">
+            <Layers size={15} /> Buka Generator Massal
           </button>
           {clients.length === 0 && <p className="text-xs text-gray-400 italic mt-3">Tambah klien dulu di menu Klien.</p>}
         </div>
@@ -288,8 +390,8 @@ const Instansi = ({ session }) => {
           </div>
 
           <div className="relative">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} type="text" placeholder="Cari nama instansi / kode klien..." className="w-full pl-10 pr-3 py-3 bg-white border border-gray-200 rounded-2xl outline-none text-xs focus:border-gray-900 transition-colors" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} type="text" placeholder="Cari nama instansi / kode klien..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs focus:border-gray-900 transition-colors" />
           </div>
 
           <SectionHead title="Daftar Klien" count={visibleClients.length} actionLabel="Klien" onAction={openNewClient} />
@@ -299,21 +401,21 @@ const Instansi = ({ session }) => {
           ) : visibleClients.map((c) => {
             const active = c.status === 'active';
             return (
-              <div key={c.id} className="bg-white p-3.5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
-                <div className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center font-black text-xs ${active ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}`}>
+              <div key={c.id} className="bg-white p-3 rounded-xl border border-gray-100 flex items-center gap-3">
+                <div className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center font-semibold text-[11px] ${active ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}`}>
                   {initialsOf(c.institution_name)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-black text-gray-900 text-[13px] uppercase truncate">{c.institution_name}</p>
+                  <p className="font-semibold text-gray-900 text-[13px] truncate">{c.institution_name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="font-mono text-[10px] text-gray-400">{c.client_code}</span>
-                    <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase ${active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>{active ? 'Aktif' : 'Nonaktif'}</span>
+                    <span className={`px-1.5 py-px rounded text-[9px] font-medium ${active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>{active ? 'Aktif' : 'Nonaktif'}</span>
                   </div>
                   <p className="text-[11px] text-gray-500 mt-1 truncate flex items-center gap-1"><Wifi size={11} className="shrink-0" /> {c.service_package || '-'}</p>
                 </div>
                 <div className="flex gap-1.5 shrink-0">
-                  <button type="button" aria-label="Ubah klien" onClick={() => { setEditingClient(c); setShowClientForm(true); }} className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Pencil size={14} /></button>
-                  {canDelete && <button type="button" aria-label="Hapus klien" onClick={() => handleDeleteClient(c)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>}
+                  <button type="button" aria-label="Ubah klien" onClick={() => { setEditingClient(c); setShowClientForm(true); }} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Pencil size={13} /></button>
+                  {canDelete && <button type="button" aria-label="Hapus klien" onClick={() => handleDeleteClient(c)} className="p-1.5 bg-red-50 text-red-500 rounded-lg"><Trash2 size={13} /></button>}
                 </div>
               </div>
             );
@@ -328,25 +430,25 @@ const Instansi = ({ session }) => {
           </div>
 
           <div className="relative">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} type="text" placeholder="Cari nomor dokumen / nama instansi..." className="w-full pl-10 pr-3 py-3 bg-white border border-gray-200 rounded-2xl outline-none text-xs focus:border-gray-900 transition-colors" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} type="text" placeholder="Cari nomor dokumen / nama instansi..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs focus:border-gray-900 transition-colors" />
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-1">
-            <select value={invoiceClientFilter} onChange={(e) => setInvoiceClientFilter(e.target.value)} className="shrink-0 px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs font-bold text-gray-600">
+            <select value={invoiceClientFilter} onChange={(e) => setInvoiceClientFilter(e.target.value)} className="shrink-0 px-2.5 py-2 bg-white border border-gray-200 rounded-lg outline-none text-xs text-gray-600">
               <option value="">Semua Klien</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.institution_name}</option>)}
             </select>
-            <select value={invoiceMonthFilter} onChange={(e) => setInvoiceMonthFilter(e.target.value)} className="shrink-0 px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs font-bold text-gray-600">
+            <select value={invoiceMonthFilter} onChange={(e) => setInvoiceMonthFilter(e.target.value)} className="shrink-0 px-2.5 py-2 bg-white border border-gray-200 rounded-lg outline-none text-xs text-gray-600">
               <option value="">Semua Bulan</option>
               {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
             </select>
-            <select value={invoiceYearFilter} onChange={(e) => setInvoiceYearFilter(e.target.value)} className="shrink-0 px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs font-bold text-gray-600">
+            <select value={invoiceYearFilter} onChange={(e) => setInvoiceYearFilter(e.target.value)} className="shrink-0 px-2.5 py-2 bg-white border border-gray-200 rounded-lg outline-none text-xs text-gray-600">
               <option value="">Semua Tahun</option>
               {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
             {hasInvoiceFilters && (
-              <button type="button" onClick={clearInvoiceFilters} className="shrink-0 flex items-center gap-1 px-3 py-2.5 bg-red-50 text-red-500 rounded-xl text-xs font-bold">
+              <button type="button" onClick={clearInvoiceFilters} className="shrink-0 flex items-center gap-1 px-2.5 py-2 bg-red-50 text-red-500 rounded-lg text-xs font-medium">
                 <X size={13} /> Reset
               </button>
             )}
@@ -356,38 +458,7 @@ const Instansi = ({ session }) => {
 
           {visibleInvoices.length === 0 ? (
             <EmptyState icon={tab === 'faktur' ? Receipt : FileText} text={invoicesForKind.length === 0 ? `Belum ada ${docLabel.toLowerCase()}.` : 'Tidak ada dokumen yang cocok dengan filter.'} />
-          ) : visibleInvoices.map((inv) => {
-            const overdue = isOverdue(inv);
-            const tone = inv.status === 'paid' ? 'paid' : overdue ? 'overdue' : 'pending';
-            const badgeClass = { paid: 'bg-emerald-50 text-emerald-600', overdue: 'bg-red-50 text-red-600', pending: 'bg-amber-50 text-amber-600' }[tone];
-            const stripeClass = { paid: 'bg-emerald-500', overdue: 'bg-red-500', pending: 'bg-amber-400' }[tone];
-            return (
-              <div key={inv.id} className="relative bg-white pl-5 pr-3.5 py-3.5 rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex items-center gap-3">
-                <span className={`absolute left-0 top-0 bottom-0 w-1.5 ${stripeClass}`} />
-                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openPreview(inv)}>
-                  <p className="font-black text-gray-900 text-[13px] uppercase truncate">{inv.client?.institution_name || 'Klien terhapus'}</p>
-                  <p className="font-mono text-[10px] text-gray-400 truncate">{inv.invoice_number}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <p className="text-sm font-black text-gray-900">Rp {formatNumber(inv.amount)}</p>
-                    {inv.due_date && (
-                      <p className={`text-[10px] flex items-center gap-0.5 ${overdue ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
-                        <CalendarClock size={11} /> {formatDateIndoShort(inv.due_date)}
-                      </p>
-                    )}
-                  </div>
-                </button>
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${badgeClass}`}>
-                    {inv.status === 'paid' ? 'Lunas' : overdue ? 'Jatuh Tempo' : 'Pending'}
-                  </span>
-                  <div className="flex gap-1.5">
-                    <button type="button" aria-label="Lihat dokumen" onClick={() => openPreview(inv)} className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Eye size={14} /></button>
-                    {canDelete && <button type="button" aria-label="Hapus dokumen" onClick={() => handleDeleteInvoice(inv)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          ) : visibleInvoices.map(renderInvoiceCard)}
         </div>
       )}
 
@@ -395,7 +466,7 @@ const Instansi = ({ session }) => {
       <nav aria-label="Menu Instansi" className="bg-white/95 backdrop-blur-md border-t border-slate-200/80 h-14 flex justify-between items-center px-2 z-20 shadow-[0_-2px_12px_rgba(0,0,0,0.05)] shrink-0 fixed bottom-0 left-0 right-0 max-w-md mx-auto print:hidden">
         <div className="flex w-full justify-between items-center relative">
           <div className="flex justify-around w-[42%]">
-            <NavTab icon={Home} label="Beranda" onClick={() => navigate('/')} />
+            <NavTab icon={Home} label="Beranda" active={tab === 'home'} onClick={() => setTab('home')} />
             <NavTab icon={Building2} label="Klien" active={tab === 'clients'} onClick={() => setTab('clients')} />
           </div>
           <div className="w-[16%]" />

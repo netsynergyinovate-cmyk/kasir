@@ -32,19 +32,29 @@ describe('Instansi page', () => {
       root.render(<MemoryRouter initialEntries={['/instansi']}><Instansi session={{ profile: { role: 'superadmin' } }} /></MemoryRouter>);
     });
   };
+  const navButton = (nav, label) => [...nav.querySelectorAll('button')].find((b) => b.textContent.startsWith(label));
 
-  it('shows its own bottom nav with instansi menus and switches tab from it', async () => {
+  it('opens on the Instansi home with billing info, not the app home', async () => {
     await render();
     const nav = container.querySelector('nav[aria-label="Menu Instansi"]');
-    const labels = [...nav.querySelectorAll('button')].map((b) => b.textContent.trim());
-    ['Beranda', 'Klien', 'Invoice1', 'Faktur', 'Massal'].forEach((l) => expect(labels).toContain(l));
+    expect(navButton(nav, 'Beranda').getAttribute('aria-current')).toBe('page');
+    expect(container.textContent).toContain('Beranda Instansi');
+    expect(container.textContent).toContain('Perlu Ditagih');
+    expect(container.textContent).toContain('INV-001');
+    expect(nav.querySelector('[aria-label="Terbitkan Invoice"]')).not.toBeNull();
+  });
+
+  it('switches feature tabs from its own bottom nav', async () => {
+    await render();
+    const nav = container.querySelector('nav[aria-label="Menu Instansi"]');
+    ['Klien', 'Invoice', 'Faktur', 'Massal'].forEach((l) => expect(navButton(nav, l)).toBeTruthy());
+
+    await act(async () => navButton(nav, 'Klien').click());
+    expect(navButton(nav, 'Klien').getAttribute('aria-current')).toBe('page');
     expect(nav.querySelector('[aria-label="Tambah Klien"]')).not.toBeNull();
     expect(container.textContent).toContain('Pemerintah Desa Tunggal Jaya');
 
-    const invoiceTab = [...nav.querySelectorAll('button')].find((b) => b.textContent.startsWith('Invoice'));
-    await act(async () => invoiceTab.click());
-    expect(invoiceTab.getAttribute('aria-current')).toBe('page');
-    expect(nav.querySelector('[aria-label="Terbitkan Invoice"]')).not.toBeNull();
-    expect(container.textContent).toContain('INV-001');
+    await act(async () => navButton(nav, 'Beranda').click());
+    expect(navButton(nav, 'Beranda').getAttribute('aria-current')).toBe('page');
   });
 });
