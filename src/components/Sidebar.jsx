@@ -71,7 +71,7 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewA
               </NavLink>
             )}
 
-            {isSuper && (
+            {allowed('/instansi') && (
               <>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2 mt-4">Layanan Korporat / B2B</div>
                 <NavLink to="/instansi" onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center justify-between px-3 py-3.5 rounded-2xl transition-all border-2 ${isActive ? 'border-gray-900 bg-gray-900 text-white font-bold shadow-lg shadow-gray-200' : 'border-transparent text-gray-800 hover:bg-gray-100 font-medium'}`}>

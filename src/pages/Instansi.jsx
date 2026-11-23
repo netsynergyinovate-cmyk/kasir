@@ -13,6 +13,7 @@ import InstansiPreviewModal from '../components/InstansiPreviewModal';
 import {
   formatDateIndo, formatNumber, amountInWords, summarizeInvoices, filterInvoices, filterClients,
 } from '../utils/instansiInvoice';
+import { hasPermission } from '../utils/permissions';
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
@@ -45,7 +46,8 @@ const StatCard = ({ icon: Icon, label, value, tone, onClick, active }) => (
   </button>
 );
 
-const Instansi = () => {
+const Instansi = ({ session }) => {
+  const canDelete = hasPermission(session?.profile?.role, 'instansi.delete', session?.profile?.allowed_paths);
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState(() => {
     return searchParams.get('tab') || localStorage.getItem('kasir_instansi_tab') || 'clients';
@@ -247,7 +249,7 @@ const Instansi = () => {
               </div>
               <div className="flex gap-1.5 shrink-0">
                 <button type="button" onClick={() => { setEditingClient(c); setShowClientForm(true); }} className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Pencil size={14} /></button>
-                <button type="button" onClick={() => handleDeleteClient(c)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>
+                {canDelete && <button type="button" onClick={() => handleDeleteClient(c)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>}
               </div>
             </div>
           ))}
@@ -313,7 +315,7 @@ const Instansi = () => {
                   </span>
                   <div className="flex gap-1.5">
                     <button type="button" onClick={() => openPreview(inv)} className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Eye size={14} /></button>
-                    <button type="button" onClick={() => handleDeleteInvoice(inv)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>
+                    {canDelete && <button type="button" onClick={() => handleDeleteInvoice(inv)} className="p-2 bg-red-50 text-red-500 rounded-xl"><Trash2 size={14} /></button>}
                   </div>
                 </div>
               </div>

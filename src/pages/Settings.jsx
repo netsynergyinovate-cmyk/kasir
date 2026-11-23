@@ -296,7 +296,7 @@ const Settings = ({
   const TABS = [
     { key: 'umum', label: 'Umum', icon: SlidersHorizontal },
     ...(canToko ? [{ key: 'toko', label: 'Toko', icon: Building2 }] : []),
-    { key: 'invoice-instansi', label: 'Invoice Instansi', icon: FileText },
+    ...(can('settings.company') ? [{ key: 'invoice-instansi', label: 'Invoice Instansi', icon: FileText }] : []),
     ...(isSuper || can('whatsapp.logs') ? [{ key: 'watbiz', label: 'WhatsApp', icon: MessageCircle }] : []),
     ...(isSuper ? [
       { key: 'ebilling', label: 'E-Billing', icon: Activity },
@@ -2047,7 +2047,7 @@ const Settings = ({
         {isSuper && activeTab === 'admin' && <AdminAccountsPanel transactions={transactions} companyInfo={localCompany} session={session} />}
 
         {/* Tab: Invoice Instansi (superadmin & admin) */}
-        {activeTab === 'invoice-instansi' && <InstansiInvoiceSettingsPanel />}
+        {can('settings.company') && activeTab === 'invoice-instansi' && <InstansiInvoiceSettingsPanel />}
 
         {/* Tab: Runsnet (khusus superadmin) */}
         {isSuper && activeTab === 'runsnet' && <RunsnetSyncPanel session={session} />}

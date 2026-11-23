@@ -1201,7 +1201,7 @@ export default function App() {
               />
             } />
             <Route path="/instansi" element={
-               <Instansi />
+               <Instansi session={effectiveSession} />
             } />
             <Route path="/pelanggan-runsnet-baru" element={
               <TambahPelangganRunsnet session={session} />
