@@ -25,7 +25,7 @@ describe('Dashboard route overview (what an admin sees on the home page)', () =>
   });
 
   it('lists every stop with its status and lets the admin log a visit right on the dashboard', () => {
-    const html = render({ customers: routeCustomers, visits: [] });
+    const html = render({ customers: routeCustomers, visits: [], onAddVisit: () => true });
     expect(html).toContain('Urutan kunjungan');
     expect(html).toContain('Citra Tujuan Kedua');
     expect(html).toContain('Catat Kunjungan');

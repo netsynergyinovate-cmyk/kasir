@@ -5,6 +5,7 @@ import { formatRupiah } from '../utils/format';
 import MoneyInput from '../components/MoneyInput';
 import { pickInvoiceNumber } from '../utils/runsnetSync';
 import { isPaidThisMonth } from '../utils/visits';
+import { hasPermission } from '../utils/permissions';
 import './Transaksi.css';
 
 // Cari nomor invoice asli Runsnet buat pelanggan ini (custid), timeout 6 detik supaya kasir
@@ -74,6 +75,8 @@ const resolvePackageAndPrice = (cust, packagesList = []) => {
 
 const Transaksi = ({ customers = [], transactions = [], packages = [], companyInfo, session, onComplete }) => {
   const [searchParams] = useSearchParams();
+  const can = (perm) => hasPermission(session?.profile?.role, perm, session?.profile?.allowed_paths);
+  const canRetail = can('pos.retail');
   const defaultCashierName = session?.profile?.full_name || (session?.profile?.role === 'superadmin' ? 'Super Admin' : (companyInfo?.adminName || 'Admin Kasir'));
   const [selectedCust, setSelectedCust] = useState('');
   // Paket yang dipilih kasir secara manual; kosong = pakai paket hasil resolusi dari data pelanggan
@@ -351,6 +354,8 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                   <select
                     aria-label="Ganti Pilihan Paket"
                     value={activePackage.name}
+                    disabled={!can('pos.custom_price')}
+                    title={can('pos.custom_price') ? undefined : 'Belum diberi hak ubah harga oleh superadmin'}
                     onChange={(e) => {
                       const sel = packages.find(p => p.name === e.target.value);
                       if (sel) {
@@ -449,14 +454,14 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
 
         <button
           type="submit"
-          disabled={!selectedCustomerData || !activePackage || isSubmitting}
+          disabled={!canRetail || !selectedCustomerData || !activePackage || isSubmitting}
           className={`w-full text-white font-black text-sm py-2.5 rounded-xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95 ${
             selectedCustomerData && activePackage
               ? 'bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 shadow-blue-300 animate-pulse-glow hover:scale-[1.01]'
               : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'
           }`}
         >
-          <Printer size={16} /> {!selectedCustomerData ? 'Pilih Pelanggan Dulu' : (isSubmitting ? 'Menyamakan Nomor Invoice...' : 'Cetak Struk (58mm)')}
+          <Printer size={16} /> {!canRetail ? 'Belum diberi hak proses pembayaran' : !selectedCustomerData ? 'Pilih Pelanggan Dulu' : (isSubmitting ? 'Menyamakan Nomor Invoice...' : 'Cetak Struk (58mm)')}
         </button>
       </form>
     </div>

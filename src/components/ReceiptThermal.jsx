@@ -5,6 +5,7 @@ import { getInvoiceNumber } from '../utils/format';
 import { buildReceiptLines } from '../utils/receiptLines';
 import { loadReceiptLogo } from '../utils/receiptLogo';
 import { formatPaymentInvoiceMessage } from '../utils/whatsappTemplates';
+import { hasPermission } from '../utils/permissions';
 
 const TOAST_MS = 4000;
 
@@ -41,7 +42,9 @@ const ReceiptThermal = ({ transaction, customer, companyInfo, session, onClose, 
 
   // Printer dianggap siap kalau sudah pernah dipasangkan (walau sambungannya sedang putus); sambungan dibuat
   // ulang otomatis saat mencetak.
-  const printerReady = Boolean(btDevice) || Boolean(savedDeviceName);
+  const can = (perm) => hasPermission(session?.profile?.role, perm, session?.profile?.allowed_paths);
+  const canPrint = can('pos.print');
+  const printerReady = canPrint && (Boolean(btDevice) || Boolean(savedDeviceName));
   const busy = isPrinting || isSavingImage || isCommitting || isSendingWa;
 
   // Menyimpan transaksi ke database kalau masih draf. true = sudah tersimpan (baru atau sebelumnya).
@@ -68,8 +71,8 @@ const ReceiptThermal = ({ transaction, customer, companyInfo, session, onClose, 
   const handlePrimary = async () => {
     const wasDraft = !committed;
     // Ambil printer lebih dulu (bisa memunculkan dialog pilih perangkat, yang butuh sentuhan pengguna).
-    let device = btDevice;
-    if (!device && savedDeviceName && ensurePrinter) device = await ensurePrinter();
+    let device = canPrint ? btDevice : null;
+    if (canPrint && !device && savedDeviceName && ensurePrinter) device = await ensurePrinter();
     if (!(await ensureSaved())) return;
     if (device) {
       const printed = await printViaBluetooth(device);
@@ -416,6 +419,7 @@ const ReceiptThermal = ({ transaction, customer, companyInfo, session, onClose, 
           </div>
 
           {/* Tombol Kirim Invoice WhatsApp */}
+          {can('whatsapp.invoice') && (
           <button
             onClick={handleSendWhatsAppInvoice}
             disabled={busy}
@@ -424,8 +428,9 @@ const ReceiptThermal = ({ transaction, customer, companyInfo, session, onClose, 
             {isSendingWa ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
             <span>{isSendingWa ? 'Mengirim WhatsApp...' : 'Kirim Invoice WhatsApp'}</span>
           </button>
+          )}
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className={`grid ${canPrint ? 'grid-cols-2' : 'grid-cols-1'} gap-2.5`}>
             <button
               onClick={handleSaveImage}
               disabled={busy}
@@ -434,6 +439,7 @@ const ReceiptThermal = ({ transaction, customer, companyInfo, session, onClose, 
               <Download size={15} />
               Simpan Gambar
             </button>
+            {canPrint && (
             <button
               onClick={handleSystemPrint}
               disabled={busy}
@@ -442,6 +448,7 @@ const ReceiptThermal = ({ transaction, customer, companyInfo, session, onClose, 
               <Printer size={15} />
               Cetak Sistem
             </button>
+            )}
           </div>
         </div>
       </footer>

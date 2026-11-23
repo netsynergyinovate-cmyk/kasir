@@ -273,13 +273,15 @@ const Rute = ({
           </div>
           <div className="flex gap-2">
             <NavButton customer={nextStop} primary />
-            <button
-              type="button"
-              onClick={() => openVisit(nextStop)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-white/15 hover:bg-white/25 active:scale-95 transition-all"
-            >
-              <ClipboardPen size={14} /> Catat Kunjungan
-            </button>
+            {onAddVisit && (
+              <button
+                type="button"
+                onClick={() => openVisit(nextStop)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-white/15 hover:bg-white/25 active:scale-95 transition-all"
+              >
+                <ClipboardPen size={14} /> Catat Kunjungan
+              </button>
+            )}
           </div>
           {afterNext && (
             <p className="text-[11px] text-indigo-100 border-t border-white/20 pt-2">
@@ -531,9 +533,11 @@ const Rute = ({
                 {status.key !== 'sudah_bayar' && !editMode && (
                   <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                     <NavButton customer={customer} />
-                    <button type="button" onClick={() => openVisit(customer)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-700 active:scale-95 transition-all">
-                      <ClipboardPen size={14} /> Catat Kunjungan
-                    </button>
+                    {onAddVisit && (
+                      <button type="button" onClick={() => openVisit(customer)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-700 active:scale-95 transition-all">
+                        <ClipboardPen size={14} /> Catat Kunjungan
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -836,7 +840,7 @@ const Rute = ({
       )}
 
       {/* Modal catat kunjungan */}
-      {visitFor && <VisitModal customer={visitFor} onClose={() => setVisitFor(null)} onSave={onAddVisit} />}
+      {visitFor && onAddVisit && <VisitModal customer={visitFor} onClose={() => setVisitFor(null)} onSave={onAddVisit} />}
 
       {/* Modal koordinat (superadmin) */}
       {coordFor && (

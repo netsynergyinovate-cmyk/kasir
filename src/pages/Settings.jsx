@@ -297,9 +297,9 @@ const Settings = ({
     { key: 'umum', label: 'Umum', icon: SlidersHorizontal },
     ...(canToko ? [{ key: 'toko', label: 'Toko', icon: Building2 }] : []),
     { key: 'invoice-instansi', label: 'Invoice Instansi', icon: FileText },
+    ...(isSuper || can('whatsapp.logs') ? [{ key: 'watbiz', label: 'WhatsApp', icon: MessageCircle }] : []),
     ...(isSuper ? [
       { key: 'ebilling', label: 'E-Billing', icon: Activity },
-      { key: 'watbiz', label: 'WhatsApp', icon: MessageCircle },
       { key: 'admin', label: 'Admin', icon: Users },
       { key: 'runsnet', label: 'Runsnet', icon: Zap },
     ] : []),
@@ -597,6 +597,7 @@ const Settings = ({
         {activeTab === 'umum' && (
         <>
         {/* Section: Koneksi Hardware */}
+        {can('settings.printer') && (
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Koneksi Hardware</h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
@@ -623,6 +624,8 @@ const Settings = ({
             </div>
           </div>
         </div>
+
+        )}
 
         {/* Section: PWA Install (Conditional) */}
         {deferredPrompt && (
@@ -1173,12 +1176,13 @@ const Settings = ({
         </>
         )}
 
-        {isSuper && activeTab === 'watbiz' && (
+        {(isSuper || can('whatsapp.logs')) && activeTab === 'watbiz' && (
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1 flex items-center gap-1.5">
             <MessageCircle size={14} className="text-emerald-600" /> Integrasi WhatsApp (Watbiz)
           </h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+            {isSuper && (<>
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <p className="text-sm font-bold text-gray-800">Aktifkan Integrasi WhatsApp</p>
@@ -1607,6 +1611,7 @@ const Settings = ({
               </div>
             </div>
 
+            </>)}
             {/* Riwayat & Log WhatsApp Gateway (Lengkap dengan Foto Bukti Klien & Detail Transaksi) */}
             <div className="pt-5 border-t border-gray-100 space-y-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1642,7 +1647,7 @@ const Settings = ({
                     <span>Segarkan</span>
                   </button>
 
-                  {watbizLogs.length > 0 && (
+                  {isSuper && watbizLogs.length > 0 && (
                     <button
                       type="button"
                       onClick={async () => {

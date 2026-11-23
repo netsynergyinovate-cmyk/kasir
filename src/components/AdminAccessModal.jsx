@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { CONFIGURABLE_ADMIN_MENUS, PERMISSION_MODULES, normalizeAdminAccess } from '../utils/permissions';
+import { CONFIGURABLE_ADMIN_MENUS, PERMISSION_MODULES, PAGE_VIEW_PERMISSION, normalizeAdminAccess } from '../utils/permissions';
 import { MAP_ICON_TYPES, MAP_ICON_COLORS, getInitials, getDeterministicColor } from '../utils/adminMapIcons';
 
 // Superadmin mengatur, KHUSUS untuk satu admin ini: hak akses fitur granular, icon peta, dan
@@ -45,20 +45,28 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
     return () => { cancelled = true; };
   }, [admin.id]);
 
+  // Menu & hak "buka halaman"-nya selalu dicentang/dilepas bersamaan (keduanya wajib agar halaman terbuka).
   const toggleMenu = (path) => {
-    setMenus((prev) => (prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path]));
+    const enabling = !menus.includes(path);
+    setMenus((prev) => (enabling ? [...prev, path] : prev.filter((p) => p !== path)));
+    const viewPerm = PAGE_VIEW_PERMISSION[path];
+    if (viewPerm) setPermissions((prev) => (enabling ? [...new Set([...prev, viewPerm])] : prev.filter((p) => p !== viewPerm)));
   };
 
-  // Mencentang sebuah hak akses otomatis membuka menu halamannya; tanpa menu itu halaman tidak bisa
-  // dibuka admin walau hak aksesnya dicentang (mis. "Lihat Data Pelanggan" tapi menu Pelanggan mati).
+  // Mencentang sebuah hak akses otomatis membuka menu halamannya (menu + hak "buka halaman"); tanpa itu
+  // halaman tidak bisa dibuka admin walau hak aksesnya dicentang (mis. "Unggah Bukti" tapi Riwayat mati).
   const togglePermission = (permId) => {
     const enabling = !permissions.includes(permId);
-    setPermissions((prev) => (enabling ? [...prev, permId] : prev.filter((p) => p !== permId)));
-    if (!enabling) return;
+    if (!enabling) {
+      setPermissions((prev) => prev.filter((p) => p !== permId));
+      return;
+    }
 
     const owner = PERMISSION_MODULES.find((m) => m.permissions.some((p) => p.id === permId));
     const isConfigurableMenu = CONFIGURABLE_ADMIN_MENUS.some((m) => m.path === owner?.path);
-    if (owner?.path && isConfigurableMenu) {
+    const viewPerm = isConfigurableMenu ? PAGE_VIEW_PERMISSION[owner.path] : null;
+    setPermissions((prev) => [...new Set([...prev, permId, ...(viewPerm ? [viewPerm] : [])])]);
+    if (isConfigurableMenu) {
       setMenus((prev) => (prev.includes(owner.path) ? prev : [...prev, owner.path]));
     }
   };
@@ -73,7 +81,8 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
 
   const selectAllModule = (module) => {
     const modulePermIds = module.permissions.map((p) => p.id);
-    setPermissions((prev) => [...new Set([...prev, ...modulePermIds])]);
+    const viewPerm = PAGE_VIEW_PERMISSION[module.path];
+    setPermissions((prev) => [...new Set([...prev, ...modulePermIds, ...(viewPerm ? [viewPerm] : [])])]);
     // Ensure module path is also enabled
     if (module.path && !menus.includes(module.path)) {
       setMenus((prev) => [...prev, module.path]);

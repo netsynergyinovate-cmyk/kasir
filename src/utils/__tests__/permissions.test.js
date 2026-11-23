@@ -44,6 +44,13 @@ describe('isPathAllowedForRole', () => {
     expect(isPathAllowedForRole('admin', '/pelanggan-runsnet-baru', { paths: ['/customers'], permissions: ['customers.view'] })).toBe(false);
   });
 
+  it('needs both the menu and its page-view permission to open a page', () => {
+    expect(isPathAllowedForRole('admin', '/history', { paths: ['/history'], permissions: ['history.view'] })).toBe(true);
+    expect(isPathAllowedForRole('admin', '/history', { paths: ['/history'], permissions: ['history.cancel'] })).toBe(false);
+    expect(isPathAllowedForRole('admin', '/history', { paths: ['/pos'], permissions: ['history.view'] })).toBe(false);
+    expect(isPathAllowedForRole('admin', '/', { paths: ['/'], permissions: [] })).toBe(true);
+  });
+
   it('blocks admin on paths outside the allow-list', () => {
     expect(isPathAllowedForRole('admin', '/instansi')).toBe(false);
   });
@@ -79,7 +86,7 @@ describe('isPathAllowedForRole', () => {
   });
 
   it('allows path when contained in object paths', () => {
-    const access = { paths: ['/pos', '/history'], permissions: [] };
+    const access = { paths: ['/pos', '/history'], permissions: ['pos.view', 'history.view'] };
     expect(isPathAllowedForRole('admin', '/pos', access)).toBe(true);
     expect(isPathAllowedForRole('admin', '/history', access)).toBe(true);
     expect(isPathAllowedForRole('admin', '/customers', access)).toBe(false);

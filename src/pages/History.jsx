@@ -815,7 +815,7 @@ const History = ({
                     {/* Tombol-tombol Tindakan pada Kartu */}
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       {/* Tombol Kirim ke Runsnet (Jika mismatch / PENDING) */}
-                      {mismatch && (
+                      {mismatch && hasPermission(role, 'runsnet.sync', session?.profile?.allowed_paths) && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -860,6 +860,7 @@ const History = ({
                       )}
 
                       {/* Tombol Lihat/Unggah Bukti */}
+                      {(hasPermission(role, 'history.proof_view', session?.profile?.allowed_paths) || hasPermission(role, 'history.proof_upload', session?.profile?.allowed_paths)) && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -877,6 +878,7 @@ const History = ({
                         <Camera size={13} className={!hasProof && isWaTrx ? 'text-amber-600' : ''} />
                         <span>{hasProof ? (isWaTrx ? 'Lihat Bukti WA 📸' : 'Lihat Bukti') : (isWaTrx ? '📎 Lampirkan Foto WA' : 'Unggah Bukti')}</span>
                       </button>
+                      )}
                     </div>
 
                   </div>

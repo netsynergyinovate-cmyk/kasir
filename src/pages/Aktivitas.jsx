@@ -4,8 +4,10 @@ import { Search, Calendar, Filter, Server, CheckCircle2, Zap } from 'lucide-reac
 import { formatRupiah } from '../utils/format';
 import { getEbillingLogs } from '../utils/billingApi';
 import { useSearchParamSync } from '../hooks/useSearchParamSync';
+import { hasPermission } from '../utils/permissions';
 
-const Aktivitas = ({ transactions = [] }) => {
+const Aktivitas = ({ transactions = [], session }) => {
+  const canViewOmset = hasPermission(session?.profile?.role, 'finance.view_omset', session?.profile?.allowed_paths);
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => {
     return searchParams.get('tab') || localStorage.getItem('kasir_aktivitas_tab') || 'kasir';
@@ -174,7 +176,7 @@ const Aktivitas = ({ transactions = [] }) => {
             </div>
           </div>
 
-          {cashierSummaryList.length > 0 && (
+          {canViewOmset && cashierSummaryList.length > 0 && (
             <div className="grid grid-cols-2 gap-3">
               {cashierSummaryList.map(c => (
                 <div key={c.name} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
