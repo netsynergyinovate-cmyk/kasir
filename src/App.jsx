@@ -6,7 +6,7 @@ import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
 import { isPathAllowedForRole, ADMIN_DEFAULT_PATH } from './utils/permissions';
 import { saveLastPath, getLastPath } from './utils/lastPage';
-import { loadVerifiedProfile, clearLoginRecorded, updateMyName, setAdminPin } from './utils/authProfile';
+import { loadVerifiedProfile, clearLoginRecorded, updateMyName } from './utils/authProfile';
 
 import Navigation from './components/Navigation';
 import Sidebar from './components/Sidebar';
@@ -34,7 +34,7 @@ import { customerVisitStatus } from './utils/visits';
 import { describeRouteError } from './utils/dbErrors';
 import { useShareLocation } from './hooks/useShareLocation';
 import { useAdminLocations } from './hooks/useAdminLocations';
-import PinPad from './components/PinPad';
+import DeviceLock from './components/DeviceLock';
 import { useIdleLock } from './hooks/useIdleLock';
 import { formatCountdown, countdownTone, markActivity } from './utils/idleLock';
 
@@ -45,7 +45,6 @@ const INIT_COMPANY = {
   logo: null,
   adminName: 'Admin',
   adminFee: 10000,
-  appPin: null,
   apiMonitoringUrl: '',
   apiMonitoringKey: localStorage.getItem('api_monitoring_key') || '',
   apiMonitoringEnabled: localStorage.getItem('api_monitoring_enabled') === 'true',
@@ -202,23 +201,6 @@ export default function App() {
     };
   }, []);
 
-  const handlePinSetup = async (hashedPin) => {
-    try {
-      const { error } = await supabase.from('company_settings').upsert({
-        id: 1,
-        app_pin: hashedPin
-      });
-      if (error) throw error;
-      setCompanyInfo({ ...companyInfo, appPin: hashedPin });
-      localStorage.setItem('device_unlocked', 'true');
-      markActivity();
-      setIsLocked(false);
-    } catch (e) {
-      console.error('Error saving PIN to DB:', e);
-      alert('Gagal menyimpan PIN.');
-    }
-  };
-
   const handleUnlock = () => {
     markActivity(); // hitungan 15 menit mulai dari nol setelah kode benar
     setIsLocked(false);
@@ -234,36 +216,22 @@ export default function App() {
     return error;
   };
 
-  // PIN buka aplikasi milik akun yang sedang login (tiap admin/superadmin punya PIN sendiri).
-  const handleUpdateMyPin = async (pin) => {
-    const { error } = await setAdminPin(supabase, session?.user?.id, pin);
-    if (!error) {
-      setSession((prev) => (prev ? { ...prev, profile: { ...prev.profile, app_pin: pin || null } } : prev));
-    }
-    return error;
-  };
-
-  // PIN akun sendiri kalau sudah diatur; kalau belum, PIN bersama lama (company_settings.app_pin).
-  const myPin = session?.profile?.app_pin || null;
-  const hasPin = Boolean(myPin || companyInfo.appPin);
-
-  // Kunci otomatis: setelah 15 menit tanpa disentuh (atau tombol Kunci), minta kode PIN lagi.
+  // Kunci otomatis: setelah 15 menit tanpa disentuh (atau tombol Kunci), minta kunci layar perangkat lagi.
   const lockApp = () => {
     localStorage.removeItem('device_unlocked');
     setIsLocked(true);
   };
   const isSuperExemptFromIdleLock = session?.profile?.role === 'superadmin' && companyInfo.idleLockExemptSuperadmin;
-  const idleLockEnabled = Boolean(session) && !isLoading && hasPin && !isLocked && !isSuperExemptFromIdleLock;
+  const idleLockEnabled = Boolean(session) && !isLoading && !isLocked && !isSuperExemptFromIdleLock;
   const idleRemaining = useIdleLock({ enabled: idleLockEnabled, onLock: lockApp });
 
-  // Tentukan status kunci dari sesi, PIN di DB, dan flag buka-kunci lokal. Dihitung ulang saat salah satu
-  // masukan berubah; disesuaikan saat render, bukan di effect.
-  const [lockInputs, setLockInputs] = useState({ session: null, hasPin: false, isLoading: true });
-  if (lockInputs.session !== session || lockInputs.hasPin !== hasPin || lockInputs.isLoading !== isLoading) {
-    setLockInputs({ session, hasPin, isLoading });
+  // Tentukan status kunci dari sesi dan flag buka-kunci lokal (di-set saat login, dihapus saat terkunci).
+  // Dihitung ulang saat masukan berubah; disesuaikan saat render, bukan di effect.
+  const [lockInputs, setLockInputs] = useState({ session: null, isLoading: true });
+  if (lockInputs.session !== session || lockInputs.isLoading !== isLoading) {
+    setLockInputs({ session, isLoading });
     if (session && !isLoading) {
-      const isDeviceUnlocked = localStorage.getItem('device_unlocked') === 'true';
-      setIsLocked(!isDeviceUnlocked && hasPin);
+      setIsLocked(localStorage.getItem('device_unlocked') !== 'true');
     }
   }
 
@@ -357,7 +325,6 @@ export default function App() {
             logo: settingsData.logo_url,
             adminName: settingsData.admin_name || 'Admin',
             adminFee: settingsData.admin_fee || 10000,
-            appPin: settingsData.app_pin || null,
             apiMonitoringUrl: settingsData.api_monitoring_url || '',
             apiMonitoringKey: finalKey,
             watbizToken: settingsData.watbiz_token || localStorage.getItem('watbiz_token') || '51dad347-d267-4254-9858-3e3b19c76c53',
@@ -1027,24 +994,8 @@ export default function App() {
     return <Login externalError={authError} />;
   }
 
-  // If session exists, data is loaded, but no DB Pin exists and not bypassed -> Setup mode
-  if (session && !isLoading && session.profile?.role !== 'admin' && !hasPin && localStorage.getItem('bypass_pin') !== 'true') {
-    return (
-      <PinPad 
-        mode="setup" 
-        onSetup={handlePinSetup} 
-        onSkip={() => {
-          localStorage.setItem('bypass_pin', 'true');
-          setIsLocked(false);
-          setCompanyInfo(prev => ({ ...prev }));
-        }} 
-      />
-    );
-  }
-
-  // If session exists, DB Pin exists, but device is locked -> Unlock mode
-  if (session && !isLoading && hasPin && isLocked) {
-    return <PinPad mode="unlock" dbPin={companyInfo.appPin} accountPin={myPin} accountName={session.profile?.full_name} onUnlock={handleUnlock} />;
+  if (session && !isLoading && isLocked) {
+    return <DeviceLock userId={session.user.id} accountName={session.profile?.full_name} onUnlock={handleUnlock} />;
   }
 
   return (
@@ -1214,7 +1165,6 @@ export default function App() {
                 onInstall={installApp}
                 onSyncEbilling={handleSyncCustomersFromEbilling}
                 onUpdateMyName={handleUpdateMyName}
-                onUpdateMyPin={handleUpdateMyPin}
                 transactions={transactions}
                 />
             } />

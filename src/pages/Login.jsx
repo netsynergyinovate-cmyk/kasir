@@ -4,6 +4,7 @@ import { Building2, Lock, Mail, Loader2, Eye, EyeOff, Smartphone, MapPin } from 
 import { getDeviceLabel } from '../utils/deviceId';
 import { fetchApproxLocation } from '../utils/authProfile';
 import { readAuthRedirectError } from '../utils/authRedirectError';
+import { markActivity } from '../utils/idleLock';
 
 const Login = ({ externalError }) => {
   const [email, setEmail] = useState('');
@@ -21,6 +22,9 @@ const Login = ({ externalError }) => {
   const deviceLabel = getDeviceLabel();
 
   useEffect(() => {
+    // Baru login (password/Google) = sudah terverifikasi: langsung masuk tanpa layar kunci.
+    localStorage.setItem('device_unlocked', 'true');
+    markActivity();
     let cancelled = false;
     fetchApproxLocation().then((result) => {
       if (!cancelled) setGeo({ loaded: true, ...result });
