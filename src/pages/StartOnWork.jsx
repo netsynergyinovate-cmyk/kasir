@@ -8,7 +8,8 @@ import { fetchRoadRoute } from '../utils/routing';
 import { distanceMeters, formatDistance, formatDuration, googleMapsNavUrl } from '../utils/geo';
 import { locationAdvice } from '../utils/location';
 import { toInputValue } from '../utils/dashboardStats';
-import { readWork, writeWork, pickNextTarget, hasArrived, WORK_EVENT_LABELS, ARRIVE_METERS } from '../utils/startOnWork';
+import { readWork, writeWork, pickNextTarget, hasArrived, workEarnings, WORK_EVENT_LABELS, ARRIVE_METERS } from '../utils/startOnWork';
+import { formatRupiah } from '../utils/format';
 
 const PENDING_KEYS = ['belum_dikunjungi', 'perlu_didatangi'];
 const timeOf = (iso) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -93,7 +94,7 @@ const ArrivalSheet = ({ customer, canPayDirect, onReport }) => (
 // di work_logs. Superadmin hanya memantau log semua admin.
 const StartOnWork = ({
   session, customers = [], transactions = [], visits = [], position = null, routeOrigin = null,
-  locationStatus = 'off', onRetryLocation, onAddVisit, canPayDirect = false,
+  locationStatus = 'off', onRetryLocation, onAddVisit, canPayDirect = false, adminFee = 10000,
 }) => {
   const navigate = useNavigate();
   const userId = session?.user?.id;
@@ -101,6 +102,7 @@ const StartOnWork = ({
   const adminName = session?.profile?.full_name || null;
 
   const [work, setWork] = useState(() => readWork(userId));
+  const [summary, setSummary] = useState(null); // ringkasan pendapatan setelah Selesai Kerja
   const updateWork = useCallback((next) => { writeWork(next); setWork(next); }, []);
 
   const [logDate, setLogDate] = useState(() => toInputValue(new Date()));
@@ -201,8 +203,11 @@ const StartOnWork = ({
 
   const finish = async () => {
     if (!window.confirm('Selesai kerja lapangan hari ini?')) return;
-    await logEvent('selesai', work.sessionId, null, `${work.doneIds.length} rumah ditangani`);
+    const earned = workEarnings({ transactions, startedAt: work.startedAt, adminId: userId, adminName, fee: adminFee });
+    await logEvent('selesai', work.sessionId, null,
+      `${work.doneIds.length} rumah ditangani · Pendapatan kotor ${formatRupiah(earned.gross)} · Komisi ${formatRupiah(earned.commission)}`);
     updateWork(null);
+    setSummary({ ...earned, startedAt: work.startedAt });
   };
 
   // customer: rumah yang dilapori (otomatis saat tiba, atau manual dari kartu tujuan bila GPS error).
@@ -239,6 +244,39 @@ const StartOnWork = ({
 
   return (
     <div className="p-4 space-y-4 pb-28 animate-in fade-in duration-300">
+      {summary && (
+        <div className="fixed inset-0 z-[60] bg-gray-900/60 flex items-center justify-center p-4">
+          <div role="dialog" aria-label="Ringkasan kerja" className="w-full max-w-sm bg-white rounded-2xl p-5 space-y-4 shadow-xl">
+            <div className="text-center">
+              <Flag className="mx-auto text-emerald-500" size={30} />
+              <p className="text-base font-bold text-gray-900">Kerja selesai</p>
+              <p className="text-[11px] text-gray-500">Sejak Mari Mulai pukul {timeOf(summary.startedAt)}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="bg-indigo-50 rounded-xl py-3">
+                <p className="text-[10px] text-indigo-700">Pendapatan kotor</p>
+                <p className="text-sm font-black text-indigo-900">{formatRupiah(summary.gross)}</p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl py-3">
+                <p className="text-[10px] text-emerald-700">Komisi</p>
+                <p className="text-sm font-black text-emerald-900">{formatRupiah(summary.commission)}</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-500 text-center">{summary.list.length} pelanggan bayar × {formatRupiah(summary.fee)} per pelanggan</p>
+            {summary.list.length > 0 && (
+              <ul className="max-h-40 overflow-y-auto divide-y divide-gray-100 text-xs">
+                {summary.list.map((t) => (
+                  <li key={t.id} className="flex justify-between gap-2 py-1.5">
+                    <span className="truncate text-gray-700">{t.customer_name || t.customerName}</span>
+                    <span className="font-semibold text-gray-900 shrink-0">{formatRupiah(t.price)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button type="button" onClick={() => setSummary(null)} className="w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold">Tutup</button>
+          </div>
+        </div>
+      )}
       <div>
         <h1 className="text-xl font-bold text-gray-900">Start On Work</h1>
         <p className="text-xs text-gray-500">{isSuper ? 'Pantau log kerja lapangan semua admin.' : 'Rute otomatis ke rumah pelanggan dari posisi Anda.'}</p>

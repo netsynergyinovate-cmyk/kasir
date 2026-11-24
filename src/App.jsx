@@ -1188,6 +1188,7 @@ export default function App() {
                 locationStatus={shareLocation.status}
                 onRetryLocation={shareLocation.retry}
                 onAddVisit={handleAddVisit}
+                adminFee={companyInfo.adminFee}
                 canPayDirect={can('work.pay_direct') && isPathAllowedForRole(effectiveSession?.profile?.role, '/pos', effectiveSession?.profile?.allowed_paths)}
               />
             } />
