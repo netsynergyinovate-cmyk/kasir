@@ -54,7 +54,7 @@ describe('Start On Work', () => {
     );
 
     await act(async () => root.render(card({ from: iso(1), to: iso(5) })));
-    expect(container.textContent).toContain('di luar tanggal kerja');
+    expect(container.textContent).toContain('di luar jadwal kerja');
 
     await act(async () => root.render(card({ from: iso(-1), to: iso(0) })));
     const startButton = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Mari Mulai'));
@@ -112,6 +112,36 @@ describe('Start On Work', () => {
     expect(onAddVisit).toHaveBeenLastCalledWith(expect.objectContaining({ customer_id: 'c2', outcome: 'uang_belum_ada' }));
     expect(inserted.at(-1)).toMatchObject({ event: 'uang_belum_ada', customer_id: 'c2' });
     expect(inserted.at(-1).note).toContain('Lapor manual');
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('logs "Ada di rumah" as unpaid until a LUNAS transaction exists', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const view = (transactions) => (
+      <MemoryRouter>
+        <StartOnWork session={session} customers={customers} transactions={transactions} position={atAni} routeOrigin={atAni} locationStatus="active" onAddVisit={vi.fn()} canPayDirect />
+      </MemoryRouter>
+    );
+
+    writeWork({ userId: 'u1', sessionId: '00000000-0000-0000-0000-000000000002', startedAt: new Date().toISOString(), targetId: null, arrivedId: null, doneIds: [] });
+    await act(async () => root.render(view([])));
+    await flush();
+    const sheet = document.querySelector('.fixed');
+    await act(async () => [...sheet.querySelectorAll('button')].find((b) => b.textContent === 'Ada di rumah').click());
+    await act(async () => [...sheet.querySelectorAll('button')].find((b) => b.textContent === 'Lanjut ke Transaksi').click());
+    await flush();
+
+    expect(readWork('u1').paying).toEqual({ id: 'c1', name: 'Ani' });
+    expect(container.textContent).toContain('Belum dibayar');
+
+    await act(async () => root.render(view([{ id: 't1', type: 'retail', status: 'LUNAS', customerName: 'Ani', date: new Date().toISOString() }])));
+    expect(container.textContent).toContain('Sudah dibayar');
+    expect(container.textContent).not.toContain('Belum dibayar');
 
     act(() => root.unmount());
     container.remove();

@@ -1,0 +1,24 @@
+name: Pengingat Start On Work
+
+on:
+  schedule:
+    # Tiap 15 menit: admin yang belum menyelesaikan Start On Work dan 1 jam tanpa aktivitas diberi push.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Pasang web-push
+        run: npm install --prefix scripts/work-reminder --no-package-lock --ignore-scripts
+      - name: Kirim pengingat
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+        run: node scripts/work-reminder/remind.js

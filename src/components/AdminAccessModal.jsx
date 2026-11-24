@@ -45,6 +45,8 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
   const [permissions, setPermissions] = useState(currentAccess.permissions);
   const [workFrom, setWorkFrom] = useState(currentAccess.work_range?.from || '');
   const [workTo, setWorkTo] = useState(currentAccess.work_range?.to || '');
+  const [workStart, setWorkStart] = useState(currentAccess.work_range?.start || '');
+  const [workEnd, setWorkEnd] = useState(currentAccess.work_range?.end || '');
   const [expandedModules, setExpandedModules] = useState(new Set());
 
   // Map icon state
@@ -149,8 +151,14 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
         commissions: currentAccess.commissions || [],
         bonuses: currentAccess.bonuses || [],
         // Tanggal terbalik (diketik manual) ditukar supaya rentangnya tetap berlaku.
-        work_range: workFrom || workTo
-          ? { from: (workTo && workFrom > workTo ? workTo : workFrom) || null, to: (workTo && workFrom > workTo ? workFrom : workTo) || null }
+        // Jam hanya berlaku bila mulai & selesai sama-sama diisi.
+        work_range: workFrom || workTo || (workStart && workEnd)
+          ? {
+            from: (workTo && workFrom > workTo ? workTo : workFrom) || null,
+            to: (workTo && workFrom > workTo ? workFrom : workTo) || null,
+            start: workStart && workEnd ? workStart : null,
+            end: workStart && workEnd ? workEnd : null,
+          }
           : null,
       };
 
@@ -296,7 +304,7 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
                             </div>
                             {module.id === 'work' && (
                               <div className="px-3 py-2.5 rounded-xl bg-gray-50 space-y-1.5">
-                                <p className="text-xs font-semibold text-gray-700">Tanggal kerja lapangan</p>
+                                <p className="text-xs font-semibold text-gray-700">Jadwal kerja lapangan (opsional)</p>
                                 <div className="grid grid-cols-2 gap-2">
                                   <label className="text-[10px] text-gray-500">Dari
                                     <input type="date" value={workFrom} max={workTo || undefined} onChange={(e) => setWorkFrom(e.target.value)} className="mt-0.5 w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white" />
@@ -305,7 +313,15 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
                                     <input type="date" value={workTo} min={workFrom || undefined} onChange={(e) => setWorkTo(e.target.value)} className="mt-0.5 w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white" />
                                   </label>
                                 </div>
-                                <p className="text-[10px] text-gray-400">{describeWorkRange({ from: workFrom, to: workTo })}. Tombol Mari Mulai di Beranda hanya muncul di rentang ini; kosongkan untuk setiap hari.</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <label className="text-[10px] text-gray-500">Jam mulai
+                                    <input type="time" value={workStart} onChange={(e) => setWorkStart(e.target.value)} className="mt-0.5 w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white" />
+                                  </label>
+                                  <label className="text-[10px] text-gray-500">Jam selesai
+                                    <input type="time" value={workEnd} onChange={(e) => setWorkEnd(e.target.value)} className="mt-0.5 w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white" />
+                                  </label>
+                                </div>
+                                <p className="text-[10px] text-gray-400">{describeWorkRange({ from: workFrom, to: workTo, start: workStart && workEnd ? workStart : null, end: workStart && workEnd ? workEnd : null })}. Tombol Mari Mulai di Beranda hanya muncul di jadwal ini; kosongkan untuk tanpa batas.</p>
                               </div>
                             )}
                             {hasPage && !pageOpen && (

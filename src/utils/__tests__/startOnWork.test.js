@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { pickNextTarget, hasArrived, isPaymentLocked, readWork, writeWork, isWorkDay, describeWorkRange } from '../startOnWork';
+import { pickNextTarget, hasArrived, isPaymentLocked, readWork, writeWork, isWorkTime, describeWorkRange, finishWorkPayment } from '../startOnWork';
 
 const a = { id: 'a', lat: -6.2, lng: 106.8 };
 const b = { id: 'b', lat: -6.21, lng: 106.81 };
@@ -41,22 +41,49 @@ describe('work storage', () => {
   });
 });
 
-describe('isWorkDay', () => {
+describe('isWorkTime', () => {
   const day = new Date(2026, 10, 23, 15, 0);
   it('allows every day until superadmin sets a date range', () => {
-    expect(isWorkDay(null, day)).toBe(true);
-    expect(isWorkDay({ paths: ['/'] }, day)).toBe(true);
+    expect(isWorkTime(null, day)).toBe(true);
+    expect(isWorkTime({ paths: ['/'] }, day)).toBe(true);
   });
 
   it('follows the configured date range, inclusive, with optional ends', () => {
-    expect(isWorkDay({ work_range: { from: '2026-11-23', to: '2026-11-23' } }, day)).toBe(true);
-    expect(isWorkDay({ work_range: { from: '2026-11-24', to: '2026-11-30' } }, day)).toBe(false);
-    expect(isWorkDay({ work_range: { from: null, to: '2026-11-22' } }, day)).toBe(false);
-    expect(isWorkDay({ work_range: { from: '2026-11-01', to: null } }, day)).toBe(true);
+    expect(isWorkTime({ work_range: { from: '2026-11-23', to: '2026-11-23' } }, day)).toBe(true);
+    expect(isWorkTime({ work_range: { from: '2026-11-24', to: '2026-11-30' } }, day)).toBe(false);
+    expect(isWorkTime({ work_range: { from: null, to: '2026-11-22' } }, day)).toBe(false);
+    expect(isWorkTime({ work_range: { from: '2026-11-01', to: null } }, day)).toBe(true);
   });
 
   it('describes the range', () => {
     expect(describeWorkRange(null)).toBe('Setiap hari');
     expect(describeWorkRange({ from: '2026-12-01', to: '2026-12-15' })).toBe('1 Des – 15 Des');
+    expect(describeWorkRange({ from: null, to: null, start: '08:00', end: '17:00' })).toBe('Setiap hari · 08:00–17:00');
+  });
+
+  it('applies optional working hours, including overnight shifts', () => {
+    const at = (h, m) => new Date(2026, 10, 23, h, m);
+    const office = { work_range: { start: '08:00', end: '17:00' } };
+    expect(isWorkTime(office, at(8, 0))).toBe(true);
+    expect(isWorkTime(office, at(16, 59))).toBe(true);
+    expect(isWorkTime(office, at(17, 0))).toBe(false);
+    expect(isWorkTime(office, at(7, 30))).toBe(false);
+    const night = { work_range: { start: '20:00', end: '04:00' } };
+    expect(isWorkTime(night, at(23, 0))).toBe(true);
+    expect(isWorkTime(night, at(3, 0))).toBe(true);
+    expect(isWorkTime(night, at(12, 0))).toBe(false);
+    expect(isWorkTime({ work_range: { from: '2026-11-24', start: '08:00', end: '17:00' } }, at(9, 0))).toBe(false);
+  });
+});
+
+describe('finishWorkPayment', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('clears the paying customer only when the paid name matches', () => {
+    writeWork({ userId: 'u1', sessionId: 's', paying: { id: 'c1', name: 'Ani' } });
+    expect(finishWorkPayment('u1', 'Budi')).toBe(false);
+    expect(finishWorkPayment('u1', ' ani ')).toBe(true);
+    expect(readWork('u1').paying).toBeNull();
+    expect(finishWorkPayment('u1', 'Ani')).toBe(false);
   });
 });

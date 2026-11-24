@@ -3,6 +3,7 @@ import { saveLastPath, getLastPath } from '../lastPage';
 
 describe('saveLastPath / getLastPath', () => {
   beforeEach(() => {
+    sessionStorage.clear();
     localStorage.clear();
   });
 
@@ -30,5 +31,12 @@ describe('saveLastPath / getLastPath', () => {
     saveLastPath('/history?tab=kasbon');
     saveLastPath('/customers?tab=belum_bayar');
     expect(getLastPath()).toBe('/customers?tab=belum_bayar');
+  });
+
+  it('only survives a refresh, not closing the app (sessionStorage, not localStorage)', () => {
+    saveLastPath('/customers');
+    expect(localStorage.length).toBe(0);
+    sessionStorage.clear(); // aplikasi ditutup
+    expect(getLastPath()).toBeNull();
   });
 });

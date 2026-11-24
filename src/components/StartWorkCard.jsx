@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Navigation, Play, CalendarOff, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { hasPermission, normalizeAdminAccess } from '../utils/permissions';
-import { readWork, writeWork, isWorkDay, describeWorkRange } from '../utils/startOnWork';
+import { readWork, writeWork, isWorkTime, describeWorkRange } from '../utils/startOnWork';
+import { subscribePush } from '../utils/pushSubscription';
 
 // Satu-satunya tombol "Mari Mulai" Start On Work, di Beranda admin. Hanya muncul untuk admin ber-hak work.view
 // dan hanya di hari kerja yang diatur superadmin. Halaman /start-on-work sendiri hanya penunjuk arah.
@@ -28,18 +29,19 @@ const StartWorkCard = ({ session, position = null }) => {
     );
   }
 
-  if (!isWorkDay(profile.allowed_paths)) {
+  if (!isWorkTime(profile.allowed_paths)) {
     return (
       <div className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100">
         <CalendarOff size={20} className="text-gray-400 shrink-0" />
         <p className="text-xs text-gray-600">
-          Hari ini di luar tanggal kerja lapangan Anda: <b>{describeWorkRange(normalizeAdminAccess(profile.allowed_paths).work_range)}</b>.
+          Sekarang di luar jadwal kerja lapangan Anda: <b>{describeWorkRange(normalizeAdminAccess(profile.allowed_paths).work_range)}</b>.
         </p>
       </div>
     );
   }
 
   const start = async () => {
+    subscribePush(userId, { ask: true }); // pengingat bila 1 jam tanpa aktivitas; tidak ditunggu
     setStarting(true);
     const work = { userId, sessionId: crypto.randomUUID(), startedAt: new Date().toISOString(), targetId: null, arrivedId: null, doneIds: [] };
     const { error } = await supabase.from('work_logs').insert({
