@@ -5,6 +5,7 @@ import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
 import { isPathAllowedForRole, hasPermission, ADMIN_DEFAULT_PATH } from './utils/permissions';
+import { readWork, isPaymentLocked } from './utils/startOnWork';
 import { saveLastPath, getLastPath } from './utils/lastPage';
 import { loadVerifiedProfile, clearLoginRecorded, updateMyName } from './utils/authProfile';
 
@@ -28,6 +29,7 @@ const Aktivitas = lazy(() => import('./pages/Aktivitas'));
 const TambahPelangganRunsnet = lazy(() => import('./pages/TambahPelangganRunsnet'));
 const DashboardSuperadmin = lazy(() => import('./pages/DashboardSuperadmin'));
 const Rute = lazy(() => import('./pages/Rute'));
+const StartOnWork = lazy(() => import('./pages/StartOnWork'));
 import RunsnetSyncToast from './components/RunsnetSyncToast';
 import { customerVisitStatus } from './utils/visits';
 import { describeRouteError } from './utils/dbErrors';
@@ -260,8 +262,11 @@ export default function App() {
   useEffect(() => {
     if (effectiveSession?.profile?.role === 'admin' && !isPathAllowedForRole('admin', location.pathname, effectiveSession.profile?.allowed_paths)) {
       navigate(ADMIN_DEFAULT_PATH, { replace: true });
+    } else if (location.pathname === '/pos' && isPaymentLocked(readWork(session?.user?.id))) {
+      // Start On Work: sudah tiba di rumah pelanggan tapi belum melapor -> transaksi lain dikunci.
+      navigate('/start-on-work', { replace: true });
     }
-  }, [effectiveSession, location.pathname, navigate]);
+  }, [effectiveSession, session?.user?.id, location.pathname, navigate]);
 
   const restoredPathRef = useRef(false);
 
@@ -737,10 +742,11 @@ export default function App() {
     }
   };
 
-  const handleAddVisit = async ({ customer_id, outcome, available_on }) => {
+  const handleAddVisit = async ({ customer_id, outcome, available_on, note }) => {
     const { data, error } = await supabase
       .from('customer_visits')
-      .insert({ customer_id, outcome, available_on, visited_by_name: session?.profile?.full_name || null })
+      // note hanya dikirim bila diisi: kolomnya baru ada setelah supabase_start_on_work.sql dijalankan.
+      .insert({ customer_id, outcome, available_on, visited_by_name: session?.profile?.full_name || null, ...(note ? { note } : {}) })
       .select()
       .single();
 
@@ -1166,6 +1172,20 @@ export default function App() {
                 adminLocations={adminLocations}
                 onUpdateCustomerRoute={handleUpdateCustomerRoute}
                 onBatchUpdateCustomerRoutes={handleBatchUpdateCustomerRoutes}
+              />
+            } />
+            <Route path="/start-on-work" element={
+              <StartOnWork
+                session={effectiveSession}
+                customers={customers}
+                transactions={transactions.map(t => ({...t, customerName: t.customer_name}))}
+                visits={visits}
+                position={shareLocation.position}
+                routeOrigin={shareLocation.routeOrigin}
+                locationStatus={shareLocation.status}
+                onRetryLocation={shareLocation.retry}
+                onAddVisit={handleAddVisit}
+                canPayDirect={can('work.pay_direct') && isPathAllowedForRole(effectiveSession?.profile?.role, '/pos', effectiveSession?.profile?.allowed_paths)}
               />
             } />
             <Route path="/settings" element={

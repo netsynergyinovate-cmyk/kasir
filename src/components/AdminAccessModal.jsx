@@ -23,7 +23,7 @@ const PRESETS = [
   { key: 'kasir', label: 'Kasir', paths: ALL_MENU_PATHS, permissions: DEFAULT_ADMIN_PERMISSIONS },
   {
     key: 'penagih', label: 'Penagih Lapangan', paths: ['/', '/pos', '/customers'],
-    permissions: ['pos.view', 'pos.retail', 'pos.print', 'customers.view', 'rute.view', 'rute.visit', 'whatsapp.invoice', 'whatsapp.reminder'],
+    permissions: ['pos.view', 'pos.retail', 'pos.print', 'customers.view', 'rute.view', 'rute.visit', 'work.view', 'work.pay_direct', 'whatsapp.invoice', 'whatsapp.reminder'],
   },
   { key: 'penuh', label: 'Akses Penuh', paths: ALL_MENU_PATHS, permissions: ALL_PERMISSIONS },
 ];

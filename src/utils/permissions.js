@@ -79,6 +79,17 @@ export const PERMISSION_MODULES = [
     ],
   },
   {
+    id: 'work',
+    viewPermission: 'work.view',
+    label: 'Start On Work (Kerja Lapangan)',
+    description: 'Rute otomatis ke rumah pelanggan, lapor ada/tidak di rumah & janji bayar',
+    path: '/start-on-work',
+    permissions: [
+      { id: 'work.view', label: 'Mulai Kerja & Lapor Kunjungan' },
+      { id: 'work.pay_direct', label: 'Terima Bayar Langsung di Lokasi' },
+    ],
+  },
+  {
     id: 'whatsapp',
     label: 'WhatsApp Gateway & Notifikasi',
     description: 'Kirim invoice otomatis dan pengingat tagihan',
@@ -220,6 +231,7 @@ export function isPathAllowedForRole(role, pathname, allowedPaths = null) {
   if (cleanPath === '/rute') return access.permissions.includes('rute.view');
   if (cleanPath === '/pelanggan-runsnet-baru') return access.permissions.includes('customers.create');
   if (cleanPath === '/instansi') return access.permissions.includes('instansi.view');
+  if (cleanPath === '/start-on-work') return access.permissions.includes('work.view');
   const viewPermission = PAGE_VIEW_PERMISSION[cleanPath];
   return access.paths.includes(cleanPath) && (!viewPermission || access.permissions.includes(viewPermission));
 }
