@@ -200,7 +200,7 @@ export function normalizeAdminAccess(allowedPaths) {
       map_icon: allowedPaths.map_icon || null,
       commissions: Array.isArray(allowedPaths.commissions) ? allowedPaths.commissions : [],
       bonuses: Array.isArray(allowedPaths.bonuses) ? allowedPaths.bonuses : [],
-      work_days: Array.isArray(allowedPaths.work_days) ? allowedPaths.work_days : null,
+      work_range: allowedPaths.work_range && typeof allowedPaths.work_range === 'object' ? allowedPaths.work_range : null,
     };
   }
 

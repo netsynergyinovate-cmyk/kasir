@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Navigation, Play, CalendarOff, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { hasPermission, normalizeAdminAccess } from '../utils/permissions';
-import { readWork, writeWork, isWorkDay, WEEKDAY_LABELS } from '../utils/startOnWork';
+import { readWork, writeWork, isWorkDay, describeWorkRange } from '../utils/startOnWork';
 
 // Satu-satunya tombol "Mari Mulai" Start On Work, di Beranda admin. Hanya muncul untuk admin ber-hak work.view
 // dan hanya di hari kerja yang diatur superadmin. Halaman /start-on-work sendiri hanya penunjuk arah.
@@ -29,13 +29,11 @@ const StartWorkCard = ({ session, position = null }) => {
   }
 
   if (!isWorkDay(profile.allowed_paths)) {
-    const days = normalizeAdminAccess(profile.allowed_paths).work_days || [];
     return (
       <div className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100">
         <CalendarOff size={20} className="text-gray-400 shrink-0" />
         <p className="text-xs text-gray-600">
-          Hari ini bukan hari kerja lapangan Anda.
-          {days.length > 0 && <> Hari kerja: <b>{[...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((day) => WEEKDAY_LABELS[day]).join(', ')}</b>.</>}
+          Hari ini di luar tanggal kerja lapangan Anda: <b>{describeWorkRange(normalizeAdminAccess(profile.allowed_paths).work_range)}</b>.
         </p>
       </div>
     );

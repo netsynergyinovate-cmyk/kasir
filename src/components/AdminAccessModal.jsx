@@ -9,7 +9,7 @@ import {
 } from '../utils/permissions';
 import { MAP_ICON_TYPES, MAP_ICON_COLORS, getInitials, getDeterministicColor } from '../utils/adminMapIcons';
 import ToggleSwitch from './ToggleSwitch';
-import { WEEKDAY_LABELS } from '../utils/startOnWork';
+import { describeWorkRange } from '../utils/startOnWork';
 
 const MODULE_ICONS = {
   pos: ShoppingCart, customers: Users, history: Receipt, rute: Route, whatsapp: MessageCircle,
@@ -43,7 +43,8 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
   const [activeSection, setActiveSection] = useState('access'); // 'access' | 'icon' | 'customers'
   const [menus, setMenus] = useState(currentAccess.paths);
   const [permissions, setPermissions] = useState(currentAccess.permissions);
-  const [workDays, setWorkDays] = useState(currentAccess.work_days || [0, 1, 2, 3, 4, 5, 6]);
+  const [workFrom, setWorkFrom] = useState(currentAccess.work_range?.from || '');
+  const [workTo, setWorkTo] = useState(currentAccess.work_range?.to || '');
   const [expandedModules, setExpandedModules] = useState(new Set());
 
   // Map icon state
@@ -147,7 +148,10 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
         map_icon: { type: iconType, color: iconColor, label: iconLabel },
         commissions: currentAccess.commissions || [],
         bonuses: currentAccess.bonuses || [],
-        work_days: workDays,
+        // Tanggal terbalik (diketik manual) ditukar supaya rentangnya tetap berlaku.
+        work_range: workFrom || workTo
+          ? { from: (workTo && workFrom > workTo ? workTo : workFrom) || null, to: (workTo && workFrom > workTo ? workFrom : workTo) || null }
+          : null,
       };
 
       const { error: menuError } = await supabase.from('admin_profiles').update({ allowed_paths: newAllowedPaths }).eq('id', admin.id);
@@ -292,24 +296,16 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
                             </div>
                             {module.id === 'work' && (
                               <div className="px-3 py-2.5 rounded-xl bg-gray-50 space-y-1.5">
-                                <p className="text-xs font-semibold text-gray-700">Hari kerja</p>
-                                <div className="grid grid-cols-7 gap-1">
-                                  {[1, 2, 3, 4, 5, 6, 0].map((day) => {
-                                    const onDay = workDays.includes(day);
-                                    return (
-                                      <button
-                                        key={day}
-                                        type="button"
-                                        aria-pressed={onDay}
-                                        onClick={() => setWorkDays((prev) => (onDay ? prev.filter((d) => d !== day) : [...prev, day]))}
-                                        className={`py-1.5 rounded-lg text-[11px] font-bold transition-colors ${onDay ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 border border-gray-200'}`}
-                                      >
-                                        {WEEKDAY_LABELS[day]}
-                                      </button>
-                                    );
-                                  })}
+                                <p className="text-xs font-semibold text-gray-700">Tanggal kerja lapangan</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <label className="text-[10px] text-gray-500">Dari
+                                    <input type="date" value={workFrom} max={workTo || undefined} onChange={(e) => setWorkFrom(e.target.value)} className="mt-0.5 w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white" />
+                                  </label>
+                                  <label className="text-[10px] text-gray-500">Sampai
+                                    <input type="date" value={workTo} min={workFrom || undefined} onChange={(e) => setWorkTo(e.target.value)} className="mt-0.5 w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white" />
+                                  </label>
                                 </div>
-                                <p className="text-[10px] text-gray-400">Tombol Mari Mulai di Beranda hanya muncul di hari yang dipilih.</p>
+                                <p className="text-[10px] text-gray-400">{describeWorkRange({ from: workFrom, to: workTo })}. Tombol Mari Mulai di Beranda hanya muncul di rentang ini; kosongkan untuk setiap hari.</p>
                               </div>
                             )}
                             {hasPage && !pageOpen && (

@@ -46,17 +46,17 @@ describe('Start On Work', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement('div');
     const root = createRoot(container);
-    const today = new Date().getDay();
-    const card = (workDays) => (
+    const iso = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    const card = (workRange) => (
       <MemoryRouter>
-        <StartWorkCard session={{ ...session, profile: { ...session.profile, allowed_paths: { paths: ['/'], permissions: ['work.view'], work_days: workDays } } }} position={far} />
+        <StartWorkCard session={{ ...session, profile: { ...session.profile, allowed_paths: { paths: ['/'], permissions: ['work.view'], work_range: workRange } } }} position={far} />
       </MemoryRouter>
     );
 
-    await act(async () => root.render(card([(today + 1) % 7])));
-    expect(container.textContent).toContain('bukan hari kerja');
+    await act(async () => root.render(card({ from: iso(1), to: iso(5) })));
+    expect(container.textContent).toContain('di luar tanggal kerja');
 
-    await act(async () => root.render(card([today])));
+    await act(async () => root.render(card({ from: iso(-1), to: iso(0) })));
     const startButton = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Mari Mulai'));
     await act(async () => startButton.click());
     await flush();
@@ -90,15 +90,28 @@ describe('Start On Work', () => {
     expect(document.body.textContent).toContain('Anda sudah sampai');
     expect(inserted.at(-1)).toMatchObject({ event: 'tiba', customer_id: 'c1' });
 
-    const notHome = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Tidak ada');
+    const sheet = document.querySelector('.fixed');
+    const notHome = [...sheet.querySelectorAll('button')].find((b) => b.textContent === 'Tidak ada di rumah');
     await act(async () => notHome.click());
-    const submit = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Kirim Laporan');
+    const submit = [...sheet.querySelectorAll('button')].find((b) => b.textContent === 'Kirim Laporan');
     await act(async () => submit.click());
     await flush();
 
     expect(onAddVisit).toHaveBeenCalledWith(expect.objectContaining({ customer_id: 'c1', outcome: 'tidak_ada_di_rumah' }));
     expect(readWork('u1')).toMatchObject({ arrivedId: null, targetId: 'c2', doneIds: ['c1'] });
     expect(inserted.slice(-2).map((row) => row.event)).toEqual(['tidak_ada_di_rumah', 'berangkat']);
+
+    // GPS error: lapor manual dari kartu tujuan (Budi) tanpa tiba; "Ada di rumah" tanpa hak bayar tidak muncul.
+    const manual = container.querySelector('details');
+    expect([...manual.querySelectorAll('button')].map((b) => b.textContent)).not.toContain('Ada di rumah');
+    const later = [...manual.querySelectorAll('button')].find((b) => b.textContent === 'Ada di rumah, bayar nanti');
+    await act(async () => later.click());
+    const send = [...manual.querySelectorAll('button')].find((b) => b.textContent === 'Kirim Laporan');
+    await act(async () => send.click());
+    await flush();
+    expect(onAddVisit).toHaveBeenLastCalledWith(expect.objectContaining({ customer_id: 'c2', outcome: 'uang_belum_ada' }));
+    expect(inserted.at(-1)).toMatchObject({ event: 'uang_belum_ada', customer_id: 'c2' });
+    expect(inserted.at(-1).note).toContain('Lapor manual');
 
     act(() => root.unmount());
     container.remove();
