@@ -26,7 +26,8 @@ vi.mock('../../lib/supabase', () => {
 });
 
 import StartOnWork from '../StartOnWork';
-import { readWork } from '../../utils/startOnWork';
+import StartWorkCard from '../../components/StartWorkCard';
+import { readWork, writeWork } from '../../utils/startOnWork';
 
 const session = { user: { id: 'u1' }, profile: { role: 'admin', full_name: 'Wahyu' } };
 const customers = [
@@ -41,7 +42,30 @@ const flush = () => act(async () => { await new Promise((resolve) => setTimeout(
 describe('Start On Work', () => {
   beforeEach(() => { localStorage.clear(); inserted.length = 0; });
 
-  it('starts, routes to the first stop, locks on arrival, then moves on after the report', async () => {
+  it('shows Mari Mulai on Beranda only on a work day, and starting logs "mulai"', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const today = new Date().getDay();
+    const card = (workDays) => (
+      <MemoryRouter>
+        <StartWorkCard session={{ ...session, profile: { ...session.profile, allowed_paths: { paths: ['/'], permissions: ['work.view'], work_days: workDays } } }} position={far} />
+      </MemoryRouter>
+    );
+
+    await act(async () => root.render(card([(today + 1) % 7])));
+    expect(container.textContent).toContain('bukan hari kerja');
+
+    await act(async () => root.render(card([today])));
+    const startButton = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Mari Mulai'));
+    await act(async () => startButton.click());
+    await flush();
+    expect(inserted.map((row) => row.event)).toEqual(['mulai']);
+    expect(readWork('u1')).toMatchObject({ targetId: null, doneIds: [] });
+    act(() => root.unmount());
+  });
+
+  it('routes to the first stop, locks on arrival, then moves on after the report', async () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     const onAddVisit = vi.fn(() => Promise.resolve(true));
     const container = document.createElement('div');
@@ -53,13 +77,12 @@ describe('Start On Work', () => {
       </MemoryRouter>
     );
 
+    writeWork({ userId: 'u1', sessionId: '00000000-0000-0000-0000-000000000001', startedAt: new Date().toISOString(), targetId: null, arrivedId: null, doneIds: [] });
     await act(async () => root.render(view(far)));
-    const startButton = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Mari Mulai'));
-    await act(async () => startButton.click());
     await flush();
 
     expect(container.textContent).toContain('Ani');
-    expect(inserted.map((row) => row.event)).toEqual(['mulai', 'berangkat']);
+    expect(inserted.map((row) => row.event)).toEqual(['berangkat']);
 
     await act(async () => root.render(view(atAni)));
     await flush();
@@ -67,6 +90,8 @@ describe('Start On Work', () => {
     expect(document.body.textContent).toContain('Anda sudah sampai');
     expect(inserted.at(-1)).toMatchObject({ event: 'tiba', customer_id: 'c1' });
 
+    const notHome = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Tidak ada');
+    await act(async () => notHome.click());
     const submit = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Kirim Laporan');
     await act(async () => submit.click());
     await flush();

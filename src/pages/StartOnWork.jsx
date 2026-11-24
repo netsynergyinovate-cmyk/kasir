@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Navigation, MapPin, Play, Flag, Loader2, LocateFixed, Lock, Clock, Wallet } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Navigation, MapPin, Flag, LocateFixed, Lock, Clock, Wallet } from 'lucide-react';
 import RouteMap from '../components/RouteMap';
 import { supabase } from '../lib/supabase';
 import { customerVisitStatus, nextSevenDays, buildVisitPayload, formatShortDate } from '../utils/visits';
@@ -13,27 +13,25 @@ import { readWork, writeWork, pickNextTarget, hasArrived, WORK_EVENT_LABELS, ARR
 const PENDING_KEYS = ['belum_dikunjungi', 'perlu_didatangi'];
 const timeOf = (iso) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
-// Laporan wajib saat admin tiba di rumah pelanggan. Sebelum terkirim, halaman Transaksi dikunci (App.jsx).
+// Laporan wajib saat admin tiba: cukup ada / tidak ada di rumah. Kalau ada, pilih bayar sekarang
+// (hak work.pay_direct) atau bayar nanti + tanggalnya. Sebelum terkirim, Transaksi dikunci (App.jsx).
 const ArrivalSheet = ({ customer, canPayDirect, onReport }) => {
   const days = nextSevenDays(new Date());
-  const [outcome, setOutcome] = useState('tidak_ada_di_rumah');
+  const [home, setHome] = useState(null); // null | 'ada' | 'tidak'
+  const [pay, setPay] = useState(canPayDirect ? 'sekarang' : 'nanti');
   const [date, setDate] = useState(days[0].value);
-  const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const options = [
-    ['tidak_ada_di_rumah', 'Tidak ada di rumah'],
-    ['uang_belum_ada', 'Ada di rumah, bayar nanti'],
-    ['lainnya', 'Lainnya'],
-    ...(canPayDirect ? [['bayar_langsung', 'Ada di rumah, bayar sekarang']] : []),
-  ];
+  const outcome = home === 'tidak' ? 'tidak_ada_di_rumah' : pay === 'sekarang' ? 'bayar_langsung' : 'uang_belum_ada';
 
   const submit = async (event) => {
     event.preventDefault();
     setSaving(true);
-    await onReport(outcome, { availableOn: date, note: note.trim() || null });
+    await onReport(outcome, { availableOn: date });
     setSaving(false);
   };
+
+  const choice = (active) => `flex-1 py-3 rounded-xl text-sm font-semibold border ${active ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 text-gray-700'}`;
 
   return (
     <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-end justify-center p-4 animate-backdrop">
@@ -44,53 +42,48 @@ const ArrivalSheet = ({ customer, canPayDirect, onReport }) => {
           <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5"><Lock size={11} /> Pembayaran lain dikunci sampai laporan ini dikirim.</p>
         </div>
 
-        <div className="space-y-2">
-          {options.map(([value, label]) => (
-            <label key={value} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${outcome === value ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'}`}>
-              <input type="radio" name="outcome" value={value} checked={outcome === value} onChange={() => setOutcome(value)} />
-              <span className="text-sm font-semibold text-gray-800">{label}</span>
-            </label>
-          ))}
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setHome('ada')} className={choice(home === 'ada')}>Ada di rumah</button>
+          <button type="button" onClick={() => setHome('tidak')} className={choice(home === 'tidak')}>Tidak ada</button>
         </div>
 
-        {outcome === 'uang_belum_ada' && (
-          <div>
-            <p className="text-[11px] font-semibold text-gray-500 mb-1">Bayarnya kapan?</p>
-            <div className="grid grid-cols-4 gap-1.5">
-              {days.map((day) => (
-                <button
-                  key={day.value}
-                  type="button"
-                  onClick={() => setDate(day.value)}
-                  className={`py-2 rounded-xl text-[11px] font-semibold border ${date === day.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-700 border-gray-200'}`}
-                >
-                  {day.label}
-                </button>
-              ))}
-            </div>
+        {home === 'ada' && (
+          <div className="space-y-3">
+            {canPayDirect && (
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setPay('sekarang')} className={choice(pay === 'sekarang')}>Bayar sekarang</button>
+                <button type="button" onClick={() => setPay('nanti')} className={choice(pay === 'nanti')}>Bayar nanti</button>
+              </div>
+            )}
+            {pay === 'nanti' && (
+              <div>
+                <p className="text-[11px] font-semibold text-gray-500 mb-1">Bayarnya kapan?</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {days.map((day) => (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => setDate(day.value)}
+                      className={`py-2 rounded-xl text-[11px] font-semibold border ${date === day.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-700 border-gray-200'}`}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {outcome === 'lainnya' && (
-          <textarea
-            required
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Tulis keterangan, mis. rumah kosong pindah, minta putus, dll."
-            className="w-full text-sm border border-gray-200 rounded-xl p-3 outline-none focus:border-indigo-500"
-            rows={3}
-          />
-        )}
-
-        <button type="submit" disabled={saving} className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl disabled:opacity-70">
-          {saving ? 'Mengirim...' : outcome === 'bayar_langsung' ? 'Lanjut ke Pembayaran' : 'Kirim Laporan'}
+        <button type="submit" disabled={saving || !home} className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl disabled:opacity-50">
+          {saving ? 'Mengirim...' : outcome === 'bayar_langsung' && home === 'ada' ? 'Lanjut ke Pembayaran' : 'Kirim Laporan'}
         </button>
       </form>
     </div>
   );
 };
 
-// Start On Work: admin tekan "Mari Mulai", rute otomatis dari posisinya ke rumah pelanggan berikutnya,
+// Start On Work: penunjuk arah. Sesi dimulai dari tombol "Mari Mulai" di Beranda (StartWorkCard), lalu rute otomatis dari posisinya ke rumah pelanggan berikutnya,
 // tiba (radius ARRIVE_METERS) -> wajib lapor, lalu otomatis menuju rumah berikutnya. Semua langkah dicatat
 // di work_logs. Superadmin hanya memantau log semua admin.
 const StartOnWork = ({
@@ -200,32 +193,37 @@ const StartOnWork = ({
   }, [routeKey]);
   const roadRoute = road.key === routeKey ? road.data : null;
 
-  const start = async () => {
-    const next = { userId, sessionId: crypto.randomUUID(), startedAt: new Date().toISOString(), targetId: null, arrivedId: null, doneIds: [] };
-    updateWork(next);
-    await logEvent('mulai', next.sessionId);
-  };
-
   const finish = async () => {
     if (!window.confirm('Selesai kerja lapangan hari ini?')) return;
     await logEvent('selesai', work.sessionId, null, `${work.doneIds.length} rumah ditangani`);
     updateWork(null);
   };
 
-  const report = async (outcome, { availableOn, note }) => {
+  const report = async (outcome, { availableOn }) => {
     const customer = arrivedCustomer;
     if (outcome !== 'bayar_langsung') {
-      const ok = await onAddVisit({ ...buildVisitPayload(customer.id, outcome, availableOn), note });
+      const ok = await onAddVisit(buildVisitPayload(customer.id, outcome, availableOn));
       if (!ok) return;
     }
-    await logEvent(outcome, work.sessionId, customer, outcome === 'uang_belum_ada' ? `Janji bayar ${formatShortDate(availableOn)}` : note);
+    await logEvent(outcome, work.sessionId, customer, outcome === 'uang_belum_ada' ? `Janji bayar ${formatShortDate(availableOn)}` : null);
     updateWork({ ...work, arrivedId: null, targetId: null, doneIds: [...work.doneIds, customer.id] });
     if (outcome === 'bayar_langsung') navigate(`/pos?cust=${encodeURIComponent(customer.id)}`);
   };
 
-  const people = position ? [{ id: 'me', lat: position.lat, lng: position.lng, accuracy: position.accuracy, title: 'Posisi Anda', self: true }] : [];
-  const stops = target ? [{ id: target.id, lat: target.lat, lng: target.lng, number: work.doneIds.length + 1, tone: 'red', title: target.name }] : [];
-  const routeLine = roadRoute?.coordinates || (position && target ? [[position.lat, position.lng], [target.lat, target.lng]] : null);
+  const people = useMemo(
+    () => (position ? [{ id: 'me', lat: position.lat, lng: position.lng, accuracy: position.accuracy, title: 'Posisi Anda', self: true, map_icon: session?.profile?.allowed_paths?.map_icon }] : []),
+    [position, session?.profile?.allowed_paths?.map_icon],
+  );
+  // Dimemo supaya peta tidak menggambar ulang jalur (dan animasinya tidak tersentak) tiap update GPS.
+  const doneCount = work?.doneIds.length || 0;
+  const stops = useMemo(
+    () => (target ? [{ id: target.id, lat: target.lat, lng: target.lng, number: doneCount + 1, tone: 'red', title: target.name }] : []),
+    [target, doneCount],
+  );
+  const routeLine = useMemo(
+    () => roadRoute?.coordinates || (routeOrigin && target ? [[routeOrigin.lat, routeOrigin.lng], [target.lat, target.lng]] : null),
+    [roadRoute, routeOrigin, target],
+  );
   const remaining = position && target ? distanceMeters(position, target) : null;
   const departedAt = target && logs.find((log) => log.event === 'berangkat' && log.customer_id === target.id && log.session_id === work.sessionId)?.created_at;
   const locationNote = locationAdvice(locationStatus);
@@ -248,20 +246,11 @@ const StartOnWork = ({
       )}
 
       {!isSuper && !work && (
-        <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-5 space-y-4 text-center">
-          <Navigation className="mx-auto" size={36} />
-          <div>
-            <p className="text-lg font-bold">Siap turun lapangan?</p>
-            <p className="text-xs text-indigo-100 mt-1">{pendingCount} rumah perlu didatangi. Rute dibuat otomatis, dan saat tiba Anda wajib melapor sebelum bisa menerima pembayaran lain.</p>
-          </div>
-          <button
-            type="button"
-            onClick={start}
-            disabled={!position}
-            className="w-full flex items-center justify-center gap-2 bg-white text-indigo-700 font-bold py-3.5 rounded-xl active:scale-95 transition-all disabled:opacity-60"
-          >
-            {position ? <><Play size={18} /> Mari Mulai</> : <><Loader2 size={18} className="animate-spin" /> Menunggu lokasi GPS...</>}
-          </button>
+        <div className="rounded-2xl bg-gray-50 border border-gray-100 p-5 text-center space-y-2">
+          <Navigation className="mx-auto text-gray-300" size={30} />
+          <p className="text-sm font-bold text-gray-800">Belum mulai kerja.</p>
+          <p className="text-xs text-gray-500">Tekan <b>Mari Mulai</b> di Beranda untuk memulai rute ({pendingCount} rumah perlu didatangi).</p>
+          <Link to="/" className="inline-block mt-1 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Ke Beranda</Link>
         </div>
       )}
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   X, Loader2, CheckCircle2, ChevronDown, Home, ShoppingCart, Users, Receipt, Route, MessageCircle,
-  Wallet, Building2, Settings, Zap, Sparkles,
+  Wallet, Building2, Settings, Zap, Sparkles, Navigation,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -9,10 +9,11 @@ import {
 } from '../utils/permissions';
 import { MAP_ICON_TYPES, MAP_ICON_COLORS, getInitials, getDeterministicColor } from '../utils/adminMapIcons';
 import ToggleSwitch from './ToggleSwitch';
+import { WEEKDAY_LABELS } from '../utils/startOnWork';
 
 const MODULE_ICONS = {
   pos: ShoppingCart, customers: Users, history: Receipt, rute: Route, whatsapp: MessageCircle,
-  finance: Wallet, instansi: Building2, settings: Settings, runsnet: Zap,
+  finance: Wallet, instansi: Building2, settings: Settings, runsnet: Zap, work: Navigation,
 };
 
 const ALL_MENU_PATHS = CONFIGURABLE_ADMIN_MENUS.map((m) => m.path);
@@ -42,6 +43,7 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
   const [activeSection, setActiveSection] = useState('access'); // 'access' | 'icon' | 'customers'
   const [menus, setMenus] = useState(currentAccess.paths);
   const [permissions, setPermissions] = useState(currentAccess.permissions);
+  const [workDays, setWorkDays] = useState(currentAccess.work_days || [0, 1, 2, 3, 4, 5, 6]);
   const [expandedModules, setExpandedModules] = useState(new Set());
 
   // Map icon state
@@ -145,6 +147,7 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
         map_icon: { type: iconType, color: iconColor, label: iconLabel },
         commissions: currentAccess.commissions || [],
         bonuses: currentAccess.bonuses || [],
+        work_days: workDays,
       };
 
       const { error: menuError } = await supabase.from('admin_profiles').update({ allowed_paths: newAllowedPaths }).eq('id', admin.id);
@@ -287,6 +290,28 @@ const AdminAccessModal = ({ admin, onClose, onSaved }) => {
                               <button type="button" onClick={() => selectAllModule(module)} className="flex-1 py-1.5 rounded-lg text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">Aktifkan semua</button>
                               <button type="button" onClick={() => deselectAllModule(module)} className="flex-1 py-1.5 rounded-lg text-[11px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">Matikan semua</button>
                             </div>
+                            {module.id === 'work' && (
+                              <div className="px-3 py-2.5 rounded-xl bg-gray-50 space-y-1.5">
+                                <p className="text-xs font-semibold text-gray-700">Hari kerja</p>
+                                <div className="grid grid-cols-7 gap-1">
+                                  {[1, 2, 3, 4, 5, 6, 0].map((day) => {
+                                    const onDay = workDays.includes(day);
+                                    return (
+                                      <button
+                                        key={day}
+                                        type="button"
+                                        aria-pressed={onDay}
+                                        onClick={() => setWorkDays((prev) => (onDay ? prev.filter((d) => d !== day) : [...prev, day]))}
+                                        className={`py-1.5 rounded-lg text-[11px] font-bold transition-colors ${onDay ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 border border-gray-200'}`}
+                                      >
+                                        {WEEKDAY_LABELS[day]}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <p className="text-[10px] text-gray-400">Tombol Mari Mulai di Beranda hanya muncul di hari yang dipilih.</p>
+                              </div>
+                            )}
                             {hasPage && !pageOpen && (
                               <p className="text-[10px] text-gray-400">Mengaktifkan salah satu fitur otomatis membuka halamannya.</p>
                             )}

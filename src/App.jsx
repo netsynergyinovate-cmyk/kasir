@@ -742,11 +742,10 @@ export default function App() {
     }
   };
 
-  const handleAddVisit = async ({ customer_id, outcome, available_on, note }) => {
+  const handleAddVisit = async ({ customer_id, outcome, available_on }) => {
     const { data, error } = await supabase
       .from('customer_visits')
-      // note hanya dikirim bila diisi: kolomnya baru ada setelah supabase_start_on_work.sql dijalankan.
-      .insert({ customer_id, outcome, available_on, visited_by_name: session?.profile?.full_name || null, ...(note ? { note } : {}) })
+      .insert({ customer_id, outcome, available_on, visited_by_name: session?.profile?.full_name || null })
       .select()
       .single();
 
