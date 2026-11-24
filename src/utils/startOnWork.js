@@ -1,5 +1,7 @@
 import { distanceMeters } from './geo';
 import { normalizeAdminAccess } from './permissions';
+import { toInputValue } from './dashboardStats';
+import { formatShortDate } from './visits';
 
 const STORAGE_KEY = 'start_on_work';
 
@@ -36,12 +38,20 @@ export function writeWork(work) {
   }
 }
 
-export const WEEKDAY_LABELS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
-
-// Hari kerja admin diatur superadmin (allowed_paths.work_days, 0 = Minggu). Belum diatur = semua hari.
+// Rentang tanggal kerja lapangan diatur superadmin per admin: allowed_paths.work_range = { from, to }
+// ('YYYY-MM-DD', boleh salah satu kosong). Belum diatur = setiap hari.
 export function isWorkDay(allowedPaths, date = new Date()) {
-  const days = normalizeAdminAccess(allowedPaths).work_days;
-  return !days || days.includes(date.getDay());
+  const range = normalizeAdminAccess(allowedPaths).work_range;
+  const today = toInputValue(date);
+  return (!range?.from || today >= range.from) && (!range?.to || today <= range.to);
+}
+
+// '2026-12-01'..'2026-12-15' -> '1 Des – 15 Des'
+export function describeWorkRange(range) {
+  if (!range?.from && !range?.to) return 'Setiap hari';
+  if (!range.to) return `Mulai ${formatShortDate(range.from)}`;
+  if (!range.from) return `Sampai ${formatShortDate(range.to)}`;
+  return `${formatShortDate(range.from)} – ${formatShortDate(range.to)}`;
 }
 
 // Sudah tiba di rumah pelanggan tapi belum melapor: pembayaran pelanggan lain dikunci.

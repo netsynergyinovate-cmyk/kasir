@@ -13,16 +13,18 @@ import { readWork, writeWork, pickNextTarget, hasArrived, WORK_EVENT_LABELS, ARR
 const PENDING_KEYS = ['belum_dikunjungi', 'perlu_didatangi'];
 const timeOf = (iso) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
-// Laporan wajib saat admin tiba: cukup ada / tidak ada di rumah. Kalau ada, pilih bayar sekarang
-// (hak work.pay_direct) atau bayar nanti + tanggalnya. Sebelum terkirim, Transaksi dikunci (App.jsx).
-const ArrivalSheet = ({ customer, canPayDirect, onReport }) => {
+// Pilihan laporan kunjungan. "Ada di rumah" = bayar sekarang -> dialihkan ke Transaksi (hak work.pay_direct).
+const ReportForm = ({ canPayDirect, onReport, submitLabel = 'Kirim Laporan' }) => {
   const days = nextSevenDays(new Date());
-  const [home, setHome] = useState(null); // null | 'ada' | 'tidak'
-  const [pay, setPay] = useState(canPayDirect ? 'sekarang' : 'nanti');
+  const [outcome, setOutcome] = useState(null);
   const [date, setDate] = useState(days[0].value);
   const [saving, setSaving] = useState(false);
 
-  const outcome = home === 'tidak' ? 'tidak_ada_di_rumah' : pay === 'sekarang' ? 'bayar_langsung' : 'uang_belum_ada';
+  const options = [
+    ...(canPayDirect ? [['bayar_langsung', 'Ada di rumah']] : []),
+    ['uang_belum_ada', 'Ada di rumah, bayar nanti'],
+    ['tidak_ada_di_rumah', 'Tidak ada di rumah'],
+  ];
 
   const submit = async (event) => {
     event.preventDefault();
@@ -31,57 +33,60 @@ const ArrivalSheet = ({ customer, canPayDirect, onReport }) => {
     setSaving(false);
   };
 
-  const choice = (active) => `flex-1 py-3 rounded-xl text-sm font-semibold border ${active ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 text-gray-700'}`;
-
   return (
-    <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-end justify-center p-4 animate-backdrop">
-      <form onSubmit={submit} className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 space-y-4 animate-sheet-up">
+    <form onSubmit={submit} className="space-y-3">
+      <div className="space-y-2">
+        {options.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={outcome === value}
+            onClick={() => setOutcome(value)}
+            className={`w-full py-3 rounded-xl text-sm font-semibold border ${outcome === value ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 text-gray-700'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {outcome === 'uang_belum_ada' && (
         <div>
-          <p className="text-xs font-semibold text-emerald-600 flex items-center gap-1"><MapPin size={13} /> Anda sudah sampai</p>
-          <h3 className="text-lg font-bold text-gray-900 leading-tight">{customer.name}</h3>
-          <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5"><Lock size={11} /> Pembayaran lain dikunci sampai laporan ini dikirim.</p>
-        </div>
-
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setHome('ada')} className={choice(home === 'ada')}>Ada di rumah</button>
-          <button type="button" onClick={() => setHome('tidak')} className={choice(home === 'tidak')}>Tidak ada</button>
-        </div>
-
-        {home === 'ada' && (
-          <div className="space-y-3">
-            {canPayDirect && (
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setPay('sekarang')} className={choice(pay === 'sekarang')}>Bayar sekarang</button>
-                <button type="button" onClick={() => setPay('nanti')} className={choice(pay === 'nanti')}>Bayar nanti</button>
-              </div>
-            )}
-            {pay === 'nanti' && (
-              <div>
-                <p className="text-[11px] font-semibold text-gray-500 mb-1">Bayarnya kapan?</p>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {days.map((day) => (
-                    <button
-                      key={day.value}
-                      type="button"
-                      onClick={() => setDate(day.value)}
-                      className={`py-2 rounded-xl text-[11px] font-semibold border ${date === day.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-700 border-gray-200'}`}
-                    >
-                      {day.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+          <p className="text-[11px] font-semibold text-gray-500 mb-1">Bayarnya kapan?</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {days.map((day) => (
+              <button
+                key={day.value}
+                type="button"
+                onClick={() => setDate(day.value)}
+                className={`py-2 rounded-xl text-[11px] font-semibold border ${date === day.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-700 border-gray-200'}`}
+              >
+                {day.label}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
-        <button type="submit" disabled={saving || !home} className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl disabled:opacity-50">
-          {saving ? 'Mengirim...' : outcome === 'bayar_langsung' && home === 'ada' ? 'Lanjut ke Pembayaran' : 'Kirim Laporan'}
-        </button>
-      </form>
-    </div>
+      <button type="submit" disabled={saving || !outcome} className="w-full bg-gray-900 text-white font-semibold py-3 rounded-xl disabled:opacity-40">
+        {saving ? 'Mengirim...' : outcome === 'bayar_langsung' ? 'Lanjut ke Transaksi' : submitLabel}
+      </button>
+    </form>
   );
 };
+
+// Laporan wajib saat GPS mendeteksi admin tiba. Sebelum terkirim, Transaksi dikunci (App.jsx).
+const ArrivalSheet = ({ customer, canPayDirect, onReport }) => (
+  <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-end justify-center p-4 animate-backdrop">
+    <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 space-y-4 animate-sheet-up">
+      <div>
+        <p className="text-xs font-semibold text-emerald-600 flex items-center gap-1"><MapPin size={13} /> Anda sudah sampai</p>
+        <h3 className="text-lg font-bold text-gray-900 leading-tight">{customer.name}</h3>
+        <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5"><Lock size={11} /> Pembayaran lain dikunci sampai laporan ini dikirim.</p>
+      </div>
+      <ReportForm canPayDirect={canPayDirect} onReport={onReport} />
+    </div>
+  </div>
+);
 
 // Start On Work: penunjuk arah. Sesi dimulai dari tombol "Mari Mulai" di Beranda (StartWorkCard), lalu rute otomatis dari posisinya ke rumah pelanggan berikutnya,
 // tiba (radius ARRIVE_METERS) -> wajib lapor, lalu otomatis menuju rumah berikutnya. Semua langkah dicatat
@@ -199,13 +204,14 @@ const StartOnWork = ({
     updateWork(null);
   };
 
-  const report = async (outcome, { availableOn }) => {
-    const customer = arrivedCustomer;
+  // customer: rumah yang dilapori (otomatis saat tiba, atau manual dari kartu tujuan bila GPS error).
+  const report = async (customer, outcome, { availableOn }, manual = false) => {
     if (outcome !== 'bayar_langsung') {
       const ok = await onAddVisit(buildVisitPayload(customer.id, outcome, availableOn));
       if (!ok) return;
     }
-    await logEvent(outcome, work.sessionId, customer, outcome === 'uang_belum_ada' ? `Janji bayar ${formatShortDate(availableOn)}` : null);
+    const note = [manual ? 'Lapor manual (GPS tidak mendeteksi tiba)' : null, outcome === 'uang_belum_ada' ? `Janji bayar ${formatShortDate(availableOn)}` : null];
+    await logEvent(outcome, work.sessionId, customer, note.filter(Boolean).join(' · ') || null);
     updateWork({ ...work, arrivedId: null, targetId: null, doneIds: [...work.doneIds, customer.id] });
     if (outcome === 'bayar_langsung') navigate(`/pos?cust=${encodeURIComponent(customer.id)}`);
   };
@@ -283,6 +289,12 @@ const StartOnWork = ({
               <a href={googleMapsNavUrl(target)} target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700">
                 <Navigation size={14} /> Buka di Google Maps
               </a>
+              <details className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+                <summary className="text-xs font-semibold text-gray-700 cursor-pointer">GPS error? Lapor manual</summary>
+                <div className="pt-3">
+                  <ReportForm key={target.id} canPayDirect={canPayDirect} onReport={(outcome, extra) => report(target, outcome, extra, true)} />
+                </div>
+              </details>
             </div>
           ) : !work.arrivedId && (
             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center">
@@ -323,7 +335,7 @@ const StartOnWork = ({
       </div>
 
       {!isSuper && arrivedCustomer && (
-        <ArrivalSheet key={arrivedCustomer.id} customer={arrivedCustomer} canPayDirect={canPayDirect} onReport={report} />
+        <ArrivalSheet key={arrivedCustomer.id} customer={arrivedCustomer} canPayDirect={canPayDirect} onReport={(outcome, extra) => report(arrivedCustomer, outcome, extra)} />
       )}
     </div>
   );

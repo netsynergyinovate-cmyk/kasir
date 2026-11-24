@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { pickNextTarget, hasArrived, isPaymentLocked, readWork, writeWork, isWorkDay } from '../startOnWork';
+import { pickNextTarget, hasArrived, isPaymentLocked, readWork, writeWork, isWorkDay, describeWorkRange } from '../startOnWork';
 
 const a = { id: 'a', lat: -6.2, lng: 106.8 };
 const b = { id: 'b', lat: -6.21, lng: 106.81 };
@@ -42,14 +42,21 @@ describe('work storage', () => {
 });
 
 describe('isWorkDay', () => {
-  const monday = new Date(2026, 10, 23);
-  it('allows every day until superadmin sets work days', () => {
-    expect(isWorkDay(null, monday)).toBe(true);
-    expect(isWorkDay({ paths: ['/'] }, monday)).toBe(true);
+  const day = new Date(2026, 10, 23, 15, 0);
+  it('allows every day until superadmin sets a date range', () => {
+    expect(isWorkDay(null, day)).toBe(true);
+    expect(isWorkDay({ paths: ['/'] }, day)).toBe(true);
   });
 
-  it('follows the configured work days (0 = Sunday)', () => {
-    expect(isWorkDay({ work_days: [1, 2] }, monday)).toBe(true);
-    expect(isWorkDay({ work_days: [0, 6] }, monday)).toBe(false);
+  it('follows the configured date range, inclusive, with optional ends', () => {
+    expect(isWorkDay({ work_range: { from: '2026-11-23', to: '2026-11-23' } }, day)).toBe(true);
+    expect(isWorkDay({ work_range: { from: '2026-11-24', to: '2026-11-30' } }, day)).toBe(false);
+    expect(isWorkDay({ work_range: { from: null, to: '2026-11-22' } }, day)).toBe(false);
+    expect(isWorkDay({ work_range: { from: '2026-11-01', to: null } }, day)).toBe(true);
+  });
+
+  it('describes the range', () => {
+    expect(describeWorkRange(null)).toBe('Setiap hari');
+    expect(describeWorkRange({ from: '2026-12-01', to: '2026-12-15' })).toBe('1 Des – 15 Des');
   });
 });
