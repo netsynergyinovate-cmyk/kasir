@@ -56,6 +56,11 @@ describe('isPathAllowedForRole', () => {
     expect(isPathAllowedForRole('admin', '/instansi', { paths: ['/pos'], permissions: ['instansi.view'] })).toBe(true);
   });
 
+  it('opens Start On Work only for an admin with work.view', () => {
+    expect(isPathAllowedForRole('admin', '/start-on-work')).toBe(false);
+    expect(isPathAllowedForRole('admin', '/start-on-work', { paths: ['/pos'], permissions: ['work.view'] })).toBe(true);
+  });
+
   it('blocks admin on paths outside the allow-list', () => {
     expect(isPathAllowedForRole('admin', '/instansi')).toBe(false);
   });
@@ -115,9 +120,9 @@ describe('visibleMenusForRole', () => {
 
 describe('PERMISSION_MODULES', () => {
   it('defines 9 permission modules', () => {
-    expect(PERMISSION_MODULES).toHaveLength(9);
+    expect(PERMISSION_MODULES).toHaveLength(10);
     const moduleIds = PERMISSION_MODULES.map((m) => m.id);
-    expect(moduleIds).toEqual(['pos', 'customers', 'history', 'rute', 'whatsapp', 'finance', 'instansi', 'settings', 'runsnet']);
+    expect(moduleIds).toEqual(['pos', 'customers', 'history', 'rute', 'work', 'whatsapp', 'finance', 'instansi', 'settings', 'runsnet']);
   });
 
   it('ALL_PERMISSIONS covers every permission across all modules', () => {

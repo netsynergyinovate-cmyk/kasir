@@ -3,6 +3,7 @@ import { toInputValue } from './dashboardStats';
 export const OUTCOME_LABELS = {
   tidak_ada_di_rumah: 'Tidak ada di rumah',
   uang_belum_ada: 'Uang belum ada',
+  lainnya: 'Lainnya',
 };
 
 // Warna status kunjungan: merah = belum dikunjungi, kuning = tidak ada di rumah,

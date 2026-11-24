@@ -33,7 +33,7 @@ const googleMapPin = (number, color, selected) => {
   });
 };
 
-const RouteMap = ({ stops = [], routeLine, selectedId, onSelect, compact = false, people = [] }) => {
+const RouteMap = ({ stops = [], routeLine, selectedId, onSelect, compact = false, people = [], animated = false }) => {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
@@ -149,6 +149,8 @@ const RouteMap = ({ stops = [], routeLine, selectedId, onSelect, compact = false
     // Jalur rute jalan
     if (routeLine && routeLine.length > 1) {
       L.polyline(routeLine, { color: '#4f46e5', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(layer);
+      // Titik putih yang mengalir di atas jalur, arah gerak admin ke tujuan (lihat .route-flow di index.css).
+      if (animated) L.polyline(routeLine, { color: '#ffffff', weight: 3, opacity: 0.95, lineCap: 'round', className: 'route-flow', interactive: false }).addTo(layer);
     } else if (stops.length > 1) {
       L.polyline(stops.map((stop) => [stop.lat, stop.lng]), { color: '#6366f1', weight: 3, dashArray: '6 8' }).addTo(layer);
     }
@@ -176,7 +178,7 @@ const RouteMap = ({ stops = [], routeLine, selectedId, onSelect, compact = false
       map.fitBounds(L.latLngBounds(points.map((point) => [point.lat, point.lng])), { padding: [35, 35], maxZoom: 16 });
       fittedKeyRef.current = key;
     }
-  }, [stops, routeLine, selectedId, onSelect, people]);
+  }, [stops, routeLine, selectedId, onSelect, people, animated]);
 
   // Render penanda posisi admin / live GPS
   useEffect(() => {

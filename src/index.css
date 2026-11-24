@@ -270,3 +270,12 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Start On Work: titik mengalir di sepanjang jalur rute */
+.route-flow {
+  stroke-dasharray: 1 14;
+  animation: routeFlow 0.9s linear infinite;
+}
+@keyframes routeFlow {
+  to { stroke-dashoffset: -15; }
+}
