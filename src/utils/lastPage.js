@@ -1,19 +1,20 @@
-// Mengingat halaman & rute terakhir yang dibuka (termasuk parameter query tab),
-// supaya membuka ulang aplikasi atau refresh browser kembali ke posisi yang sama persis.
+// Mengingat halaman & rute terakhir yang dibuka (termasuk parameter query tab) supaya REFRESH kembali ke
+// posisi yang sama persis. Disimpan di sessionStorage: hilang saat aplikasi/tab ditutup, jadi membuka
+// aplikasi lagi selalu mulai dari Beranda.
 const KEY = 'kasir_last_path';
 
 export function saveLastPath(fullPath) {
   if (!fullPath) return;
   try {
-    localStorage.setItem(KEY, fullPath);
+    sessionStorage.setItem(KEY, fullPath);
   } catch {
-    // localStorage tidak tersedia (mode privat dll) — diam saja, tidak fatal.
+    // sessionStorage tidak tersedia (mode privat dll) — diam saja, tidak fatal.
   }
 }
 
 export function getLastPath() {
   try {
-    return localStorage.getItem(KEY);
+    return sessionStorage.getItem(KEY);
   } catch {
     return null;
   }
@@ -21,7 +22,7 @@ export function getLastPath() {
 
 export function clearLastPath() {
   try {
-    localStorage.removeItem(KEY);
+    sessionStorage.removeItem(KEY);
   } catch {
     // ignore
   }

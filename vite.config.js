@@ -44,6 +44,8 @@ export default defineConfig({
         // di-precache buat semua orang pas app pertama dibuka. Pattern *.wasm ikut nyapu file WASM yang
         // ke-bundle otomatis sama onnxruntime-web ke dist/assets/ (bukan cuma yang di public/ kita).
         globIgnores: ['**/tesseract/**', '**/paddle-ocr/**', '**/*.wasm', '**/*.ort'],
+        // Penangan push notification (pengingat Start On Work), lihat public/push-sw.js.
+        importScripts: ['push-sw.js'],
       },
       manifest: {
         name: 'KAsir ISP Billing',

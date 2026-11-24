@@ -1,0 +1,9 @@
+{
+  "name": "work-reminder",
+  "private": true,
+  "type": "module",
+  "description": "Pengingat push Start On Work (dijalankan GitHub Actions tiap 15 menit)",
+  "dependencies": {
+    "web-push": "3.6.7"
+  }
+}

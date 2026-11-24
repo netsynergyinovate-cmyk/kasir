@@ -5,7 +5,8 @@ import { supabase, testConnection } from './lib/supabase';
 import { formatRupiah } from './utils/format';
 import { sendPaymentToBillingSystem, fetchCustomersFromEbilling } from './utils/billingApi';
 import { isPathAllowedForRole, hasPermission, ADMIN_DEFAULT_PATH } from './utils/permissions';
-import { readWork, isPaymentLocked } from './utils/startOnWork';
+import { readWork, isPaymentLocked, finishWorkPayment } from './utils/startOnWork';
+import { subscribePush } from './utils/pushSubscription';
 import { saveLastPath, getLastPath } from './utils/lastPage';
 import { loadVerifiedProfile, clearLoginRecorded, updateMyName } from './utils/authProfile';
 
@@ -265,6 +266,9 @@ export default function App() {
     } else if (location.pathname === '/pos' && isPaymentLocked(readWork(session?.user?.id))) {
       // Start On Work: sudah tiba di rumah pelanggan tapi belum melapor -> transaksi lain dikunci.
       navigate('/start-on-work', { replace: true });
+    } else if (location.pathname === '/' && readWork(session?.user?.id)) {
+      // Kerja lapangan belum diselesaikan: Beranda langsung membuka penunjuk arah Start On Work.
+      navigate('/start-on-work', { replace: true });
     }
   }, [effectiveSession, session?.user?.id, location.pathname, navigate]);
 
@@ -280,7 +284,7 @@ export default function App() {
     if (!restoredPathRef.current) {
       restoredPathRef.current = true;
       const last = getLastPath();
-      if (location.pathname === '/' && last && last !== '/' && isPathAllowedForRole(session.profile?.role, last, session.profile?.allowed_paths)) {
+      if (location.pathname === '/' && last && last !== '/' && !readWork(session.user?.id) && isPathAllowedForRole(session.profile?.role, last, session.profile?.allowed_paths)) {
         navigate(last, { replace: true });
         return;
       }
@@ -391,7 +395,7 @@ export default function App() {
 
     fetchData().then(autoSyncRunsnet);
     testConnection();
-    requestNotificationPermission();
+    requestNotificationPermission().then(() => subscribePush(session.user?.id));
     requestLocationPermission();
   }, [session]);
 
@@ -1270,7 +1274,13 @@ export default function App() {
         )}
         session={session}
         isDraft={Boolean(receiptToView) && receiptToView.id === draftReceiptId}
-        onCommit={async () => { const ok = await commitTransaction(receiptToView); setDraftReceiptId(null); return ok; }}
+        onCommit={async () => {
+          const ok = await commitTransaction(receiptToView);
+          setDraftReceiptId(null);
+          // Start On Work: pembayaran di rumah pelanggan selesai -> kembali otomatis ke penunjuk arah.
+          if (ok && finishWorkPayment(session?.user?.id, receiptToView.customerName)) navigate('/start-on-work');
+          return ok;
+        }}
         companyInfo={companyInfo}
         onClose={() => { setReceiptToView(null); setDraftReceiptId(null); }} 
         onPrint={handlePrint} 

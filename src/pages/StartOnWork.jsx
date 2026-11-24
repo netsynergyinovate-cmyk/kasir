@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Navigation, MapPin, Flag, LocateFixed, Lock, Clock, Wallet } from 'lucide-react';
 import RouteMap from '../components/RouteMap';
 import { supabase } from '../lib/supabase';
-import { customerVisitStatus, nextSevenDays, buildVisitPayload, formatShortDate } from '../utils/visits';
+import { customerVisitStatus, nextSevenDays, buildVisitPayload, formatShortDate, isPaidThisMonth } from '../utils/visits';
 import { fetchRoadRoute } from '../utils/routing';
 import { distanceMeters, formatDistance, formatDuration, googleMapsNavUrl } from '../utils/geo';
 import { locationAdvice } from '../utils/location';
@@ -105,6 +105,7 @@ const StartOnWork = ({
 
   const [logDate, setLogDate] = useState(() => toInputValue(new Date()));
   const [logs, setLogs] = useState([]);
+  const [logAdmin, setLogAdmin] = useState(''); // filter superadmin: '' = semua admin
   const [logError, setLogError] = useState('');
 
   const positionRef = useRef(position);
@@ -212,7 +213,8 @@ const StartOnWork = ({
     }
     const note = [manual ? 'Lapor manual (GPS tidak mendeteksi tiba)' : null, outcome === 'uang_belum_ada' ? `Janji bayar ${formatShortDate(availableOn)}` : null];
     await logEvent(outcome, work.sessionId, customer, note.filter(Boolean).join(' · ') || null);
-    updateWork({ ...work, arrivedId: null, targetId: null, doneIds: [...work.doneIds, customer.id] });
+    const paying = outcome === 'bayar_langsung' ? { id: customer.id, name: customer.name } : work.paying || null;
+    updateWork({ ...work, arrivedId: null, targetId: null, doneIds: [...work.doneIds, customer.id], paying });
     if (outcome === 'bayar_langsung') navigate(`/pos?cust=${encodeURIComponent(customer.id)}`);
   };
 
@@ -257,6 +259,16 @@ const StartOnWork = ({
           <p className="text-sm font-bold text-gray-800">Belum mulai kerja.</p>
           <p className="text-xs text-gray-500">Tekan <b>Mari Mulai</b> di Beranda untuk memulai rute ({pendingCount} rumah perlu didatangi).</p>
           <Link to="/" className="inline-block mt-1 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Ke Beranda</Link>
+        </div>
+      )}
+
+      {!isSuper && work?.paying && !isPaidThisMonth(work.paying, transactions) && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-100 p-3 space-y-2">
+          <p className="text-xs text-amber-900">Pembayaran <b>{work.paying.name}</b> belum selesai. Log mencatatnya <b>belum dibayar</b> sampai transaksinya disimpan.</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => navigate(`/pos?cust=${encodeURIComponent(work.paying.id)}`)} className="flex-1 py-2 rounded-xl bg-amber-600 text-white text-xs font-semibold">Lanjutkan pembayaran</button>
+            <button type="button" onClick={() => updateWork({ ...work, paying: null })} className="px-3 py-2 rounded-xl bg-white text-amber-800 text-xs font-semibold border border-amber-200">Tutup</button>
+          </div>
         </div>
       )}
 
@@ -312,18 +324,30 @@ const StartOnWork = ({
       <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-bold text-gray-900 flex items-center gap-1.5"><Clock size={15} /> Log Kerja</p>
-          <input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1" />
+          <div className="flex gap-1.5">
+            {isSuper && (
+              <select value={logAdmin} onChange={(e) => setLogAdmin(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 max-w-[110px]">
+                <option value="">Semua admin</option>
+                {[...new Set(logs.map((log) => log.admin_name || 'Tanpa nama'))].map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            )}
+            <input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1" />
+          </div>
         </div>
         {logError && <p className="text-[11px] text-red-700 bg-red-50 rounded-lg p-2">Log gagal: {logError}. Pastikan supabase_start_on_work.sql sudah dijalankan.</p>}
         {logs.length === 0 && !logError && <p className="text-xs text-gray-400 italic text-center py-3">Belum ada log.</p>}
         <div className="space-y-1.5 max-h-96 overflow-y-auto">
-          {logs.map((log) => (
+          {logs.filter((log) => !logAdmin || (log.admin_name || 'Tanpa nama') === logAdmin).map((log) => (
             <div key={log.id} className="flex items-start gap-2.5 text-xs">
               <span className="font-semibold text-gray-500 w-11 shrink-0">{timeOf(log.created_at)}</span>
               <div className="min-w-0">
                 <p className="text-gray-900">
                   {log.event === 'bayar_langsung' && <Wallet size={12} className="inline mr-1 text-emerald-600" />}
                   <b>{WORK_EVENT_LABELS[log.event] || log.event}</b>{log.customer_name ? ` ${log.customer_name}` : ''}
+                  {/* Status bayar dibaca dari transaksi LUNAS sungguhan, bukan dari pilihan admin. */}
+                  {log.event === 'bayar_langsung' && (isPaidThisMonth({ name: log.customer_name }, transactions, new Date(log.created_at))
+                    ? <span className="ml-1.5 px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-semibold">Sudah dibayar</span>
+                    : <span className="ml-1.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-semibold">Belum dibayar</span>)}
                 </p>
                 {(log.note || (isSuper && log.admin_name)) && (
                   <p className="text-[11px] text-gray-500">{[isSuper ? log.admin_name : null, log.note].filter(Boolean).join(' · ')}</p>
