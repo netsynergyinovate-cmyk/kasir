@@ -3,13 +3,7 @@
 -- Jalankan SETELAH supabase_customer_routes.sql. Aman dijalankan ulang.
 -- ==========================================
 
--- 1. Hasil kunjungan "Lainnya" + catatan bebas
-alter table customer_visits add column if not exists note text;
-alter table customer_visits drop constraint if exists customer_visits_outcome_check;
-alter table customer_visits add constraint customer_visits_outcome_check
-  check (outcome in ('tidak_ada_di_rumah', 'uang_belum_ada', 'lainnya'));
-
--- 2. Log kerja: mulai, berangkat ke pelanggan, tiba, hasil laporan, bayar langsung, selesai
+-- Log kerja: mulai, berangkat ke pelanggan, tiba, hasil laporan, bayar langsung, selesai
 create table if not exists work_logs (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null,
@@ -17,7 +11,7 @@ create table if not exists work_logs (
   admin_name text,
   customer_id text references customers(id) on delete set null,
   customer_name text,
-  event text not null check (event in ('mulai', 'berangkat', 'tiba', 'tidak_ada_di_rumah', 'uang_belum_ada', 'lainnya', 'bayar_langsung', 'selesai')),
+  event text not null check (event in ('mulai', 'berangkat', 'tiba', 'tidak_ada_di_rumah', 'uang_belum_ada', 'bayar_langsung', 'selesai')),
   note text,
   lat double precision,
   lng double precision,

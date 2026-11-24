@@ -1,4 +1,5 @@
 import { distanceMeters } from './geo';
+import { normalizeAdminAccess } from './permissions';
 
 const STORAGE_KEY = 'start_on_work';
 
@@ -11,7 +12,6 @@ export const WORK_EVENT_LABELS = {
   tiba: 'Tiba di',
   tidak_ada_di_rumah: 'Tidak ada di rumah',
   uang_belum_ada: 'Ada di rumah, bayar nanti',
-  lainnya: 'Lainnya',
   bayar_langsung: 'Bayar langsung',
   selesai: 'Selesai kerja',
 };
@@ -34,6 +34,14 @@ export function writeWork(work) {
   } catch {
     // penyimpanan tidak tersedia; sesi tetap jalan di memori
   }
+}
+
+export const WEEKDAY_LABELS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+// Hari kerja admin diatur superadmin (allowed_paths.work_days, 0 = Minggu). Belum diatur = semua hari.
+export function isWorkDay(allowedPaths, date = new Date()) {
+  const days = normalizeAdminAccess(allowedPaths).work_days;
+  return !days || days.includes(date.getDay());
 }
 
 // Sudah tiba di rumah pelanggan tapi belum melapor: pembayaran pelanggan lain dikunci.

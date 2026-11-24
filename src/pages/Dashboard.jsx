@@ -5,6 +5,7 @@ import { formatRupiah } from '../utils/format';
 import PaymentStatusDonut from '../components/PaymentStatusDonut';
 import RevenueBarChart from '../components/RevenueBarChart';
 import RouteOverview from '../components/RouteOverview';
+import StartWorkCard from '../components/StartWorkCard';
 import { getGreeting, kasbonSummary } from '../utils/dashboardStats';
 import { calculateAdminCommissions, commissionByMonth, commissionRuleNotes, monthKey, monthLabel, payoutPeriodKey, bonusPeriodKey } from '../utils/commissions';
 import { normalizeAdminAccess, hasPermission } from '../utils/permissions';
@@ -196,6 +197,8 @@ const Dashboard = ({ hideHeader = false, embedded = false, visits = [], onAddVis
           </div>
         </div>
       )}
+
+      {!embedded && <StartWorkCard session={session} position={myPosition} />}
 
       {/* Periode, Metrics Grid, dan banner "Barusan" — disembunyikan saat embedded: superadmin punya
           filter periode & kartu finansialnya sendiri di section-section baru (Finansial Eksekutif,

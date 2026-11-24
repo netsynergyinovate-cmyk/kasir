@@ -8,6 +8,25 @@ import { MAP_MAX_ZOOM } from '../utils/mapConfig';
 import { createAdminMapIcon } from '../utils/adminMapIcons';
 
 const DEFAULT_CENTER = [-2.5, 118];
+const GLIDE_MS = 1000;
+
+// Geser penanda perlahan ke posisi baru (ease-out) supaya ikon admin bergerak mulus, tidak melompat.
+const glideTo = (entry, to) => {
+  if (entry.to && entry.to[0] === to[0] && entry.to[1] === to[1]) return; // tujuan sama: biarkan animasi jalan
+  entry.to = to;
+  cancelAnimationFrame(entry.frame);
+  const from = entry.marker.getLatLng();
+  const startedAt = performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - startedAt) / GLIDE_MS);
+    const eased = t * (2 - t);
+    const latlng = [from.lat + (to[0] - from.lat) * eased, from.lng + (to[1] - from.lng) * eased];
+    entry.marker.setLatLng(latlng);
+    entry.circle.setLatLng(latlng);
+    if (t < 1) entry.frame = requestAnimationFrame(step);
+  };
+  entry.frame = requestAnimationFrame(step);
+};
 
 // Marker pin teardrop ala Google Maps dengan nomor urut dan bayangan lembut
 const googleMapPin = (number, color, selected) => {
@@ -38,6 +57,7 @@ const RouteMap = ({ stops = [], routeLine, selectedId, onSelect, compact = false
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const peopleLayerRef = useRef(null);
+  const peopleMarkersRef = useRef(new Map()); // id -> { marker, circle, tooltip, iconKey, frame }
   const baseLayersRef = useRef(null);
   const fittedKeyRef = useRef('');
 
@@ -104,9 +124,12 @@ const RouteMap = ({ stops = [], routeLine, selectedId, onSelect, compact = false
 
     // Pastikan ukuran peta langsung pas saat pertama kali di-mount
     const timer = setTimeout(() => map.invalidateSize(), 200);
+    const peopleMarkers = peopleMarkersRef.current;
 
     return () => {
       clearTimeout(timer);
+      peopleMarkers.forEach((entry) => cancelAnimationFrame(entry.frame));
+      peopleMarkers.clear();
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
@@ -171,39 +194,56 @@ const RouteMap = ({ stops = [], routeLine, selectedId, onSelect, compact = false
       if (onSelect) marker.on('click', () => onSelect(stop.id));
       marker.addTo(layer);
     });
+  }, [stops, routeLine, selectedId, onSelect, animated]);
 
-    const key = [...stops, ...people].map((item) => item.id).join(',');
+  // Pusatkan peta sekali tiap kali kumpulan titik berganti (bukan tiap posisi GPS bergeser).
+  useEffect(() => {
+    const map = mapRef.current;
     const points = [...stops, ...people];
-    if (points.length > 0 && fittedKeyRef.current !== key) {
-      map.fitBounds(L.latLngBounds(points.map((point) => [point.lat, point.lng])), { padding: [35, 35], maxZoom: 16 });
-      fittedKeyRef.current = key;
-    }
-  }, [stops, routeLine, selectedId, onSelect, people, animated]);
+    const key = points.map((item) => item.id).join(',');
+    if (!map || points.length === 0 || fittedKeyRef.current === key) return;
+    map.fitBounds(L.latLngBounds(points.map((point) => [point.lat, point.lng])), { padding: [35, 35], maxZoom: 16 });
+    fittedKeyRef.current = key;
+  }, [stops, people]);
 
-  // Render penanda posisi admin / live GPS
+  // Penanda posisi admin / live GPS: dibuat sekali per orang lalu digeser mulus, bukan dihapus-gambar ulang.
   useEffect(() => {
     const layer = peopleLayerRef.current;
     if (!layer) return;
-    layer.clearLayers();
+    const markers = peopleMarkersRef.current;
+    const seen = new Set();
 
     people.forEach((person) => {
-      if (person.accuracy && person.accuracy >= 15) {
-        L.circle([person.lat, person.lng], {
-          radius: person.accuracy,
-          color: person.self ? '#2563eb' : '#7c3aed',
-          weight: 1,
-          fillOpacity: 0.12,
-        }).addTo(layer);
+      seen.add(person.id);
+      const iconKey = JSON.stringify([person.self, person.stale, person.mapIcon || person.map_icon || null, person.title?.split('·')[0]]);
+      let entry = markers.get(person.id);
+      if (!entry) {
+        const circle = L.circle([person.lat, person.lng], { radius: 1, color: person.self ? '#2563eb' : '#7c3aed', weight: 1, fillOpacity: 0.12 }).addTo(layer);
+        const marker = L.marker([person.lat, person.lng], { icon: createAdminMapIcon(person, person.self, person.stale), zIndexOffset: 2000 }).addTo(layer);
+        const tooltip = document.createElement('span');
+        tooltip.className = 'font-sans text-xs font-bold text-gray-800';
+        marker.bindTooltip(tooltip, { direction: 'top' });
+        entry = { marker, circle, tooltip, iconKey, frame: 0, to: [person.lat, person.lng] };
+        markers.set(person.id, entry);
+      } else {
+        if (entry.iconKey !== iconKey) {
+          entry.marker.setIcon(createAdminMapIcon(person, person.self, person.stale));
+          entry.iconKey = iconKey;
+        }
+        glideTo(entry, [person.lat, person.lng]);
       }
-      const marker = L.marker([person.lat, person.lng], {
-        icon: createAdminMapIcon(person, person.self, person.stale),
-        zIndexOffset: 2000,
-      });
-      const tooltip = document.createElement('span');
-      tooltip.className = 'font-sans text-xs font-bold text-gray-800';
-      tooltip.textContent = person.title;
-      marker.bindTooltip(tooltip, { direction: 'top' });
-      marker.addTo(layer);
+      entry.tooltip.textContent = person.title;
+      const showAccuracy = person.accuracy >= 15;
+      entry.circle.setRadius(showAccuracy ? person.accuracy : 1);
+      entry.circle.setStyle({ opacity: showAccuracy ? 1 : 0, fillOpacity: showAccuracy ? 0.12 : 0 });
+    });
+
+    markers.forEach((entry, id) => {
+      if (seen.has(id)) return;
+      cancelAnimationFrame(entry.frame);
+      layer.removeLayer(entry.marker);
+      layer.removeLayer(entry.circle);
+      markers.delete(id);
     });
   }, [people]);
 

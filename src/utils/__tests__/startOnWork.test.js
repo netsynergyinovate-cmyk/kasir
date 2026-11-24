@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { pickNextTarget, hasArrived, isPaymentLocked, readWork, writeWork } from '../startOnWork';
+import { pickNextTarget, hasArrived, isPaymentLocked, readWork, writeWork, isWorkDay } from '../startOnWork';
 
 const a = { id: 'a', lat: -6.2, lng: 106.8 };
 const b = { id: 'b', lat: -6.21, lng: 106.81 };
@@ -38,5 +38,18 @@ describe('work storage', () => {
     writeWork(null);
     expect(readWork('u1')).toBeNull();
     expect(isPaymentLocked(null)).toBe(false);
+  });
+});
+
+describe('isWorkDay', () => {
+  const monday = new Date(2026, 10, 23);
+  it('allows every day until superadmin sets work days', () => {
+    expect(isWorkDay(null, monday)).toBe(true);
+    expect(isWorkDay({ paths: ['/'] }, monday)).toBe(true);
+  });
+
+  it('follows the configured work days (0 = Sunday)', () => {
+    expect(isWorkDay({ work_days: [1, 2] }, monday)).toBe(true);
+    expect(isWorkDay({ work_days: [0, 6] }, monday)).toBe(false);
   });
 });
