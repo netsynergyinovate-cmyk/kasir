@@ -2,6 +2,7 @@ import { distanceMeters } from './geo';
 import { normalizeAdminAccess } from './permissions';
 import { toInputValue } from './dashboardStats';
 import { formatShortDate } from './visits';
+import { matchingCommissionTransactions } from './commissions';
 
 const STORAGE_KEY = 'start_on_work';
 
@@ -59,6 +60,21 @@ export function describeWorkRange(range) {
   else if (range?.from) dates = `Mulai ${formatShortDate(range.from)}`;
   else if (range?.to) dates = `Sampai ${formatShortDate(range.to)}`;
   return range?.start && range?.end ? `${dates} · ${range.start}–${range.end}` : dates;
+}
+
+// Ringkasan saat Selesai Kerja: transaksi lunas atas nama admin sejak klik Mari Mulai (aturan atribusi sama
+// dengan komisi bulanan). Pendapatan kotor = jumlah harga; komisi = jumlah transaksi × tarif Superadmin.
+export function workEarnings({ transactions = [], startedAt, adminId, adminName, fee = 10000 }) {
+  const since = Date.parse(startedAt);
+  const inSession = transactions.filter((t) => Date.parse(t.date || t.created_at) >= since);
+  const list = matchingCommissionTransactions(inSession, adminId, adminName);
+  const perCustomer = Number(fee) || 10000;
+  return {
+    list,
+    fee: perCustomer,
+    gross: list.reduce((sum, t) => sum + (Number(t.price) || 0), 0),
+    commission: list.length * perCustomer,
+  };
 }
 
 const sameName = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();

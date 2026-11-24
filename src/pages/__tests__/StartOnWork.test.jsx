@@ -146,4 +146,35 @@ describe('Start On Work', () => {
     act(() => root.unmount());
     container.remove();
   });
+  it('shows gross income and commission since Mari Mulai when work is finished', async () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const startedAt = new Date(Date.now() - 3600000).toISOString();
+    const trx = (id, name, price, minutesAgo) => ({ id, type: 'retail', status: 'LUNAS', cashier_id: 'u1', customer_name: name, price, date: new Date(Date.now() - minutesAgo * 60000).toISOString() });
+    const transactions = [trx('t0', 'Lama', 999000, 120), trx('t1', 'Ani', 150000, 30), trx('t2', 'Budi', 200000, 10)];
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    writeWork({ userId: 'u1', sessionId: '00000000-0000-0000-0000-000000000003', startedAt, targetId: null, arrivedId: null, doneIds: [] });
+    await act(async () => root.render(
+      <MemoryRouter>
+        <StartOnWork session={session} customers={customers} transactions={transactions} position={far} routeOrigin={far} locationStatus="active" onAddVisit={vi.fn()} adminFee={15000} />
+      </MemoryRouter>,
+    ));
+    await flush();
+    await act(async () => [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Selesai Kerja')).click());
+    await flush();
+
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog.textContent).toMatch(/Pendapatan kotor\s*Rp\s?350\.000/);
+    expect(dialog.textContent).toMatch(/Komisi\s*Rp\s?30\.000/);
+    expect(dialog.textContent).not.toContain('Lama');
+    expect(readWork('u1')).toBeNull();
+    expect(inserted.at(-1)).toMatchObject({ event: 'selesai' });
+
+    act(() => root.unmount());
+    container.remove();
+    window.confirm.mockRestore();
+  });
 });
