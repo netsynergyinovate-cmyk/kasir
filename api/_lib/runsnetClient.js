@@ -570,24 +570,38 @@ export async function fetchProfilePrice({ cookie, menu }, profileValue) {
 //    submit (merender ulang halaman kosong, sama persis seperti GET biasa, tanpa data tersimpan).
 // 2. Tanda sukses BUKAN HTTP redirect (302), melainkan tag <meta http-equiv='refresh' ...> di
 //    dalam HTML (status tetap 200) yang mengarah balik ke halaman daftar Pelanggan.
+export function buildMultipartBody(fields, emptyFileFields = []) {
+  const boundary = `----KAsirFormBoundary${Date.now().toString(16)}`;
+  const parts = Object.entries(fields).map(([name, value]) => `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`);
+  emptyFileFields.forEach((name) => parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"; filename=""\r\nContent-Type: application/octet-stream\r\n\r\n\r\n`));
+  return { body: `${parts.join('')}--${boundary}--\r\n`, contentType: `multipart/form-data; boundary=${boundary}` };
+}
+
 export async function submitNewCustomer({ cookie, menu }, payload) {
   const url = new URL(`${getBaseUrl()}/view/index.php`);
   url.searchParams.set(menu.menuKeyParam, menu.addCustomerMenuValue);
 
-  const body = new URLSearchParams({ ...payload, simpan: '', ...(menu.csrfToken ? { _csrf: menu.csrfToken } : {}) });
+  // Sejak update UI 2026-11 form-nya multipart/form-data + dua input file (Form Order, Lampiran). Dikirim persis
+  // seperti browser tanpa file dipilih (bagian file dengan filename="" kosong, yang dibuang FormData bawaan Node —
+  // makanya dirakit manual), plus _csrf yang disuntik skrip halaman.
+  const fields = { ...payload, simpan: '', ...(menu.csrfToken ? { _csrf: menu.csrfToken } : {}) };
+  const { body, contentType } = buildMultipartBody(fields, ['pac_formorder[]', 'pac_lampiran[]']);
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Referer: url.toString(),
-      Cookie: cookie,
-    },
+    headers: { 'Content-Type': contentType, Referer: url.toString(), Cookie: cookie },
     body,
     redirect: 'manual',
   });
 
-  if (response.status >= 300 && response.status < 400 && /login\.php/i.test(response.headers.get('location') || '')) {
-    throw new Error(`Sesi login Runsnet tidak valid (HTTP ${response.status}); pelanggan TIDAK dikirim.`);
+  const location = response.headers.get('location') || '';
+  if (response.status >= 300 && response.status < 400) {
+    if (/login\.php|[?&]result=Q\d/i.test(location)) {
+      throw new Error(`Sesi login Runsnet tidak valid (HTTP ${response.status}); pelanggan TIDAK dikirim.`);
+    }
+    return { response: `Pelanggan tersimpan (Runsnet mengarahkan ke ${location || 'halaman lain'}).` };
+  }
+  if (response.status === 403) {
+    throw new Error('Runsnet menolak form (token halaman kedaluwarsa); pelanggan TIDAK dikirim. Coba lagi.');
   }
   if (response.status !== 200) {
     throw new Error(`Runsnet membalas HTTP ${response.status} yang tidak dikenali. Cek manual di daftar Pelanggan Runsnet sebelum coba lagi.`);
