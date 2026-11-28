@@ -168,4 +168,27 @@ describe('Transaksi POS pre-selection via URL search params', () => {
     expect(container.textContent).toContain('LUNAS');
     expect(container.textContent).not.toContain('Cici Terminate');
   });
+
+  it('finds a paid customer by name when the cashier types, even while paid ones are hidden', async () => {
+    const customers = [
+      { id: 'a', custid: 'C-APP', name: 'Anita Lunas', package: 'NET HOME 10 Mbps', status: 'aktif' },
+      { id: 'e', custid: 'C-NEW', name: 'Eka Belum Bayar', package: 'NET HOME 10 Mbps', status: 'aktif' },
+    ];
+    const transactions = [{ type: 'retail', status: 'LUNAS', customerName: 'Anita Lunas', date: new Date().toISOString() }];
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={['/pos']}>
+          <Transaksi customers={customers} transactions={transactions} packages={[]} session={{ access_token: 'tok' }} />
+        </MemoryRouter>
+      );
+    });
+    const input = container.querySelector('input[type="text"]');
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    await act(async () => {
+      setter.call(input, 'anita');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(container.textContent).toContain('Anita Lunas');
+    expect(container.textContent).not.toContain('Pelanggan tidak ditemukan');
+  });
 });
