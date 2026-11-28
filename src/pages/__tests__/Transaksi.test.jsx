@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
@@ -132,9 +132,7 @@ describe('Transaksi POS pre-selection via URL search params', () => {
     expect(statusButton('KASBON').className).toContain('bg-white');
   });
 
-  it('only lists customers not yet paid this month: hides paid in app, PAID in billing, and Terminate', async () => {
-    const fetchMock = vi.fn(async () => ({ json: async () => ({ paidCustIds: ['C-BILL'] }) }));
-    vi.stubGlobal('fetch', fetchMock);
+  it('hides only customers paid in the cashier app (not billing) and Terminate; toggle shows paid ones', async () => {
     const customers = [
       { id: 'a', custid: 'C-APP', name: 'Ani Lunas App', package: 'NET HOME 10 Mbps', status: 'aktif' },
       { id: 'b', custid: 'C-BILL', name: 'Beni Lunas Billing', package: 'NET HOME 10 Mbps', status: 'aktif' },
@@ -152,16 +150,22 @@ describe('Transaksi POS pre-selection via URL search params', () => {
     });
     await act(async () => { container.querySelector('input[type="text"]').focus(); });
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/runsnet/invoice-status', expect.objectContaining({ body: JSON.stringify({ paidThisMonth: true }) }));
     const text = container.textContent;
     expect(text).toContain('Eka Belum Bayar');
     expect(text).toContain('Dodi Isolir');
+    expect(text).toContain('Beni Lunas Billing');
     expect(text).not.toContain('Ani Lunas App');
-    expect(text).not.toContain('Beni Lunas Billing');
     expect(text).not.toContain('Cici Terminate');
-    expect(text).toContain('2 belum bayar');
-    expect(text).toContain('2 lunas disembunyikan');
+    expect(text).toContain('3 belum bayar');
+    expect(text).toContain('1 lunas disembunyikan');
     expect(text).toContain('1 terminate');
-    vi.unstubAllGlobals();
+
+    const toggle = Array.from(container.querySelectorAll('button')).find(b => b.textContent.includes('lunas disembunyikan'));
+    await act(async () => { toggle.click(); });
+    await act(async () => { container.querySelector('input[type="text"]').focus(); });
+    expect(container.textContent).toContain('1 lunas ditampilkan');
+    expect(container.textContent).toContain('Ani Lunas App');
+    expect(container.textContent).toContain('LUNAS');
+    expect(container.textContent).not.toContain('Cici Terminate');
   });
 });

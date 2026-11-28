@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Wifi, Printer, UserCheck, AlertCircle, CheckCircle2, Search, Receipt, Clock, Info, EyeOff, CreditCard, Calendar, Wallet, User, Banknote } from 'lucide-react';
+import { Wifi, Printer, UserCheck, AlertCircle, CheckCircle2, Search, Receipt, Clock, Info, Eye, EyeOff, CreditCard, Calendar, Wallet, User, Banknote } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import MoneyInput from '../components/MoneyInput';
 import { pickInvoiceNumber } from '../utils/runsnetSync';
@@ -93,6 +93,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   // tombol LUNAS/KASBON secara manual, dan direset lagi begitu jumlah bayar diubah.
   const [statusOverride, setStatusOverride] = useState(null);
   const [searchCust, setSearchCust] = useState('');
+  const [showPaid, setShowPaid] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -119,36 +120,16 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   );
   const activePackage = packageOverride || (selectedCustomerData ? resolvePackageAndPrice(selectedCustomerData, packages) : null);
 
-  // Pelanggan yang sudah LUNAS bulan ini tidak perlu muncul lagi di daftar pembayaran.
-  // CustID yang invoicenya sudah PAID di billing Runsnet bulan ini (tgl 1 s/d akhir bulan). null = belum terbaca
-  // (Runsnet lambat/mati) — daftar tetap jalan, cuma belum menyaring pembayaran dari billing.
-  const [billingPaidIds, setBillingPaidIds] = useState(null);
-  const accessToken = session?.access_token;
-  useEffect(() => {
-    if (!accessToken) return undefined;
-    let cancelled = false;
-    fetch('/api/runsnet/invoice-status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ paidThisMonth: true }),
-    })
-      .then((r) => r.json())
-      .then((r) => { if (!cancelled && !r.error && Array.isArray(r.paidCustIds)) setBillingPaidIds(new Set(r.paidCustIds.map(String))); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [accessToken]);
-
-  // Daftar pembayaran hanya berisi pelanggan yang BELUM bayar bulan ini: sudah LUNAS di aplikasi, sudah PAID di
-  // billing, atau berstatus Terminate di Runsnet tidak ditampilkan.
-  const isPaidCustomer = (c) =>
-    isPaidThisMonth(c, transactions) || Boolean(billingPaidIds?.has(String(c.custid || c.customer_id || '')));
+  // Hanya LUNAS di kasir sendiri yang disembunyikan -- status PAID di billing Runsnet terpisah dari kasir,
+  // jadi pelanggan yang dibayar langsung di Runsnet tetap bisa ditransaksikan di sini.
+  const isPaidCustomer = (c) => isPaidThisMonth(c, transactions);
   const terminatedCount = customers.filter(c => c.status === 'terminate').length;
   const paidHiddenCount = customers.filter(c => c.status !== 'terminate' && isPaidCustomer(c)).length;
   const unpaidCustomers = customers.filter(c => c.status !== 'terminate' && !isPaidCustomer(c));
   const now = new Date();
   const periodLabel = `1–${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()} ${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
 
-  const filteredCustomers = unpaidCustomers
+  const filteredCustomers = (showPaid ? customers.filter(c => c.status !== 'terminate') : unpaidCustomers)
     .filter(c => {
       const term = searchCust.toLowerCase();
       const pppoe = (c.pppoe_id || c.pppoeId || '').toLowerCase();
@@ -309,13 +290,17 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
           <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold">
             <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">{unpaidCustomers.length} belum bayar</span>
             {paidHiddenCount > 0 && (
-              <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-700 flex items-center gap-1"><EyeOff size={11} /> {paidHiddenCount} lunas disembunyikan</span>
+              <button
+                type="button"
+                onClick={() => setShowPaid(v => !v)}
+                aria-pressed={showPaid}
+                className={`px-2.5 py-1 rounded-full flex items-center gap-1 transition ${showPaid ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
+              >
+                {showPaid ? <Eye size={11} /> : <EyeOff size={11} />} {paidHiddenCount} lunas {showPaid ? 'ditampilkan' : 'disembunyikan'}
+              </button>
             )}
             {terminatedCount > 0 && (
               <span className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 flex items-center gap-1"><EyeOff size={11} /> {terminatedCount} terminate</span>
-            )}
-            {accessToken && !billingPaidIds && (
-              <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">Status billing belum terbaca</span>
             )}
           </div>
 
@@ -357,6 +342,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                       <div className="flex justify-between items-start gap-2">
                         <p className="font-semibold text-sm text-gray-800 min-w-0">
                           {c.name} {c.nickname && <span className="text-blue-600 font-normal">({c.nickname})</span>}
+                          {showPaid && isPaidCustomer(c) && <span className="ml-1.5 text-[10px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">LUNAS</span>}
                         </p>
                         <span className="shrink-0 text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
                           custid: {custId}
