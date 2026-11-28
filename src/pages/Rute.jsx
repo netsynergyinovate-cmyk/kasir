@@ -189,10 +189,10 @@ const Rute = ({
   const remainingWithCoords = pending.filter(hasCoords).map((customer) => ({ lat: customer.lat, lng: customer.lng }));
 
   return (
-    <div className="p-4 space-y-5 pb-32 animate-in fade-in duration-300">
+    <div className="p-4 space-y-5 pb-32 web:max-w-7xl web:mx-auto web:p-6 web:pb-8 animate-in fade-in duration-300">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-black text-gray-900 flex items-center gap-2"><RouteIcon size={20} className="text-indigo-600" /> Rute Kunjungan</h1>
+          <h1 className="text-xl web:text-2xl font-black text-gray-900 flex items-center gap-2"><RouteIcon size={20} className="text-indigo-600" /> Rute Kunjungan</h1>
           <p className="text-xs text-gray-500 font-medium mt-0.5">
             {routeCustomers.length} rumah · {pending.length} perlu didatangi · {paidCount} sudah terbayarkan
           </p>
@@ -250,7 +250,10 @@ const Rute = ({
         </div>
       )}
 
+      {/* Web: peta (kiri, menempel) dan daftar rute (kanan) berdampingan; mobile tetap satu kolom. */}
+      <div className={`space-y-5 ${routeCustomers.length > 0 || people.length > 0 ? 'web:grid web:grid-cols-[minmax(0,1fr)_420px] web:gap-5 web:items-start web:space-y-0' : ''}`}>
       {/* Tujuan berikutnya */}
+      <div className="web:col-start-2 web:row-start-1">
       {routeCustomers.length === 0 ? (
         <div className="bg-white p-5 rounded-2xl border border-gray-100 text-center space-y-3">
           <p className="text-sm font-bold text-gray-800">Belum ada rumah di rute.</p>
@@ -305,8 +308,10 @@ const Rute = ({
           <p className="text-sm font-bold text-emerald-800">Semua rumah di rute sudah beres atau menunggu tanggal janji.</p>
         </div>
       )}
+      </div>
 
       {/* Peta */}
+      <div className="space-y-5 empty:hidden web:col-start-1 web:row-start-1 web:row-span-3 web:self-start web:sticky web:top-4 web:space-y-3">
       {routeCustomers.length > 0 && mapStops.length === 0 && (
         <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-center space-y-2">
           <MapPin className="mx-auto text-indigo-500" size={22} />
@@ -321,7 +326,7 @@ const Rute = ({
         </div>
       )}
       {(mapStops.length > 0 || people.length > 0) && (
-        <div className="space-y-2">
+        <div className="space-y-2 web:[&>.relative:first-child]:h-[max(20rem,calc(100vh-14rem))]">
           <RouteMap stops={mapStops} routeLine={route?.coordinates || null} selectedId={selectedId} onSelect={setSelectedId} people={people} />
           <StatusLegend />
           <p className="text-[11px] text-gray-500 px-1 flex items-center gap-1.5">
@@ -331,10 +336,11 @@ const Rute = ({
           </p>
         </div>
       )}
+      </div>
 
       {/* Posisi admin (pelacakan) */}
       {isSuper && (
-        <div className="space-y-2">
+        <div className="space-y-2 web:col-start-2 web:row-start-3">
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-1.5"><LocateFixed size={12} /> Posisi Admin</h2>
           {adminLocations.length === 0 ? (
             <p className="text-xs text-gray-400 italic bg-white border border-gray-100 rounded-xl p-3">Belum ada admin yang membagikan lokasi. Posisi muncul saat admin membuka aplikasi dan mengizinkan lokasi.</p>
@@ -367,9 +373,10 @@ const Rute = ({
         </div>
       )}
 
+      <div className="space-y-5 web:col-start-2 web:row-start-2">
       {/* Pencarian dan filter */}
       {routeCustomers.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-2 web:bg-white web:border web:border-gray-200 web:rounded-2xl web:p-3 web:shadow-xs">
           <div className="relative">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -467,7 +474,7 @@ const Rute = ({
                   setDropTargetId(null);
                 }}
                 onClick={() => setSelectedId(customer.id)}
-                className={`bg-white p-3.5 rounded-2xl border shadow-sm space-y-2.5 transition-all ${
+                className={`bg-white p-3.5 rounded-2xl border shadow-sm space-y-2.5 transition-all web:hover:shadow-md web:hover:border-indigo-300 web:cursor-pointer ${
                   draggedId === customer.id ? 'opacity-40 border-dashed border-indigo-400 scale-[0.98]' : ''
                 } ${
                   dropTargetId === customer.id ? 'ring-2 ring-indigo-500 bg-indigo-50/70 border-indigo-400' : ''
@@ -688,6 +695,8 @@ const Rute = ({
           </div>
         </div>
       )}
+      </div>
+      </div>
 
       {/* Modal Dialog Pemilih Nomor Posisi Langsung (Direct Number Selector) */}
       {numberPickerFor && (

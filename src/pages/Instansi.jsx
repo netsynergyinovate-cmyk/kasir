@@ -75,13 +75,13 @@ const EmptyState = ({ icon: Icon, text }) => (
 
 // Item bottom nav khusus Instansi: tombol (bukan link) karena berpindah tab di dalam halaman ini.
 const NavTab = ({ icon: Icon, label, active, onClick, badge }) => (
-  <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined} className="relative flex flex-col items-center gap-1 w-14 tap-bounce group">
+  <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined} className="relative flex flex-col items-center gap-1 w-14 tap-bounce group web:flex-row web:w-auto web:gap-2 web:px-2 web:py-1 web:rounded-xl web:hover:bg-slate-50">
     <span className={`flex items-center justify-center w-9 h-8 rounded-xl transition-all duration-200 ${active ? 'bg-gray-900 text-white' : 'text-slate-400 group-hover:text-slate-600'}`}>
       <Icon size={17} strokeWidth={active ? 2.5 : 2} />
     </span>
-    <span className={`text-[9px] transition-all duration-200 ${active ? 'text-gray-900 font-bold' : 'text-slate-400'}`}>{label}</span>
+    <span className={`text-[9px] web:text-xs transition-all duration-200 ${active ? 'text-gray-900 font-bold' : 'text-slate-400'}`}>{label}</span>
     {badge > 0 && (
-      <span className="absolute -top-1 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[8px] font-black flex items-center justify-center border-2 border-white">{badge}</span>
+      <span className="absolute -top-1 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[8px] font-black flex items-center justify-center border-2 border-white web:static web:border-0 web:text-[10px]">{badge}</span>
     )}
   </button>
 );
@@ -291,23 +291,23 @@ const Instansi = ({ session }) => {
 
 
   return (
-    <div className="p-4 pb-32 animate-in fade-in duration-300">
-      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-4 text-white mb-4 shadow-sm">
-        <div className="flex items-center gap-3">
+    <div className="p-4 pb-32 animate-in fade-in duration-300 web:p-6 web:pb-8 web:flex web:flex-col">
+      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-4 text-white mb-4 shadow-sm web:p-6 web:grid web:grid-cols-[1fr_30rem] web:items-center web:gap-x-8">
+        <div className="flex items-center gap-3 web:row-span-2">
           <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0"><Building2 size={17} /></div>
           <div className="min-w-0">
             <p className="text-[10px] text-white/50">Invoice Instansi · B2B</p>
-            <h2 className="text-base font-bold leading-tight truncate">{TAB_TITLES[tab] || TAB_TITLES.clients}</h2>
+            <h2 className="text-base font-bold leading-tight truncate web:text-xl">{TAB_TITLES[tab] || TAB_TITLES.clients}</h2>
           </div>
         </div>
         {tab === 'home' && (
           <>
-            <div className="grid grid-cols-3 gap-2 mt-3">
+            <div className="grid grid-cols-3 gap-2 mt-3 web:mt-0 web:gap-3">
               <HeroStat label="Klien aktif" value={clientStats.active} />
               <HeroStat label="Belum lunas" value={allStats.pending} />
               <HeroStat label="Jatuh tempo" value={overdueCount} danger />
             </div>
-            <p className="text-[11px] text-white/60 mt-2.5">
+            <p className="text-[11px] text-white/60 mt-2.5 web:mt-3 web:text-xs">
               Tagihan berjalan <span className="font-semibold text-white">Rp {formatNumber(allStats.pendingAmount)}</span>
             </p>
           </>
@@ -319,17 +319,17 @@ const Instansi = ({ session }) => {
           {[0, 1, 2].map((i) => <div key={i} className="h-16 rounded-xl bg-gray-100 animate-pulse" />)}
         </div>
       ) : tab === 'home' ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-2">
+        <div className="space-y-4 web:space-y-0 web:grid web:grid-cols-12 web:gap-5">
+          <div className="grid grid-cols-4 gap-2 web:col-span-7 web:gap-3">
             {quickActions.map(({ icon: Icon, label, run }) => (
-              <button key={label} type="button" onClick={run} className="flex flex-col items-center gap-1 py-2.5 bg-white rounded-xl border border-gray-100 active:scale-95 transition-all">
+              <button key={label} type="button" onClick={run} className="flex flex-col items-center gap-1 py-2.5 bg-white rounded-xl border border-gray-100 active:scale-95 transition-all web:justify-center web:py-5 web:hover:border-gray-300 web:hover:shadow-sm">
                 <span className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center"><Icon size={15} /></span>
                 <span className="text-[10px] font-medium text-gray-600">{label}</span>
               </button>
             ))}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 p-3.5">
+          <div className="bg-white rounded-xl border border-gray-100 p-3.5 web:col-span-5 web:p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-gray-500">Penagihan</p>
               <p className="text-xs font-semibold text-gray-900">{paidPct}% lunas</p>
@@ -349,7 +349,7 @@ const Instansi = ({ session }) => {
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 web:col-span-7">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-gray-500">Perlu Ditagih</p>
               {toBill.length > 0 && (
@@ -364,19 +364,19 @@ const Instansi = ({ session }) => {
           </div>
 
           {invoices.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-3 web:col-span-5">
               <p className="text-xs font-semibold text-gray-500">Terbit Terakhir</p>
               {invoices.slice(0, 3).map(renderInvoiceCard)}
             </div>
           )}
         </div>
       ) : tab === 'multipate' ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center web:w-full web:max-w-xl web:mx-auto web:p-8">
           <div className="w-11 h-11 mx-auto rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-2.5"><Layers size={20} /></div>
           <p className="text-sm font-semibold text-gray-900">Terbit Massal</p>
           <p className="text-xs text-gray-500 mt-1">Terbitkan invoice atau faktur untuk banyak klien sekaligus dalam satu proses.</p>
           <p className="text-[11px] text-gray-400 mt-2">{clientStats.active} klien aktif siap diproses</p>
-          <button type="button" onClick={() => setShowMultipate(true)} disabled={clients.length === 0} className="mt-4 w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all">
+          <button type="button" onClick={() => setShowMultipate(true)} disabled={clients.length === 0} className="mt-4 w-full py-2.5 web:w-auto web:px-8 web:mx-auto rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all">
             <Layers size={15} /> Buka Generator Massal
           </button>
           {clients.length === 0 && <p className="text-xs text-gray-400 italic mt-3">Tambah klien dulu di menu Klien.</p>}
@@ -389,7 +389,7 @@ const Instansi = ({ session }) => {
             <StatCard icon={AlertCircle} label="Nonaktif" value={clientStats.inactive} tone="bg-gray-100 text-gray-400" active={clientStatusFilter === 'inactive'} onClick={() => setClientStatusFilter('inactive')} />
           </div>
 
-          <div className="relative">
+          <div className="relative web:max-w-md">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} type="text" placeholder="Cari nama instansi / kode klien..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs focus:border-gray-900 transition-colors" />
           </div>
@@ -398,7 +398,7 @@ const Instansi = ({ session }) => {
 
           {visibleClients.length === 0 ? (
             <EmptyState icon={Building2} text={clients.length === 0 ? 'Belum ada klien instansi.' : 'Tidak ada klien yang cocok.'} />
-          ) : visibleClients.map((c) => {
+          ) : (<div className="space-y-3 web:space-y-0 web:grid web:grid-cols-2 web:gap-3">{visibleClients.map((c) => {
             const active = c.status === 'active';
             return (
               <div key={c.id} className="bg-white p-3 rounded-xl border border-gray-100 flex items-center gap-3">
@@ -419,7 +419,7 @@ const Instansi = ({ session }) => {
                 </div>
               </div>
             );
-          })}
+          })}</div>)}
         </div>
       ) : (
         <div className="space-y-3">
@@ -429,7 +429,7 @@ const Instansi = ({ session }) => {
             <StatCard icon={Wallet} label="Pending" value={`Rp ${formatNumber(stats.pendingAmount)}`} tone="bg-amber-50 text-amber-600" active={invoiceStatusFilter === 'pending'} onClick={() => setInvoiceStatusFilter('pending')} />
           </div>
 
-          <div className="relative">
+          <div className="relative web:max-w-md">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} type="text" placeholder="Cari nomor dokumen / nama instansi..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none text-xs focus:border-gray-900 transition-colors" />
           </div>
@@ -458,32 +458,33 @@ const Instansi = ({ session }) => {
 
           {visibleInvoices.length === 0 ? (
             <EmptyState icon={tab === 'faktur' ? Receipt : FileText} text={invoicesForKind.length === 0 ? `Belum ada ${docLabel.toLowerCase()}.` : 'Tidak ada dokumen yang cocok dengan filter.'} />
-          ) : visibleInvoices.map(renderInvoiceCard)}
+          ) : <div className="space-y-3 web:space-y-0 web:grid web:grid-cols-2 web:gap-3">{visibleInvoices.map(renderInvoiceCard)}</div>}
         </div>
       )}
 
       {/* Bottom nav khusus Instansi — menggantikan nav aplikasi selama di halaman ini (lihat App.jsx). */}
-      <nav aria-label="Menu Instansi" className="bg-white/95 backdrop-blur-md border-t border-slate-200/80 h-14 flex justify-between items-center px-2 z-20 shadow-[0_-2px_12px_rgba(0,0,0,0.05)] shrink-0 fixed bottom-0 left-0 right-0 max-w-md mx-auto print:hidden">
-        <div className="flex w-full justify-between items-center relative">
-          <div className="flex justify-around w-[42%]">
+      <nav aria-label="Menu Instansi" className="bg-white/95 backdrop-blur-md border-t border-slate-200/80 h-14 flex justify-between items-center px-2 z-20 shadow-[0_-2px_12px_rgba(0,0,0,0.05)] shrink-0 fixed bottom-0 left-0 right-0 max-w-md mx-auto print:hidden web:static web:order-first web:max-w-none web:mx-0 web:rounded-2xl web:border web:shadow-none web:mb-5 web:h-auto web:py-2 web:px-3">
+        <div className="flex w-full justify-between items-center relative web:justify-start web:gap-2">
+          <div className="flex justify-around w-[42%] web:w-auto web:gap-1">
             <NavTab icon={Home} label="Beranda" active={tab === 'home'} onClick={() => setTab('home')} />
             <NavTab icon={Building2} label="Klien" active={tab === 'clients'} onClick={() => setTab('clients')} />
           </div>
-          <div className="w-[16%]" />
-          <div className="flex justify-around w-[42%]">
+          <div className="w-[16%] web:hidden" />
+          <div className="flex justify-around w-[42%] web:w-auto web:gap-1">
             <NavTab icon={FileText} label="Invoice" active={tab === 'invoices'} onClick={() => setTab('invoices')} badge={pendingOf('invoice')} />
             <NavTab icon={Receipt} label="Faktur" active={tab === 'faktur'} onClick={() => setTab('faktur')} badge={pendingOf('faktur')} />
             <NavTab icon={Layers} label="Massal" active={tab === 'multipate'} onClick={() => setTab('multipate')} />
           </div>
-          <div className="absolute left-1/2 -translate-x-1/2 -top-5 flex items-center justify-center z-30">
+          <div className="absolute left-1/2 -translate-x-1/2 -top-5 flex items-center justify-center z-30 web:static web:translate-x-0 web:ml-auto">
             <button
               type="button"
               onClick={fab.run}
               aria-label={fab.label}
               title={fab.label}
-              className="w-[52px] h-[52px] bg-gray-900 rounded-full flex items-center justify-center text-white shadow-md shadow-gray-900/30 border-2 border-white hover:bg-black hover:scale-105 active:scale-90 transition-all duration-200"
+              className="w-[52px] h-[52px] bg-gray-900 rounded-full flex items-center justify-center text-white shadow-md shadow-gray-900/30 border-2 border-white hover:bg-black hover:scale-105 active:scale-90 transition-all duration-200 web:w-auto web:h-10 web:px-4 web:gap-2 web:rounded-xl web:border-0 web:shadow-none"
             >
               {tab === 'multipate' ? <Layers size={22} /> : <Plus size={24} />}
+              <span className="hidden web:inline text-xs font-semibold">{fab.label}</span>
             </button>
           </div>
         </div>

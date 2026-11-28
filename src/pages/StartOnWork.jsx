@@ -241,9 +241,10 @@ const StartOnWork = ({
   const departedAt = target && logs.find((log) => log.event === 'berangkat' && log.customer_id === target.id && log.session_id === work.sessionId)?.created_at;
   const locationNote = locationAdvice(locationStatus);
   const pendingCount = routeStops.length + otherStops.length;
+  const visibleLogs = logs.filter((log) => !logAdmin || (log.admin_name || 'Tanpa nama') === logAdmin);
 
   return (
-    <div className="p-4 space-y-4 pb-28 animate-in fade-in duration-300">
+    <div className="p-4 space-y-4 pb-28 animate-in fade-in duration-300 web:pb-8">
       {summary && (
         <div className="fixed inset-0 z-[60] bg-gray-900/60 flex items-center justify-center p-4">
           <div role="dialog" aria-label="Ringkasan kerja" className="w-full max-w-sm bg-white rounded-2xl p-5 space-y-4 shadow-xl">
@@ -278,7 +279,7 @@ const StartOnWork = ({
         </div>
       )}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Start On Work</h1>
+        <h1 className="text-xl font-bold text-gray-900 web:hidden">Start On Work</h1>
         <p className="text-xs text-gray-500">{isSuper ? 'Pantau log kerja lapangan semua admin.' : 'Rute otomatis ke rumah pelanggan dari posisi Anda.'}</p>
       </div>
 
@@ -359,23 +360,55 @@ const StartOnWork = ({
         </div>
       )}
 
-      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-bold text-gray-900 flex items-center gap-1.5"><Clock size={15} /> Log Kerja</p>
-          <div className="flex gap-1.5">
+      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3 web:p-5 web:space-y-4">
+        <div className="flex items-center justify-between gap-2 web:flex-wrap web:gap-3">
+          <p className="text-sm font-bold text-gray-900 flex items-center gap-1.5"><Clock size={15} /> Log Kerja <span className="hidden web:inline text-xs font-semibold text-gray-400">· {visibleLogs.length} catatan</span></p>
+          <div className="flex gap-1.5 web:gap-2">
             {isSuper && (
-              <select value={logAdmin} onChange={(e) => setLogAdmin(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 max-w-[110px]">
+              <select value={logAdmin} onChange={(e) => setLogAdmin(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 max-w-[110px] web:max-w-[220px] web:text-[13px] web:px-3 web:py-2">
                 <option value="">Semua admin</option>
                 {[...new Set(logs.map((log) => log.admin_name || 'Tanpa nama'))].map((name) => <option key={name} value={name}>{name}</option>)}
               </select>
             )}
-            <input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1" />
+            <input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1 web:text-[13px] web:px-3 web:py-2" />
           </div>
         </div>
         {logError && <p className="text-[11px] text-red-700 bg-red-50 rounded-lg p-2">Log gagal: {logError}. Pastikan supabase_start_on_work.sql sudah dijalankan.</p>}
         {logs.length === 0 && !logError && <p className="text-xs text-gray-400 italic text-center py-3">Belum ada log.</p>}
-        <div className="space-y-1.5 max-h-96 overflow-y-auto">
-          {logs.filter((log) => !logAdmin || (log.admin_name || 'Tanpa nama') === logAdmin).map((log) => (
+        {visibleLogs.length > 0 && (
+          <div className="hidden web:block max-h-[calc(100vh-20rem)] overflow-auto rounded-2xl border border-gray-200">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr>
+                  {['Jam', 'Admin', 'Kegiatan', 'Pelanggan', 'Catatan / Status'].map((label) => (
+                    <th key={label} className="sticky top-0 z-[5] border-b border-gray-200 bg-gray-50 px-3 py-3 text-[11px] font-black uppercase tracking-wider text-gray-500">{label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {visibleLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5 font-semibold text-gray-500 whitespace-nowrap">{timeOf(log.created_at)}</td>
+                    <td className="px-3 py-2.5 text-gray-700">{log.admin_name || '-'}</td>
+                    <td className="px-3 py-2.5 font-bold text-gray-900 whitespace-nowrap">
+                      {log.event === 'bayar_langsung' && <Wallet size={12} className="inline mr-1 text-emerald-600" />}
+                      {WORK_EVENT_LABELS[log.event] || log.event}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-900">{log.customer_name || '-'}</td>
+                    <td className="px-3 py-2.5 text-gray-500">
+                      {log.event === 'bayar_langsung' && (isPaidThisMonth({ name: log.customer_name }, transactions, new Date(log.created_at))
+                        ? <span className="mr-1.5 px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-semibold">Sudah dibayar</span>
+                        : <span className="mr-1.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-semibold">Belum dibayar</span>)}
+                      {log.note}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="space-y-1.5 max-h-96 overflow-y-auto web:hidden">
+          {visibleLogs.map((log) => (
             <div key={log.id} className="flex items-start gap-2.5 text-xs">
               <span className="font-semibold text-gray-500 w-11 shrink-0">{timeOf(log.created_at)}</span>
               <div className="min-w-0">
