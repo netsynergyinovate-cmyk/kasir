@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* web:<kelas> = hanya superadmin dengan Tampilan Web di layar >=1024px (App.jsx memasang .web-view).
+   Di ponsel / admin / Tampilan Mobile kelas ini tidak berlaku, jadi tata letak mobile tidak berubah. */
+@custom-variant web {
+  @media (width >= 64rem) {
+    .web-view & {
+      @slot;
+    }
+  }
+}
+
 /* Scrollbar disembunyikan di seluruh aplikasi; halaman dan daftar tetap bisa digulir (sentuh / roda mouse / keyboard). */
 html,
 body,

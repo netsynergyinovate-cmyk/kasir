@@ -44,6 +44,7 @@ function getInitials(name = '') {
 }
 
 const Pelanggan = ({
+  webView = false,
   customers = [],
   transactions = [],
   packages = [],
@@ -249,9 +250,11 @@ const Pelanggan = ({
     });
   }, [customers, searchTerm, selectedPackage, activeTab, sortBy, transactions]);
 
-  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
+  // shortcut: lebar layar dibaca saat render (tanpa listener resize); cukup karena PC jarang ganti lebar drastis.
+  const pageSize = webView && window.matchMedia?.('(min-width: 64rem)').matches ? 20 : ITEMS_PER_PAGE;
+  const totalPages = Math.ceil(filteredCustomers.length / pageSize) || 1;
   const displayedCustomers = viewMode === 'grid'
-    ? filteredCustomers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+    ? filteredCustomers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
     : filteredCustomers;
 
   // Transaksi khusus pelanggan yang sedang dibuka detailnya
@@ -373,13 +376,194 @@ const Pelanggan = ({
   const existingCustids = new Set(customers.map((c) => c.custid).filter(Boolean));
   const hasActiveCustomFilters = activeTab !== 'all' || Boolean(selectedPackage) || sortBy !== 'name_asc';
 
+  // Tabel khusus tampilan web (PC): disembunyikan di mobile lewat `hidden web:block`; handler sama dengan kartu/daftar.
+  const webTable = (
+    <div className="hidden web:block bg-white border border-gray-200 rounded-2xl shadow-xs overflow-auto max-h-[calc(100vh-20rem)]">
+      <table className="w-full text-left border-collapse text-sm">
+        <thead className="sticky top-0 z-10 bg-gray-50 shadow-[0_1px_0_0_rgb(229,231,235)]">
+          <tr className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+            <th className="py-3 px-4">Pelanggan</th>
+            <th className="py-3 px-3">ID / PPPoE</th>
+            <th className="py-3 px-3">Paket</th>
+            <th className="py-3 px-3">Tagihan</th>
+            <th className="py-3 px-3">Status</th>
+            <th className="py-3 px-3">Telepon / WA</th>
+            <th className="py-3 px-4 text-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {displayedCustomers.map((cust) => {
+            const displayName = cust.name || cust.customer_name || cust.customerName || cust.nama || 'Pelanggan';
+            const pppoe = cust.pppoe_id || cust.pppoeId;
+            const paidMonth = isPaidThisMonth(cust, transactions);
+            const visitStatus = visitStatusById[cust.id];
+
+            return (
+              <tr
+                key={cust.id}
+                onClick={() => setSelectedDetailCust(cust)}
+                className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${cust.status !== 'aktif' ? 'bg-red-50/30' : ''}`}
+                title={`Klik untuk lihat rincian lengkap ${displayName}`}
+              >
+                <td className="py-3 px-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-tr ${getAvatarColor(displayName)} text-white font-extrabold flex items-center justify-center text-xs shrink-0`}>
+                      {getInitials(displayName)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-gray-900 truncate max-w-[220px]">{displayName}</div>
+                      {cust.nickname && <div className="text-xs text-gray-400 truncate max-w-[220px]">({cust.nickname})</div>}
+                    </div>
+                  </div>
+                </td>
+                <td className="py-3 px-3">
+                  <div className="font-mono text-xs font-bold text-gray-700">{cust.custid || cust.customer_id || '-'}</div>
+                  {pppoe && (
+                    <div className="inline-flex items-center gap-1 mt-0.5 font-mono text-[11px] font-bold text-blue-700 max-w-[160px]" title={pppoe}>
+                      <Key size={10} className="text-blue-500 shrink-0" />
+                      <span className="truncate">{pppoe}</span>
+                    </div>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-gray-700 font-medium">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Wifi size={13} className="text-blue-500 shrink-0" />
+                    {cust.package || 'Net Home'}
+                  </span>
+                </td>
+                <td className="py-3 px-3 whitespace-nowrap">
+                  <div className="font-black text-emerald-600">{cust.price ? formatRupiah(cust.price) : '-'}</div>
+                  <div className="text-xs text-gray-400">Tgl {cust.due_date || cust.dueDate || '-'}</div>
+                </td>
+                <td className="py-3 px-3">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                      cust.status === 'aktif' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'
+                    }`}>
+                      {cust.status === 'aktif' ? 'Aktif' : 'Isolir'}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                      paidMonth ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'
+                    }`}>
+                      {paidMonth ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                      {paidMonth ? 'Lunas Bulan Ini' : 'Belum Bayar'}
+                    </span>
+                    {visitStatus && (
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${TONE_BADGE_CLASSES[visitStatus.tone]}`}>
+                        {visitStatus.label}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="py-3 px-3 whitespace-nowrap">
+                  {cust.phone ? (
+                    <a
+                      href={`https://wa.me/${cust.phone.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-green-600 hover:underline"
+                    >
+                      <Phone size={12} /> {cust.phone} <ExternalLink size={10} />
+                    </a>
+                  ) : (
+                    <span className="text-gray-300">-</span>
+                  )}
+                </td>
+                <td className="py-3 px-4 text-right whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuickPay(cust);
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-xs active:scale-95 transition-all inline-flex items-center gap-1"
+                      title="Bayar di Kasir"
+                    >
+                      <CreditCard size={13} />
+                      <span>{paidMonth ? 'Bayar +' : 'Bayar'}</span>
+                    </button>
+                    {cust.phone && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWaModalCust(cust);
+                          setWaTemplateType(paidMonth ? 'paid' : 'reminder');
+                        }}
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg active:scale-95 transition-all"
+                        title="Kirim pesan WhatsApp / Tagihan"
+                      >
+                        <MessageSquare size={15} />
+                      </button>
+                    )}
+                    {cust.lat && cust.lng && (
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${cust.lat},${cust.lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1.5 text-sky-600 hover:bg-sky-50 rounded-lg active:scale-95 transition-all"
+                        title="Buka Navigasi Maps"
+                      >
+                        <MapPin size={15} />
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedDetailCust(cust);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg active:scale-95 transition-all"
+                      title="Lihat Detail Profil & Teknis"
+                    >
+                      <Info size={15} />
+                    </button>
+                    {can('customers.edit') && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCustomer(cust);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg active:scale-95 transition-all"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                    {can('customers.delete') && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Hapus pelanggan "${displayName}"?`)) onDeleteCustomer(cust.id);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg active:scale-95 transition-all"
+                        title="Hapus"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
-    <div className="p-3 sm:p-4 max-w-7xl mx-auto space-y-3 pb-36 animate-in fade-in duration-200">
+    <div className="p-3 sm:p-4 max-w-7xl mx-auto space-y-3 pb-36 web:max-w-6xl web:p-6 web:space-y-5 web:pb-8 animate-in fade-in duration-200">
       
       {/* 1. Header Toolbar: Title & Dropdown Actions */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight">Data Pelanggan</h1>
+          <h1 className="text-lg sm:text-xl web:text-2xl font-black text-gray-900 tracking-tight">Data Pelanggan</h1>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-100">
             {customers.length}
           </span>
@@ -453,7 +637,7 @@ const Pelanggan = ({
       </div>
 
       {/* 2. KPI Metrics Bar (2x3: 2 ke samping, 3 ke bawah di mobile agar nama lengkap nampak jelas) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 web:gap-4 web:[&>button]:p-4 web:[&>button]:rounded-2xl web:[&_.font-black]:text-2xl">
         <button
           onClick={() => setActiveTab('all')}
           className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition-all ${
@@ -552,16 +736,16 @@ const Pelanggan = ({
       </div>
 
       {/* 3. Search Bar + Dropdown Filter & Urutan + View Switcher (1 Row, No Stack!) */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 web:gap-3 web:bg-white web:border web:border-gray-200 web:rounded-2xl web:p-3 web:shadow-xs">
         {/* Search Input */}
-        <div className="flex-1 flex items-center bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 focus-within:border-blue-500 shadow-xs transition-all">
+        <div className="flex-1 flex items-center bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 web:py-2 web:max-w-md focus-within:border-blue-500 shadow-xs transition-all">
           <Search size={16} className="text-gray-400 shrink-0" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Cari Nama, ID PPPoE, No. WA, IP, Alamat..."
-            className="w-full bg-transparent border-none outline-none px-2 text-xs text-gray-800 placeholder-gray-400"
+            className="w-full bg-transparent border-none outline-none px-2 text-xs web:text-sm text-gray-800 placeholder-gray-400"
           />
           {searchTerm && (
             <button
@@ -573,8 +757,49 @@ const Pelanggan = ({
           )}
         </div>
 
+        {/* Tampilan web: filter paket & urutan sebaris di toolbar (state sama dengan popover mobile) */}
+        <select
+          value={selectedPackage}
+          onChange={(e) => setSelectedPackage(e.target.value)}
+          className="hidden web:block bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 outline-none focus:border-blue-500"
+          title="Filter Paket Internet"
+        >
+          <option value="">Semua Paket ({packageOptions.length})</option>
+          {packageOptions.map(pkg => (
+            <option key={pkg} value={pkg}>{pkg}</option>
+          ))}
+        </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="hidden web:block bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 outline-none focus:border-blue-500"
+          title="Urutan Daftar"
+        >
+          <option value="name_asc">Nama (A - Z)</option>
+          <option value="name_desc">Nama (Z - A)</option>
+          <option value="due_date">Tgl Tagihan (1 - 31)</option>
+          <option value="unpaid_first">Belum Bayar Duluan</option>
+          <option value="newest">Terbaru Ditambahkan</option>
+        </select>
+        {hasActiveCustomFilters && (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('all');
+              setSelectedPackage('');
+              setSortBy('name_asc');
+            }}
+            className="hidden web:block text-sm font-bold text-red-600 hover:underline px-1"
+          >
+            Reset Filter
+          </button>
+        )}
+        <span className="hidden web:block ml-auto text-xs font-semibold text-gray-400">
+          {filteredCustomers.length} pelanggan
+        </span>
+
         {/* Dropdown Filter & Urutan Button */}
-        <div className="relative" ref={filterDropdownRef}>
+        <div className="relative web:hidden" ref={filterDropdownRef}>
           <button
             type="button"
             onClick={() => setShowFilterDropdown(prev => !prev)}
@@ -723,7 +948,7 @@ const Pelanggan = ({
       ) : viewMode === 'grid' ? (
         /* GRID VIEW: Pure 2-Column Grid (6 items per page with sleek pagination) */
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 web:hidden">
             {displayedCustomers.map((cust) => {
               const displayName = cust.name || cust.customer_name || cust.customerName || cust.nama || 'Pelanggan';
               const pppoe = cust.pppoe_id || cust.pppoeId;
@@ -941,6 +1166,8 @@ const Pelanggan = ({
             })}
           </div>
 
+          {webTable}
+
           {/* Sleek Pagination Controls */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-700 shadow-xs">
@@ -968,7 +1195,7 @@ const Pelanggan = ({
         </div>
       ) : (
         /* LIST VIEW: Clean Mobile-First Table (Klik baris mana saja untuk buka detail) */
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden web:hidden">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-gray-50/90 border-b border-gray-200 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
@@ -1143,6 +1370,7 @@ const Pelanggan = ({
           </table>
         </div>
       )}
+      {viewMode === 'list' && filteredCustomers.length > 0 && webTable}
 
       {/* 5. Detail Modal Pelanggan (Kecil, Rapi & Ringkas) */}
       {selectedDetailCust && (

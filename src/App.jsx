@@ -55,6 +55,13 @@ const INIT_COMPANY = {
   idleLockExemptSuperadmin: false
 };
 
+// Judul header di tampilan web superadmin (sidebar sudah memuat logo & nama perusahaan).
+const WEB_PAGE_TITLES = {
+  '/': 'Beranda', '/customers': 'Pelanggan', '/pos': 'Transaksi', '/history': 'Riwayat Transaksi',
+  '/rute': 'Rute', '/settings': 'Pengaturan', '/aktivitas': 'Aktivitas Kasir', '/start-on-work': 'Start On Work',
+  '/instansi': 'Invoice Instansi', '/pelanggan-runsnet-baru': 'Tambah Pelanggan',
+};
+
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1055,25 +1062,33 @@ export default function App() {
             <button type="button" onClick={lockApp} className="ml-1 px-2 py-0.5 rounded-md bg-white/15 hover:bg-white/25 active:scale-95 transition-all">Kunci sekarang</button>
           </div>
         )}
-        <header className="bg-white px-4 py-3.5 border-b border-gray-100 flex items-center gap-3 shadow-sm">
+        <header className="bg-white px-4 py-3.5 web:px-8 web:py-4 border-b border-gray-100 flex items-center gap-3 shadow-sm">
           <button onClick={() => setIsSidebarOpen(true)} className={`${isWebView ? 'lg:hidden' : ''} p-2 -ml-1 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all`}>
             <Menu size={22} />
           </button>
 
           {companyInfo.logo ? (
-            <img src={companyInfo.logo} alt="Logo" className="w-9 h-9 rounded-xl object-contain shadow-sm border border-gray-100 shrink-0 bg-white p-0.5" />
+            <img src={companyInfo.logo} alt="Logo" className="web:hidden w-9 h-9 rounded-xl object-contain shadow-sm border border-gray-100 shrink-0 bg-white p-0.5" />
           ) : (
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-200 shrink-0">
+            <div className="web:hidden w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-200 shrink-0">
               <Building2 size={18} />
             </div>
           )}
-          <div className="overflow-hidden">
+          <div className="overflow-hidden web:hidden">
             <h1 className="font-bold text-gray-900 text-[15px] leading-tight truncate">{companyInfo.name}</h1>
             <p className="text-[11px] text-gray-500 font-medium">ISP Billing POS</p>
           </div>
+          {/* Tampilan web: logo & nama sudah di sidebar, header jadi judul halaman + kotak cari lebar. */}
+          <div className="hidden web:block overflow-hidden">
+            <h1 className="font-bold text-gray-900 text-lg leading-tight truncate">{WEB_PAGE_TITLES[location.pathname] || companyInfo.name}</h1>
+            <p className="text-xs text-gray-500 font-medium">{companyInfo.name}</p>
+          </div>
+          <button type="button" onClick={() => setIsSearchOpen(true)} className="hidden web:flex items-center gap-2 ml-auto w-80 px-3 py-2 text-sm text-gray-400 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-all">
+            <Search size={16} /> Cari pelanggan atau transaksi…
+          </button>
 
-          <div className="ml-auto flex items-center gap-1.5 shrink-0">
-            <button onClick={() => setIsSearchOpen(true)} className="p-2 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
+          <div className="ml-auto web:ml-0 flex items-center gap-1.5 shrink-0">
+            <button onClick={() => setIsSearchOpen(true)} className="web:hidden p-2 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
               <Search size={18} />
             </button>
             <button 
@@ -1166,6 +1181,7 @@ export default function App() {
                 setReceiptToView={setReceiptToView}
                 role={effectiveSession?.profile?.role}
                 session={effectiveSession}
+                webView={isWebView}
                 onRunsnetImported={refetchCustomers}
                 visitStatusById={visitStatusById}
                 setShowAddCustomer={setShowAddCustomer}

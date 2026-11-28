@@ -74,9 +74,9 @@ const resolvePackageAndPrice = (cust, packagesList = []) => {
 };
 
 // Gaya bersama kartu & input halaman Transaksi (lega, tidak berdempetan di layar sempit maupun saat di-zoom).
-const cardClass = 'bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3.5';
-const sectionTitleClass = 'flex items-center gap-2 text-sm font-semibold text-gray-800';
-const labelClass = 'flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 mb-1.5';
+const cardClass = 'bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3.5 web:p-6 web:space-y-4';
+const sectionTitleClass = 'flex items-center gap-2 text-sm font-semibold text-gray-800 web:text-base';
+const labelClass = 'flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 mb-1.5 web:text-xs';
 // Tanpa warna latar, warna teks & ukuran huruf: masing-masing input menambahkan sendiri (kelas Tailwind yang bentrok tidak saling menimpa).
 const inputClass = 'w-full border border-gray-200 rounded-xl outline-none transition-all focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100';
 
@@ -243,17 +243,17 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   };
 
   return (
-    <div className="transaksi-container px-4 pt-4 pb-24 animate-in fade-in duration-300">
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="transaksi-container px-4 pt-4 pb-24 animate-in fade-in duration-300 web:px-6 web:pt-6 web:pb-8">
+      <form onSubmit={handleSubmit} className="space-y-4 web:space-y-0 web:grid web:grid-cols-[minmax(0,1fr)_380px] web:gap-x-6 web:gap-y-5 web:items-start">
         {/* Judul + status. Status otomatis ikut jumlah bayar (kurang dari harga paket = KASBON), tombol cuma buat override manual */}
-        <div className="space-y-2">
+        <div className="space-y-2 web:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <span className="w-10 h-10 shrink-0 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200">
                 <Receipt size={20} />
               </span>
               <div className="min-w-0">
-                <h2 className="text-base font-bold text-gray-900 leading-tight">Transaksi Retail</h2>
+                <h2 className="text-base font-bold text-gray-900 leading-tight web:text-xl">Transaksi Retail</h2>
                 <p className="text-xs text-gray-500">Periode {periodLabel}</p>
               </div>
             </div>
@@ -276,7 +276,8 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
           )}
         </div>
 
-        {/* Kartu Pelanggan (wajib pilih dari pencarian) */}
+        {/* Kolom kiri (web): pencarian & daftar pelanggan */}
+        <div className="web:min-w-0">
         <section className={cardClass}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className={`${sectionTitleClass} whitespace-nowrap`}>
@@ -326,12 +327,12 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                 }}
                 onFocus={() => setIsSearching(true)}
                 onBlur={() => setTimeout(() => setIsSearching(false), 150)}
-                className={`${inputClass} pl-10 pr-3 py-2.5 text-sm ${selectedCustomerData ? 'border-emerald-400 bg-emerald-50/40 font-semibold text-emerald-900' : 'bg-gray-50 text-gray-800'}`}
+                className={`${inputClass} pl-10 pr-3 py-2.5 text-sm web:py-3.5 web:text-base ${selectedCustomerData ? 'border-emerald-400 bg-emerald-50/40 font-semibold text-emerald-900' : 'bg-gray-50 text-gray-800'}`}
               />
             </div>
 
             {isSearching && (
-              <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl max-h-64 overflow-y-auto">
+              <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl max-h-64 overflow-y-auto web:max-h-[60vh]">
                 {filteredCustomers.length > 0 ? filteredCustomers.map(c => {
                   const pppoe = c.pppoe_id || c.pppoeId;
                   const custId = c.custid || c.customer_id || c.id;
@@ -339,10 +340,10 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                     <div
                       key={c.id}
                       onClick={() => handleSelectCustomer(c)}
-                      className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0"
+                      className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0 web:px-5 web:py-3.5"
                     >
                       <div className="flex justify-between items-start gap-2">
-                        <p className="font-semibold text-sm text-gray-800 min-w-0">
+                        <p className="font-semibold text-sm text-gray-800 min-w-0 web:text-base">
                           {c.name} {c.nickname && <span className="text-blue-600 font-normal">({c.nickname})</span>}
                           {isPaidCustomer(c) &&<span className="ml-1.5 text-[10px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">LUNAS</span>}
                         </p>
@@ -350,7 +351,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                           custid: {custId}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center gap-2 mt-1 text-[11px] text-gray-500">
+                      <div className="flex justify-between items-center gap-2 mt-1 text-[11px] text-gray-500 web:text-xs">
                         <span className="truncate">{c.address}</span>
                         {pppoe && <span className="shrink-0 font-mono text-blue-600 font-bold">{pppoe}</span>}
                       </div>
@@ -365,7 +366,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
 
           {/* Selected Customer Info Box */}
           {selectedCustomerData ? (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5 rounded-xl border border-blue-100 space-y-2 animate-in fade-in">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5 rounded-xl border border-blue-100 space-y-2 animate-in fade-in web:hidden">
               <div className="flex flex-wrap justify-between items-start gap-2">
                 <div className="min-w-0">
                   <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Pelanggan Terpilih</span>
@@ -393,6 +394,33 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
             </div>
           )}
         </section>
+        </div>
+
+        {/* Kolom kanan (web, sticky): pelanggan terpilih, detail, pembayaran, tombol bayar */}
+        <div className="space-y-4 web:sticky web:top-4 web:space-y-5">
+        {selectedCustomerData && (
+          <div className="hidden web:block bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-2xl border border-blue-100 space-y-3">
+            <div className="flex flex-wrap justify-between items-start gap-2">
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Pelanggan Terpilih</span>
+                <h4 className="font-bold text-gray-900 text-lg break-words">{selectedCustomerData.name}</h4>
+              </div>
+              <span className="bg-indigo-600 text-white font-mono font-bold text-xs px-2.5 py-1 rounded-lg">
+                custid: {selectedCustomerData.custid || selectedCustomerData.customer_id || selectedCustomerData.pppoe_id || selectedCustomerData.id}
+              </span>
+            </div>
+            <div className="space-y-2 text-sm pt-3 border-t border-blue-100">
+              <div className="flex justify-between gap-3">
+                <span className="text-gray-500 shrink-0">ID PPPoE</span>
+                <span className="font-mono font-bold text-blue-700 text-right break-all min-w-0">{selectedCustomerData.pppoe_id || selectedCustomerData.pppoeId || '-'}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-gray-500 shrink-0">Paket Internet</span>
+                <span className="font-semibold text-gray-800 text-right min-w-0">{selectedCustomerData.package}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Kartu Paket & Detail Transaksi */}
         <section className={cardClass}>
@@ -431,7 +459,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
               </div>
               <div className="flex items-baseline justify-between gap-3 pt-3 border-t border-blue-100">
                 <span className="text-xs text-gray-500 font-semibold">Total Tagihan</span>
-                <span className="text-lg font-extrabold text-blue-700 leading-tight">{formatRupiah(activePackage.price)}</span>
+                <span className="text-lg font-extrabold text-blue-700 leading-tight web:text-2xl">{formatRupiah(activePackage.price)}</span>
               </div>
             </div>
           )}
@@ -510,7 +538,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
         <button
           type="submit"
           disabled={!canRetail || !selectedCustomerData || !activePackage || isSubmitting}
-          className={`w-full text-white font-bold text-base py-3.5 rounded-2xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95 ${
+          className={`w-full text-white font-bold text-base py-3.5 web:py-4 web:text-lg rounded-2xl shadow-lg disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95 ${
             selectedCustomerData && activePackage
               ? 'bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 shadow-blue-300 animate-pulse-glow hover:scale-[1.01]'
               : 'bg-blue-600 shadow-blue-200 hover:bg-blue-700'
@@ -518,6 +546,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
         >
           <Printer size={18} /> {!canRetail ? 'Belum diberi hak proses pembayaran' : !selectedCustomerData ? 'Pilih Pelanggan Dulu' : (isSubmitting ? 'Menyamakan Nomor Invoice...' : 'Cetak Struk (58mm)')}
         </button>
+        </div>
       </form>
     </div>
   );
