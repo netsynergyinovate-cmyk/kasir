@@ -129,11 +129,13 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
   const now = new Date();
   const periodLabel = `1–${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()} ${now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
 
-  const filteredCustomers = (showPaid ? customers.filter(c => c.status !== 'terminate') : unpaidCustomers)
+  // Saat kasir mengetik, pelanggan lunas ikut dicari (diberi badge LUNAS) — kalau tidak, nama yang sudah
+  // bayar bulan ini tampil "tidak ditemukan" dan kasir mengira datanya hilang.
+  const filteredCustomers = (showPaid || searchCust.trim() ? customers.filter(c => c.status !== 'terminate') : unpaidCustomers)
     .filter(c => {
       const term = searchCust.toLowerCase();
-      const pppoe = (c.pppoe_id || c.pppoeId || '').toLowerCase();
-      const custIdStr = (c.custid || c.customer_id || c.id || '').toLowerCase();
+      const pppoe = String(c.pppoe_id || c.pppoeId || '').toLowerCase();
+      const custIdStr = String(c.custid || c.customer_id || c.id || '').toLowerCase();
       return (
         (c.name || '').toLowerCase().includes(term) ||
         (c.nickname && c.nickname.toLowerCase().includes(term)) ||
@@ -342,7 +344,7 @@ const Transaksi = ({ customers = [], transactions = [], packages = [], companyIn
                       <div className="flex justify-between items-start gap-2">
                         <p className="font-semibold text-sm text-gray-800 min-w-0">
                           {c.name} {c.nickname && <span className="text-blue-600 font-normal">({c.nickname})</span>}
-                          {showPaid && isPaidCustomer(c) && <span className="ml-1.5 text-[10px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">LUNAS</span>}
+                          {isPaidCustomer(c) &&<span className="ml-1.5 text-[10px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">LUNAS</span>}
                         </p>
                         <span className="shrink-0 text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
                           custid: {custId}
