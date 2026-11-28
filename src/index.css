@@ -46,6 +46,14 @@ body {
   flex-direction: column;
 }
 
+/* Tampilan web superadmin di PC: lepas batas lebar ponsel (kelas .web-view dipasang App.jsx). */
+@media (min-width: 1024px) {
+  #root:has(> .web-view) {
+    max-width: none;
+    box-shadow: none;
+  }
+}
+
 @media print {
   body {
     background-color: white;

@@ -1,11 +1,14 @@
 import { NavLink } from 'react-router-dom';
-import { X, Home, Building2, ChevronRight, Activity, LogOut, ShieldCheck, Crown, UserPlus, Eye, EyeOff, Navigation as NavigationIcon } from 'lucide-react';
+import { X, Home, Building2, ChevronRight, Activity, LogOut, ShieldCheck, Crown, UserPlus, Eye, EyeOff, Navigation as NavigationIcon, Users, PlusCircle, History, Route as RouteIcon, Settings as SettingsIcon, Monitor, Smartphone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { isPathAllowedForRole } from '../utils/permissions';
 
 // session: profil EFEKTIF yang dipakai buat tampilan (bisa hasil pratinjau "Lihat sebagai Admin").
 // actualRole: role SESUNGGUHNYA dari sesi login (dipakai buat nampilkan tombol pratinjau, hanya superadmin asli).
-const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewAsAdmin, onTogglePreview }) => {
+// docked: tampilan web superadmin — di layar lg sidebar menempel permanen & memuat menu bottom nav (yang disembunyikan).
+const DOCK_MENU = [['/', Home, 'Beranda'], ['/customers', Users, 'Pelanggan'], ['/pos', PlusCircle, 'Transaksi'], ['/history', History, 'Riwayat'], ['/rute', RouteIcon, 'Rute'], ['/settings', SettingsIcon, 'Setting']];
+
+const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewAsAdmin, onTogglePreview, docked = false, mobileView = false, onToggleView }) => {
   const isSuper = session?.profile?.role === 'superadmin';
   const roleName = isSuper ? 'Super Admin' : (session?.profile?.full_name || 'Admin Kasir');
   const roleBadge = isSuper ? 'Super Administrator' : 'Admin POS';
@@ -27,13 +30,13 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewA
   return (
     <>
       <div 
-        className={`fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm transition-opacity duration-300 print:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
+        className={`fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm transition-opacity duration-300 print:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${docked ? 'lg:hidden' : ''}`} 
         onClick={() => setIsOpen(false)}
       ></div>
       
-      <div className={`fixed top-0 left-0 h-full w-[280px] bg-white z-50 transform transition-transform duration-300 ease-out shadow-2xl print:hidden flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed top-0 left-0 h-full w-[280px] bg-white z-50 transform transition-transform duration-300 ease-out shadow-2xl print:hidden flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'} ${docked ? 'lg:translate-x-0 lg:z-30 lg:shadow-none lg:border-r lg:border-gray-200' : ''}`}>
          <div className="p-6 bg-gradient-to-br from-blue-700 to-blue-900 text-white flex flex-col items-start gap-3">
-            <button onClick={() => setIsOpen(false)} className="absolute top-4 right-4 p-2 bg-white/10 rounded-full hover:bg-white/20 transition">
+            <button onClick={() => setIsOpen(false)} className={`absolute top-4 right-4 ${docked ? 'lg:hidden' : ''} p-2 bg-white/10 rounded-full hover:bg-white/20 transition`}>
               <X size={18} />
             </button>
             {companyInfo.logo ? (
@@ -59,6 +62,16 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewA
          
          <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
             {/* Beranda, Pelanggan, Kasir, Riwayat, Rute, Setting sudah ada di bottom nav (Navigation.jsx) — jangan diduplikasi di sini. */}
+            {docked && (
+              <div className="hidden lg:block space-y-1">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2 mt-2">Menu</div>
+                {DOCK_MENU.filter(([to]) => allowed(to)).map(([to, Icon, label]) => (
+                  <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${isActive ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-50 font-medium'}`}>
+                    <Icon size={18} /> {label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2 mt-2">Layanan Utama</div>
             {/* Admin masuk lewat tombol Mari Mulai di Beranda; menu ini untuk superadmin memantau log. */}
             {isSuper && (
@@ -95,6 +108,16 @@ const Sidebar = ({ isOpen, setIsOpen, companyInfo, session, actualRole, previewA
          </div>
 
          <div className="p-3 border-t border-gray-100 space-y-2">
+            {/* Saklar tampilan hanya berefek di layar lebar (lg); di ponsel selalu tampilan mobile. */}
+            {isSuper && onToggleView && (
+              <button
+                onClick={onToggleView}
+                className="hidden lg:flex w-full items-center justify-center gap-2 p-2.5 text-xs font-bold rounded-xl transition-all active:scale-95 text-gray-700 bg-gray-100 hover:bg-gray-200"
+              >
+                {mobileView ? <Monitor size={16} /> : <Smartphone size={16} />}
+                {mobileView ? 'Tampilan Web' : 'Tampilan Mobile'}
+              </button>
+            )}
             {actualRole === 'superadmin' && (
               <button
                 onClick={onTogglePreview}
