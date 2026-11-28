@@ -74,6 +74,13 @@ export default function App() {
       ? { ...session, profile: { ...session.profile, role: 'admin', allowed_paths: null } }
       : session
   ), [session, actualRole, previewAsAdmin]);
+  // Tampilan web (sidebar menempel, lebar penuh) hanya superadmin di layar lg; "Lihat sebagai Admin" tetap tampilan ponsel.
+  const [mobileView, setMobileView] = useState(() => { try { return localStorage.getItem('superadmin_view') === 'mobile'; } catch { return false; } });
+  const toggleMobileView = () => setMobileView((v) => {
+    try { localStorage.setItem('superadmin_view', v ? 'web' : 'mobile'); } catch { /* storage diblokir: cukup state */ }
+    return !v;
+  });
+  const isWebView = effectiveSession?.profile?.role === 'superadmin' && !mobileView;
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -1030,9 +1037,9 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen font-sans ${receiptToView || instansiReceiptToView ? 'print-container' : ''}`}>
+    <div className={`min-h-screen font-sans ${receiptToView || instansiReceiptToView ? 'print-container' : ''} ${isWebView ? 'web-view' : ''}`}>
       
-      <div className="flex-1 relative flex flex-col print:hidden">
+      <div className={`flex-1 relative flex flex-col print:hidden ${isWebView ? 'lg:pl-[280px]' : ''}`}>
         
         <div className="sticky top-0 z-10 shrink-0">
         {previewAsAdmin && (
@@ -1049,7 +1056,7 @@ export default function App() {
           </div>
         )}
         <header className="bg-white px-4 py-3.5 border-b border-gray-100 flex items-center gap-3 shadow-sm">
-          <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all">
+          <button onClick={() => setIsSidebarOpen(true)} className={`${isWebView ? 'lg:hidden' : ''} p-2 -ml-1 text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 active:scale-95 transition-all`}>
             <Menu size={22} />
           </button>
 
@@ -1098,9 +1105,12 @@ export default function App() {
           actualRole={actualRole}
           previewAsAdmin={previewAsAdmin}
           onTogglePreview={() => setPreviewAsAdmin((v) => !v)}
+          docked={isWebView}
+          mobileView={mobileView}
+          onToggleView={toggleMobileView}
         />
 
-        <main className="flex-1 overflow-y-auto relative">
+        <main className={`flex-1 overflow-y-auto relative ${isWebView ? 'lg:w-full lg:max-w-6xl lg:mx-auto' : ''}`}>
           <Suspense fallback={<p className="text-center text-xs text-gray-400 italic py-10">Memuat...</p>}>
           <Routes>
             <Route path="/" element={
@@ -1242,7 +1252,9 @@ export default function App() {
 
         {/* /instansi punya bottom nav sendiri (menu fitur instansi) */}
         {!['/pelanggan-runsnet-baru', '/instansi'].includes(location.pathname) && (
-          <Navigation role={effectiveSession?.profile?.role} allowedPaths={effectiveSession?.profile?.allowed_paths} />
+          <div className={isWebView ? 'lg:hidden' : ''}>
+            <Navigation role={effectiveSession?.profile?.role} allowedPaths={effectiveSession?.profile?.allowed_paths} />
+          </div>
         )}
       </div>
 
