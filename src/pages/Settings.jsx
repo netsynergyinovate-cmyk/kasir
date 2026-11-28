@@ -556,9 +556,9 @@ const Settings = ({
   const isConnected = btDevice && btDevice.gatt.connected;
 
   return (
-    <div className="pb-32 bg-gray-50 min-h-screen animate-in fade-in duration-300">
-      {/* New Gradient Header */}
-      <div className="px-5 pt-6 pb-5 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-b-[1.75rem] shadow-lg mb-4">
+    <div className="pb-32 bg-gray-50 min-h-screen animate-in fade-in duration-300 web:max-w-6xl web:mx-auto web:p-6 web:pb-8 web:grid web:grid-cols-[220px_minmax(0,1fr)] web:gap-6 web:items-start">
+      {/* New Gradient Header (web: judul sudah ada di header aplikasi) */}
+      <div className="px-5 pt-6 pb-5 bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-b-[1.75rem] shadow-lg mb-4 web:hidden">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center border border-white/30 shrink-0">
             <SlidersHorizontal size={22} />
@@ -572,8 +572,17 @@ const Settings = ({
 
       {/* Tab per kategori pengaturan, biar tidak satu halaman panjang bergulir */}
       {TABS.length > 1 && (
-        <div className="px-4 mb-5">
-          <div className="grid gap-1 p-1 bg-gray-100 rounded-2xl" style={{ gridTemplateColumns: `repeat(${TABS.length}, minmax(0, 1fr))` }}>
+        <div className="px-4 mb-5 web:px-0 web:mb-0 web:sticky web:top-4 web:space-y-3">
+          <div className="hidden web:flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-2xl shadow-xs">
+            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+              <SlidersHorizontal size={20} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-extrabold text-gray-800 leading-tight">{isSuper ? 'Super Admin' : 'Admin'}</p>
+              <p className="text-xs text-gray-500 truncate">{currentUser?.email || 'KAsir'}</p>
+            </div>
+          </div>
+          <div className="grid gap-1 p-1 bg-gray-100 rounded-2xl web:flex web:flex-col web:p-2 web:bg-white web:border web:border-gray-200 web:shadow-xs" style={{ gridTemplateColumns: `repeat(${TABS.length}, minmax(0, 1fr))` }}>
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.key;
@@ -582,7 +591,7 @@ const Settings = ({
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-bold text-center leading-tight transition-all ${active ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+                  className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-bold text-center leading-tight transition-all web:flex-row web:justify-start web:gap-3 web:px-3 web:py-2.5 web:text-sm web:text-left ${active ? 'bg-white text-blue-600 shadow-sm web:bg-blue-50 web:shadow-none' : 'text-gray-500 web:hover:bg-gray-50 web:hover:text-gray-800'}`}
                 >
                   <Icon size={17} strokeWidth={active ? 2.5 : 2} />
                   {tab.label}
@@ -593,7 +602,7 @@ const Settings = ({
         </div>
       )}
 
-      <div className="px-4 space-y-6">
+      <div className="px-4 space-y-6 web:px-0 web:col-start-2 web:min-w-0 web:[&>div>h2]:text-[13px] web:[&>div>div.p-5]:p-6 web:[&>div>div.p-5]:rounded-2xl">
         {activeTab === 'umum' && (
         <>
         {/* Section: Koneksi Hardware */}
@@ -835,7 +844,7 @@ const Settings = ({
         {can('settings.company') && (
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Identitas Toko</h2>
-          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4 web:grid web:grid-cols-2 web:gap-4 web:space-y-0 web:[&>*:nth-child(2)]:col-span-2 web:[&>*:nth-child(2)]:row-start-2 web:[&>*:last-child]:col-span-2">
             <div>
               <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Nama Usaha</label>
               <input 
@@ -896,7 +905,7 @@ const Settings = ({
         <div>
           <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Paket Internet</h2>
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
-            <div className="space-y-3">
+            <div className="space-y-3 web:grid web:grid-cols-2 web:gap-3 web:space-y-0">
               {packages.map(pkg => (
                 <div key={pkg.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
                   <div>
@@ -908,8 +917,8 @@ const Settings = ({
               ))}
             </div>
 
-            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-3">
-              <h4 className="text-[10px] font-black text-blue-800 uppercase tracking-wider">Tambah Paket Baru</h4>
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-3 web:grid web:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] web:items-center web:gap-3 web:space-y-0 web:[&>button]:px-6">
+              <h4 className="text-[10px] font-black text-blue-800 uppercase tracking-wider web:col-span-3">Tambah Paket Baru</h4>
               <input value={newPkgName} onChange={(e)=>setNewPkgName(e.target.value)} type="text" placeholder="Nama Paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm font-medium"/>
               <MoneyInput value={newPkgPrice} onValueChange={setNewPkgPrice} prefix="Rp" placeholder="Harga Paket" aria-label="Harga paket" className="w-full p-2.5 bg-white border border-gray-200 rounded-lg outline-none text-sm font-medium" />
               <button onClick={handleAddPkg} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg text-sm shadow-md shadow-blue-200 active:scale-95 transition-all">Simpan Paket</button>
@@ -1035,8 +1044,8 @@ const Settings = ({
               </div>
             </div>
 
-            <div className="pt-2 flex flex-col gap-2">
-              <button 
+            <div className="pt-2 flex flex-col gap-2 web:grid web:grid-cols-3 web:gap-3 web:[&>div]:col-span-3">
+              <button
                 type="button"
                 onClick={() => {
                   if (localCompany.apiMonitoringKey) {
@@ -1143,7 +1152,7 @@ const Settings = ({
               </div>
 
               {ebillingLogs.length > 0 ? (
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1 web:max-h-96 web:grid web:grid-cols-2 web:gap-2 web:space-y-0 web:content-start">
                   {ebillingLogs.map(log => (
                     <div key={log.id} className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1">
                       <div className="flex items-center justify-between text-[11px]">
@@ -2053,8 +2062,8 @@ const Settings = ({
         {isSuper && activeTab === 'runsnet' && <RunsnetSyncPanel session={session} />}
 
         {/* Danger Zone */}
-        <div className="pt-4">
-          <button onClick={handleLogout} className="w-full p-4 rounded-xl border border-red-100 text-red-500 text-xs font-black flex items-center justify-center gap-2 hover:bg-red-50 transition-colors">
+        <div className="pt-4 web:flex web:justify-end">
+          <button onClick={handleLogout} className="w-full p-4 rounded-xl border border-red-100 text-red-500 text-xs font-black flex items-center justify-center gap-2 hover:bg-red-50 transition-colors web:w-auto web:px-6 web:py-3">
             <LogOut size={16} /> KELUAR DARI APLIKASI
           </button>
         </div>

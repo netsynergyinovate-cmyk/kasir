@@ -217,7 +217,7 @@ const TambahPelangganRunsnet = ({ session }) => {
   const stepErrors = validateStepFields(step, form);
 
   return (
-    <div className="p-4 pb-32 animate-in fade-in duration-300">
+    <div className="p-4 pb-32 web:pb-8 animate-in fade-in duration-300">
       <div className="bg-gradient-to-r from-emerald-700 to-teal-800 rounded-3xl p-6 text-white mb-4 shadow-lg flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold">Tambah Pelanggan</h2>
@@ -227,7 +227,7 @@ const TambahPelangganRunsnet = ({ session }) => {
       </div>
 
       {successInfo ? (
-        <div className="space-y-4">
+        <div className="space-y-4 web:max-w-2xl">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2">
             <CheckCircle2 size={44} className="text-emerald-600" />
             <h3 className="text-lg font-black text-gray-900">Pelanggan Terdaftar!</h3>
@@ -289,7 +289,7 @@ const TambahPelangganRunsnet = ({ session }) => {
         </div>
       ) : (
         <>
-      <div className="mb-4">
+      <div className="mb-4 web:max-w-3xl">
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
           <div className="h-full bg-emerald-600 rounded-full transition-all duration-300" style={{ width: `${((step - 1) / (STEP_LABELS.length - 1)) * 100}%` }} />
         </div>
@@ -313,11 +313,11 @@ const TambahPelangganRunsnet = ({ session }) => {
         </div>
       </div>
 
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-      <div key={step} className="space-y-4 animate-in fade-in slide-in-from-right-3 duration-300">
+      <div className="bg-white p-5 web:p-8 rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+      <div key={step} className="space-y-4 web:space-y-0 web:grid web:grid-cols-2 web:gap-x-6 web:gap-y-4 animate-in fade-in slide-in-from-right-3 duration-300">
         {step === 1 && (
           <>
-            <div>
+            <div className="web:col-span-2">
               <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Jenis</label>
               <div className="flex bg-gray-50 border border-gray-200 rounded-xl p-1 gap-1 flex-wrap">
                 {JENIS_OPTIONS.map((o) => (
@@ -338,12 +338,12 @@ const TambahPelangganRunsnet = ({ session }) => {
             <button
               type="button"
               onClick={() => setShowKtpScanner(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-sm font-black rounded-xl active:scale-95 transition-all"
+              className="w-full web:col-span-2 flex items-center justify-center gap-2 px-4 py-3 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-sm font-black rounded-xl active:scale-95 transition-all"
             >
               Scan KTP (isi NIK &amp; Nama otomatis)
             </button>
 
-            <div>
+            <div className="web:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Nama Pelanggan *</label>
               <input
                 value={form.nama}
@@ -355,7 +355,7 @@ const TambahPelangganRunsnet = ({ session }) => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 web:contents">
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">NIK</label>
                 <input value={form.nik} onChange={set('nik')} type="text" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs" />
@@ -366,7 +366,7 @@ const TambahPelangganRunsnet = ({ session }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 web:contents">
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Kontak *</label>
                 <div className={`flex items-center border rounded-xl overflow-hidden ${touched.kontak && !form.kontak.trim() ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
@@ -408,7 +408,7 @@ const TambahPelangganRunsnet = ({ session }) => {
               </select>
             </div>
 
-            <div>
+            <div className="web:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Alamat *</label>
               <textarea
                 value={form.alamat}
@@ -419,7 +419,7 @@ const TambahPelangganRunsnet = ({ session }) => {
               />
             </div>
 
-            <div>
+            <div className="web:col-span-2">
               <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Titik Koordinat</label>
               <LocationPicker value={coordValue} onChange={handleCoordChange} />
             </div>
@@ -461,7 +461,7 @@ const TambahPelangganRunsnet = ({ session }) => {
               <p className="text-[10px] text-amber-600 mt-1 ml-1">Belum ada daftar Agent resmi di Runsnet — isian ini TIDAK tersimpan ke Runsnet (dropdown Agent-nya sendiri masih kosong), cuma pengingat internal kalau nanti dicek manual.</p>
             </div>
 
-            <div>
+            <div className="web:col-span-2">
               <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Paket (Profile) *</label>
               <select
                 value={form.profileValue}
@@ -487,7 +487,7 @@ const TambahPelangganRunsnet = ({ session }) => {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 web:contents">
               <div>
                 <div className="flex items-center gap-1.5 mb-1 ml-1">
                   <label className="block text-[10px] font-bold text-gray-400 uppercase">Biaya Bulanan</label>
@@ -523,7 +523,7 @@ const TambahPelangganRunsnet = ({ session }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 web:contents">
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Tanggal SPK</label>
                 <input value={form.tanggalSpk} onChange={set('tanggalSpk')} type="date" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm" />
@@ -547,7 +547,7 @@ const TambahPelangganRunsnet = ({ session }) => {
 
         {step === 4 && (
           <>
-            <div className="p-3.5 bg-gray-50 border border-gray-200 rounded-xl grid grid-cols-2 gap-3">
+            <div className="p-3.5 web:col-span-2 bg-gray-50 border border-gray-200 rounded-xl grid grid-cols-2 gap-3">
               <div>
                 <span className="block text-[10px] font-bold text-gray-400 uppercase">Nama</span>
                 <span className="text-sm font-bold text-gray-800 truncate block">{form.nama || '—'}</span>
@@ -568,7 +568,7 @@ const TambahPelangganRunsnet = ({ session }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 web:contents">
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Username Access</label>
                 <input value={form.username} onChange={set('username')} type="text" placeholder="Kosong = <CustomerID>@runsnet.id" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs" />
@@ -578,14 +578,14 @@ const TambahPelangganRunsnet = ({ session }) => {
                 <input value={form.secret} onChange={set('secret')} type="text" placeholder="Kosong = 4321" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xs" />
               </div>
             </div>
-            <p className="text-[10px] text-gray-400 -mt-2 ml-1">
+            <p className="text-[10px] text-gray-400 -mt-2 web:mt-0 web:col-span-2 ml-1">
               Kosong = otomatis: Username jadi "&lt;Customer ID&gt;@runsnet.id", Secret jadi "4321" (konvensi default Runsnet). Customer ID dicari otomatis dari nama setelah berhasil kirim.
             </p>
           </>
         )}
 
         {step < 4 && stepErrors.length > 0 && (
-          <p className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+          <p className="text-[11px] web:col-span-2 font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
             Lengkapi dulu: {stepErrors.join(' ')}
           </p>
         )}
@@ -601,7 +601,7 @@ const TambahPelangganRunsnet = ({ session }) => {
         </div>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-[0_-6px_20px_rgba(15,23,42,0.05)] h-[72px] flex items-center gap-3 px-4 z-20">
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-[0_-6px_20px_rgba(15,23,42,0.05)] h-[72px] flex items-center gap-3 px-4 z-20 web:sticky web:bottom-4 web:left-auto web:right-auto web:max-w-none web:mx-0 web:mt-6 web:rounded-2xl web:border web:justify-end">
         {successInfo ? (
           <>
             <button
@@ -614,7 +614,7 @@ const TambahPelangganRunsnet = ({ session }) => {
             <button
               type="button"
               onClick={startNewRegistration}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_25px_rgba(5,150,105,0.35)] transition-all active:scale-95 flex items-center justify-center gap-2"
+              className="flex-1 web:flex-none web:px-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_25px_rgba(5,150,105,0.35)] transition-all active:scale-95 flex items-center justify-center gap-2"
             >
               <UserPlus size={18} />
               Daftar Pelanggan Baru
@@ -634,13 +634,13 @@ const TambahPelangganRunsnet = ({ session }) => {
             type="button"
             onClick={() => { if (stepErrors.length === 0) { setResult(null); setStep((s) => s + 1); } }}
             disabled={stepErrors.length > 0}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_25px_rgba(5,150,105,0.35)] transition-all active:scale-95 flex items-center justify-center gap-2"
+            className="flex-1 web:flex-none web:px-10 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_25px_rgba(5,150,105,0.35)] transition-all active:scale-95 flex items-center justify-center gap-2"
           >
             Lanjut
             <ArrowRight size={18} />
           </button>
         ) : (
-          <button type="button" onClick={handleSubmit} disabled={submitting} className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_25px_rgba(5,150,105,0.35)] transition-all active:scale-95 flex items-center justify-center gap-2">
+          <button type="button" onClick={handleSubmit} disabled={submitting} className="flex-1 web:flex-none web:px-10 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black py-3.5 rounded-2xl shadow-[0_10px_25px_rgba(5,150,105,0.35)] transition-all active:scale-95 flex items-center justify-center gap-2">
             {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             {submitting ? 'Mengirim ke Runsnet...' : 'Kirim ke Runsnet'}
           </button>

@@ -53,22 +53,22 @@ const Aktivitas = ({ transactions = [], session }) => {
     .sort((a, b) => b.total - a.total);
 
   return (
-    <div className="p-4 space-y-4 pb-32 animate-in fade-in duration-200">
-      <div className="flex justify-between items-center mb-1">
+    <div className="p-4 space-y-4 pb-32 animate-in fade-in duration-200 web:pb-8 web:space-y-5">
+      <div className="flex justify-between items-center mb-1 web:hidden">
         <h2 className="text-xl font-bold text-gray-800">Aktivitas & Log System</h2>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex bg-gray-100 p-1 rounded-2xl">
+      <div className="flex bg-gray-100 p-1 rounded-2xl web:inline-flex">
         <button 
           onClick={() => setActiveTab('kasir')} 
-          className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${activeTab === 'kasir' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+          className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all web:px-6 ${activeTab === 'kasir' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
         >
           Aktivitas Kasir
         </button>
         <button 
           onClick={() => setActiveTab('ebilling')} 
-          className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${activeTab === 'ebilling' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+          className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 web:px-6 ${activeTab === 'ebilling' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
         >
           <Server size={14} /> Log E-Billing {ebillingLogs.length > 0 && <span className="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded-full">{ebillingLogs.length}</span>}
         </button>
@@ -89,7 +89,48 @@ const Aktivitas = ({ transactions = [], session }) => {
             <p className="text-[11px] text-blue-100 mt-2">Setiap kali transaksi kasir lunas, data otomatis dikirim dan dicatat di sini.</p>
           </div>
 
-          <div className="space-y-2">
+          {/* Web: tabel log e-billing */}
+          {ebillingLogs.length > 0 && (
+            <div className="hidden web:block max-h-[calc(100vh-20rem)] overflow-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <table className="w-full text-left text-[13px]">
+                <thead>
+                  <tr>
+                    {[
+                      ['Waktu', ''], ['Pelanggan', ''], ['Kasir', ''], ['Paket', ''],
+                      ['Nominal', 'text-right'], ['Status', ''], ['ID Transaksi', ''], ['Token', ''],
+                    ].map(([label, align]) => (
+                      <th
+                        key={label}
+                        className={`sticky top-0 z-[5] border-b border-gray-200 bg-gray-50 px-3 py-3 text-[11px] font-black uppercase tracking-wider text-gray-500 first:rounded-tl-2xl last:rounded-tr-2xl ${align}`}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ebillingLogs.map(log => (
+                    <tr key={log.id} className="border-b border-gray-100 last:border-b-0 align-middle transition-colors hover:bg-blue-50/50">
+                      <td className="px-3 py-2.5 whitespace-nowrap font-mono text-[11px] text-gray-500">{log.dateFormatted}</td>
+                      <td className="px-3 py-2.5 font-bold text-blue-700">{log.customer_name}</td>
+                      <td className="px-3 py-2.5 font-medium text-gray-800">{log.cashier_name}</td>
+                      <td className="px-3 py-2.5 text-gray-600">{log.package_name}</td>
+                      <td className="px-3 py-2.5 text-right font-mono font-black text-gray-900 whitespace-nowrap">{formatRupiah(log.price)}</td>
+                      <td className="px-3 py-2.5">
+                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 font-black text-[10px] px-2.5 py-1 rounded-xl inline-flex items-center gap-1">
+                          <CheckCircle2 size={12} className="text-emerald-600" /> {log.response_code}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 font-mono text-[11px] text-gray-500">{log.trx_id}</td>
+                      <td className="px-3 py-2.5 font-mono text-[11px] text-gray-400">{log.api_key_used}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className={`space-y-2${ebillingLogs.length > 0 ? ' web:hidden' : ''}`}>
             {ebillingLogs.length > 0 ? (
               ebillingLogs.map(log => (
                 <div key={log.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
@@ -123,8 +164,8 @@ const Aktivitas = ({ transactions = [], session }) => {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-            <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-3 web:flex web:flex-wrap web:items-center web:gap-3 web:space-y-0">
+            <div className="grid grid-cols-3 gap-2 web:w-[460px]">
               <div className="relative">
                 <select
                   value={selectedDay}
@@ -164,7 +205,7 @@ const Aktivitas = ({ transactions = [], session }) => {
               </div>
             </div>
 
-            <div className="bg-gray-50 flex items-center p-2 rounded-xl border border-gray-100">
+            <div className="bg-gray-50 flex items-center p-2 rounded-xl border border-gray-100 web:flex-1 web:min-w-[240px]">
               <Search size={18} className="text-gray-400 ml-1" />
               <input
                 type="text"
@@ -177,7 +218,7 @@ const Aktivitas = ({ transactions = [], session }) => {
           </div>
 
           {canViewOmset && cashierSummaryList.length > 0 && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 web:grid-cols-4 web:gap-4">
               {cashierSummaryList.map(c => (
                 <div key={c.name} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 truncate">{c.name}</p>
@@ -188,7 +229,46 @@ const Aktivitas = ({ transactions = [], session }) => {
             </div>
           )}
 
-          <div className="space-y-3 mt-2">
+          {/* Web: tabel aktivitas kasir */}
+          {filteredTransactions.length > 0 && (
+            <div className="hidden web:block max-h-[calc(100vh-20rem)] overflow-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <table className="w-full text-left text-[13px]">
+                <thead>
+                  <tr>
+                    {[
+                      ['Tanggal', ''], ['Jam', ''], ['Kasir', ''], ['Pelanggan / Instansi', ''], ['Nominal', 'text-right'],
+                    ].map(([label, align]) => (
+                      <th
+                        key={label}
+                        className={`sticky top-0 z-[5] border-b border-gray-200 bg-gray-50 px-3 py-3 text-[11px] font-black uppercase tracking-wider text-gray-500 first:rounded-tl-2xl last:rounded-tr-2xl ${align}`}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTransactions.map((trx) => (
+                    <tr key={trx.id} className="border-b border-gray-100 last:border-b-0 align-middle transition-colors hover:bg-blue-50/50">
+                      <td className="px-3 py-2.5 whitespace-nowrap font-bold text-gray-800">
+                        {new Date(trx.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-gray-500">
+                        {new Date(trx.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="px-3 py-2.5 font-black text-blue-700">{trx.cashierName || 'Tanpa Nama'}</td>
+                      <td className="px-3 py-2.5 font-bold text-gray-800">
+                        {trx.type === 'instansi' ? trx.instansiName : trx.customerName}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono font-black text-gray-900 whitespace-nowrap">{formatRupiah(trx.price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className={`space-y-3 mt-2${filteredTransactions.length > 0 ? ' web:hidden' : ''}`}>
             {filteredTransactions.length > 0 ? (
               filteredTransactions.map((trx) => (
                 <div key={trx.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
