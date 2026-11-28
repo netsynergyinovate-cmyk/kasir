@@ -378,7 +378,7 @@ const History = ({
   });
 
   return (
-    <div className="p-4 space-y-4 pb-32 animate-in fade-in duration-200">
+    <div className="p-4 space-y-4 pb-32 animate-in fade-in duration-200 web:pb-8 web:space-y-5">
       {/* Header Halaman */}
       <div className="flex justify-between items-center">
         <div>
@@ -392,7 +392,7 @@ const History = ({
       </div>
 
       {/* Rangkuman Finansial & Status Transaksi */}
-      <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-5 text-white shadow-xl shadow-blue-200 space-y-4">
+      <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-5 text-white shadow-xl shadow-blue-200 space-y-4 web:hidden">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-blue-100">Total Pendapatan Terfilter</p>
           <h2 className="text-2xl sm:text-3xl font-black mt-0.5">{formatRupiah(totalIncome)}</h2>
@@ -424,10 +424,32 @@ const History = ({
         </div>
       </div>
 
+      {/* Web: ringkasan sebagai deretan kartu statistik */}
+      <div className="hidden web:grid grid-cols-6 gap-4">
+        <div className="col-span-2 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 p-5 text-white shadow-lg shadow-blue-100">
+          <p className="text-[11px] font-black uppercase tracking-widest text-blue-100">Total Pendapatan Terfilter</p>
+          <p className="mt-1 font-mono text-3xl font-black">{formatRupiah(totalIncome)}</p>
+          <p className="mt-1 text-xs font-medium text-blue-100">
+            {selectedDay !== 'all' ? `${selectedDay} ` : ''}{months[selectedMonth]} {selectedYear} • {dateFilteredTransactions.length} transaksi
+          </p>
+        </div>
+        {[
+          ['Lunas', lunasCount, 'text-emerald-700 border-emerald-200'],
+          ['WA Auto', waCount, waCount > 0 ? 'text-emerald-700 border-emerald-300 bg-emerald-50' : 'text-gray-800 border-gray-200'],
+          ['Kasbon', kasbonCount, 'text-amber-700 border-amber-200'],
+          ['Beda Runsnet', mismatchCount, mismatchCount > 0 ? 'text-amber-900 border-amber-300 bg-amber-50' : 'text-gray-800 border-gray-200'],
+        ].map(([label, value, tone]) => (
+          <div key={label} className={`rounded-2xl border bg-white p-5 shadow-sm ${tone}`}>
+            <p className="text-[11px] font-black uppercase tracking-wider text-gray-500">{label}</p>
+            <p className="mt-1 font-mono text-3xl font-black">{value}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Filter Waktu & Pencarian */}
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 space-y-3">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 space-y-3 web:flex web:flex-wrap web:items-center web:gap-3 web:space-y-0 web:rounded-2xl">
         {/* Kolom Pencarian Luas */}
-        <div className="bg-gray-50 flex items-center p-2.5 rounded-2xl border border-gray-100 focus-within:border-blue-500 transition-colors">
+        <div className="bg-gray-50 flex items-center p-2.5 rounded-2xl border border-gray-100 focus-within:border-blue-500 transition-colors web:flex-1 web:min-w-[280px]">
           <Search size={18} className="text-gray-400 ml-1.5 shrink-0" />
           <input
             type="search"
@@ -442,7 +464,7 @@ const History = ({
         </div>
 
         {/* Pemilih Hari, Bulan, Tahun */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2 web:w-[460px]">
           <div className="relative">
             <select
               value={selectedDay}
@@ -485,7 +507,7 @@ const History = ({
         </div>
 
         {/* Tab Status Navigasi Cepat */}
-        <div className="flex gap-1.5 p-1 bg-gray-100 rounded-2xl overflow-x-auto text-[11px] font-bold">
+        <div className="flex gap-1.5 p-1 bg-gray-100 rounded-2xl overflow-x-auto text-[11px] font-bold web:basis-full">
           <button
             type="button"
             onClick={() => setStatusTab('all')}
@@ -589,8 +611,178 @@ const History = ({
         </div>
       )}
 
+      {/* Web: tabel transaksi */}
+      {displayedTransactions.length > 0 && (
+        <div className="hidden web:block max-h-[calc(100vh-16rem)] overflow-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <table className="w-full text-left text-[13px]">
+            <thead>
+              <tr>
+                {[
+                  ['Tanggal / Jam', ''], ['Invoice', ''], ['Pelanggan', ''], ['Kasir', ''], ['Metode', ''],
+                  ['Nominal', 'text-right'], ['Status', ''], ['Runsnet', ''], ['Aksi', 'text-right'],
+                ].map(([label, align]) => (
+                  <th
+                    key={label}
+                    className={`sticky top-0 z-[5] border-b border-gray-200 bg-gray-50 px-3 py-3 text-[11px] font-black uppercase tracking-wider text-gray-500 first:rounded-tl-2xl last:rounded-tr-2xl ${align}`}
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayedTransactions.map((trx) => {
+                const code = trx.type !== 'instansi' ? runsnetCodeOf(trx) : null;
+                const runsnetStatus = code ? runsnetStatuses[code] : undefined;
+                const badge = describeRunsnetStatus(trx, runsnetStatus);
+                const mismatch = isRunsnetMismatch(trx, runsnetStatus);
+                const hasProof = proofIds.has(trx.id);
+                const isWaTrx = isWhatsAppPayment(trx);
+                const isKasbon = isEffectivelyKasbon(trx);
+                const isInstansi = trx.type === 'instansi';
+                const pppoe = trx.pppoeId || trx.pppoe_id;
+                const pkg = trx.packageName || trx.serviceName || trx.package_name;
+                const cashier = trx.cashierName || trx.cashier_name;
+                const [datePart, timePart] = formatDateTime(trx.date).split(' • ');
+                const iconBtn = 'p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors disabled:opacity-50';
+
+                return (
+                  <tr
+                    key={trx.id}
+                    onClick={() => (isInstansi ? setInstansiReceiptToView(trx) : setReceiptToView(trx))}
+                    className={`cursor-pointer border-b border-gray-100 last:border-b-0 align-middle transition-colors hover:bg-blue-50/50 ${mismatch ? 'bg-rose-50/40' : isWaTrx ? 'bg-emerald-50/30' : ''}`}
+                  >
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <p className="font-bold text-gray-800">{datePart}</p>
+                      <p className="text-[11px] font-medium text-gray-500">{timePart}</p>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {code ? (
+                        <span className="font-mono text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg whitespace-nowrap">#{code}</span>
+                      ) : (
+                        <span className="font-mono text-[11px] font-bold text-gray-500 whitespace-nowrap">{getInvoiceNumber(trx)}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 max-w-[240px]">
+                      <p className="truncate font-black text-gray-900">{isInstansi ? (trx.instansiName || trx.instansi_name) : (trx.customerName || trx.customer_name)}</p>
+                      <p className="truncate text-[11px] text-gray-500">
+                        {[pkg, pppoe && `PPPoE: ${pppoe}`].filter(Boolean).join(' • ') || '-'}
+                      </p>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-gray-600">
+                      {cashier ? (
+                        <span className="inline-flex items-center gap-1 font-semibold">
+                          {isWaTrx ? <MessageCircle size={12} className="text-emerald-600" /> : <User size={12} className="text-gray-400" />}
+                          {cashier}
+                        </span>
+                      ) : '-'}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${isWaTrx ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-gray-100 text-gray-600'}`}>
+                        {isWaTrx ? <MessageCircle size={11} className="text-emerald-600" /> : <CreditCard size={11} />}
+                        {trx.paymentMethod || trx.payment_method || 'Tunai'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <p className="font-mono font-black text-blue-700">{formatRupiah(trx.price)}</p>
+                      {isKasbon && (
+                        <p className="font-mono text-[10px] font-bold text-orange-600">
+                          Kurang {formatRupiah(Math.max(Number(trx.price) - Number(trx.amountPaid || 0), 0))}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wide ${
+                        isInstansi ? 'bg-purple-100 text-purple-700' : isWaTrx ? 'bg-emerald-600 text-white' : isKasbon ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {isInstansi ? 'INSTANSI' : isWaTrx ? 'LUNAS (WA BOT)' : isKasbon ? 'KASBON' : trx.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {isInstansi ? <span className="text-gray-300">-</span> : (
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[11px] font-black px-2 py-0.5 rounded-md ${
+                            badge.tone === 'ok' ? 'bg-emerald-100 text-emerald-800' : badge.tone === 'bad' ? 'bg-rose-100 text-rose-800' : badge.tone === 'warn' ? 'bg-amber-100 text-amber-800' : 'bg-gray-200 text-gray-700'
+                          }`}>
+                            {badge.text}
+                          </span>
+                          <Camera size={13} className={hasProof ? 'text-emerald-600' : 'text-gray-300'} aria-label={hasProof ? 'Bukti tersimpan' : 'Belum ada bukti'} />
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            isInstansi ? setInstansiReceiptToView(trx) : setReceiptToView(trx);
+                          }}
+                          className="px-2 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-[11px] font-bold hover:bg-blue-100 flex items-center gap-0.5 transition-colors"
+                        >
+                          <span>Lihat Struk</span> <ChevronRight size={12} />
+                        </button>
+                        {!isInstansi && mismatch && hasPermission(role, 'runsnet.sync', session?.profile?.allowed_paths) && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleSyncPayment(trx); }}
+                            disabled={syncingId === trx.id}
+                            className="p-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition-colors disabled:opacity-60"
+                            title="Kirim ke Runsnet"
+                            aria-label="Kirim ke Runsnet"
+                          >
+                            {syncingId === trx.id ? <RefreshCw size={14} className="animate-spin" /> : <Zap size={14} />}
+                          </button>
+                        )}
+                        {!isInstansi && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); if (code) checkOne(trx); else fetchAndLinkRunsnetInvoice(trx); }}
+                            disabled={checkingId === trx.id || linkingId === trx.id}
+                            className={iconBtn}
+                            title={code ? 'Cek status di Runsnet' : 'Tautkan ke nomor invoice resmi di server Runsnet'}
+                            aria-label={code ? 'Cek status Runsnet' : 'Tautkan invoice Runsnet'}
+                          >
+                            {code
+                              ? <RefreshCw size={14} className={checkingId === trx.id ? 'animate-spin' : ''} />
+                              : <Globe size={14} className={linkingId === trx.id ? 'animate-spin' : ''} />}
+                          </button>
+                        )}
+                        {!isInstansi && (hasPermission(role, 'history.proof_view', session?.profile?.allowed_paths) || hasPermission(role, 'history.proof_upload', session?.profile?.allowed_paths)) && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setProofTrx(trx); }}
+                            className={`${iconBtn} ${hasProof ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : ''}`}
+                            title={hasProof ? 'Lihat bukti pembayaran' : 'Unggah bukti pembayaran'}
+                            aria-label={hasProof ? 'Lihat bukti' : 'Unggah bukti'}
+                          >
+                            <Camera size={14} />
+                          </button>
+                        )}
+                        {hasPermission(role, 'history.cancel', session?.profile?.allowed_paths) && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleDelete(trx); }}
+                            disabled={deletingId === trx.id}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                            title="Hapus transaksi (dengan reversal Runsnet aman)"
+                            aria-label="Hapus transaksi"
+                          >
+                            {deletingId === trx.id ? <RefreshCw size={14} className="animate-spin text-red-500" /> : <Trash2 size={14} />}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Daftar Kartu Transaksi */}
-      <div className="space-y-3">
+      <div className={`space-y-3${displayedTransactions.length > 0 ? ' web:hidden' : ''}`}>
         {displayedTransactions.length > 0 ? (
           displayedTransactions.map((trx) => {
             const code = trx.type !== 'instansi' ? runsnetCodeOf(trx) : null;

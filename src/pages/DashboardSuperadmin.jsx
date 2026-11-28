@@ -82,29 +82,29 @@ const LiveClock = () => {
 };
 
 // Kartu lipat (folder) dengan header yang bisa diklik; isi tetap dirender (hanya disembunyikan).
-const FolderCard = ({ open, onToggle, icon, title, meta, right, children }) => (
-  <section className="bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-xs">
+const FolderCard = ({ open, onToggle, icon, title, meta, right, className = '', children }) => (
+  <section className={`bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-xs ${className}`}>
     <button
       type="button"
       onClick={onToggle}
       aria-expanded={open}
-      className="w-full px-3 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-slate-50 transition cursor-pointer select-none"
+      className="w-full px-3 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-slate-50 transition cursor-pointer select-none web:px-5 web:py-3.5 web:pointer-events-none"
     >
       <div className="flex items-center gap-2.5 min-w-0">
         {icon}
         <div className="flex items-center gap-1.5 min-w-0">
-          <h3 className="text-xs font-black text-slate-900 tracking-tight">{title}</h3>
+          <h3 className="text-xs font-black text-slate-900 tracking-tight web:text-sm">{title}</h3>
           {meta}
         </div>
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
         {right}
-        <span className={`w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}>
+        <span className={`w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 transition-transform duration-300 web:hidden ${open ? 'rotate-180' : ''}`}>
           <ChevronDown size={14} />
         </span>
       </div>
     </button>
-    <div className={`border-t border-slate-100 bg-slate-50/40 ${open ? '' : 'hidden'}`}>{children}</div>
+    <div className={`border-t border-slate-100 bg-slate-50/40 web:block ${open ? '' : 'hidden'}`}>{children}</div>
   </section>
 );
 
@@ -116,15 +116,15 @@ const MetricLine = ({ left, right, rightClass = 'font-mono text-slate-600' }) =>
 );
 
 const MetricCard = ({ label, badge, value, valueClass = 'text-slate-900', children }) => (
-  <div className="bg-white rounded-lg p-2.5 border border-slate-200/80 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+  <div className="bg-white rounded-lg p-2.5 border border-slate-200/80 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden web:p-4 web:rounded-xl web:hover:shadow-md web:hover:border-slate-300 web:transition">
     <div className="min-w-0">
       <div className="flex items-center justify-between gap-1">
-        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight truncate">{label}</span>
+        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight truncate web:text-[11px]">{label}</span>
         {badge}
       </div>
-      <div className={`text-sm font-black tracking-tight font-mono mt-0.5 truncate ${valueClass}`}>{value}</div>
+      <div className={`text-sm font-black tracking-tight font-mono mt-0.5 truncate web:text-xl web:mt-1.5 ${valueClass}`}>{value}</div>
     </div>
-    <div className="pt-1.5 mt-1.5 border-t border-slate-100 space-y-0.5 text-[9px] min-w-0">{children}</div>
+    <div className="pt-1.5 mt-1.5 border-t border-slate-100 space-y-0.5 text-[9px] min-w-0 web:text-[11px] web:pt-2.5 web:mt-2.5 web:space-y-1">{children}</div>
   </div>
 );
 
@@ -421,11 +421,11 @@ const DashboardSuperadmin = (props) => {
   ];
 
   return (
-    <div className="pb-32 animate-in fade-in duration-300">
-      <div className="p-4 space-y-3">
+    <div className="pb-32 animate-in fade-in duration-300 web:pb-8">
+      <div className="p-4 space-y-3 web:p-6 web:grid web:grid-cols-12 web:gap-5 web:space-y-0">
 
         {/* Kartu Sapaan Eksekutif */}
-        <section className="relative rounded-xl border border-slate-800/60 overflow-hidden text-white bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 shadow-md">
+        <section className="relative rounded-xl border border-slate-800/60 overflow-hidden text-white bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 shadow-md web:col-span-12">
           <div className="absolute inset-0 pointer-events-none opacity-40 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/30 via-transparent to-transparent" />
           <div className="absolute inset-0 pointer-events-none overflow-hidden select-none" aria-hidden="true">
             <span className="absolute top-2 left-10 w-1 h-1 rounded-full bg-white opacity-75 animate-ping" />
@@ -434,15 +434,15 @@ const DashboardSuperadmin = (props) => {
             <span className="absolute top-3 right-28 w-1 h-1 rounded-full bg-amber-200 opacity-75 animate-ping" />
             <span className="absolute bottom-2 right-12 w-1.5 h-1.5 rounded-full bg-white opacity-40 animate-pulse" />
           </div>
-          <div className="relative z-10 p-3 flex items-start justify-between gap-2">
+          <div className="relative z-10 p-3 flex items-start justify-between gap-2 web:p-6 web:items-center">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-11 h-11 rounded-xl bg-slate-800/80 border border-indigo-400/30 flex items-center justify-center shrink-0 shadow-inner">
                 <span className="text-xl select-none">{PERIOD_ICON[greeting]}</span>
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-x-1.5 leading-tight">
-                  <span className="text-xs font-black tracking-tight text-white">{greeting},</span>
-                  <span className="font-black text-blue-400 text-xs tracking-tight truncate">{displayName} ✨</span>
+                  <span className="text-xs font-black tracking-tight text-white web:text-xl">{greeting},</span>
+                  <span className="font-black text-blue-400 text-xs tracking-tight truncate web:text-xl">{displayName} ✨</span>
                 </div>
                 <span className="inline-flex items-center gap-1 mt-1 px-2 py-px rounded-full text-[9px] font-bold tracking-wide uppercase bg-indigo-500/20 text-indigo-200 border border-indigo-400/30">
                   👑 Superadmin
@@ -466,10 +466,11 @@ const DashboardSuperadmin = (props) => {
             </span>
           )}
           title="Finansial Eksekutif"
+          className="web:col-span-12"
           meta={<span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-1 rounded">{periodLabel}</span>}
         >
-          <div className="pb-2 px-2">
-            <div className="flex items-center gap-1 px-1 pt-2 pb-1.5 border-b border-slate-200/60 text-[10px]">
+          <div className="pb-2 px-2 web:px-5 web:pb-5">
+            <div className="flex items-center gap-1 px-1 pt-2 pb-1.5 border-b border-slate-200/60 text-[10px] web:text-xs web:py-3 web:gap-2">
               <span className="font-semibold text-slate-500">Mode:</span>
               {[[false, 'Bulan Ini'], [true, 'Bulan Lalu']].map(([mode, label]) => (
                 <button
@@ -490,10 +491,10 @@ const DashboardSuperadmin = (props) => {
             <div
               ref={sliderRef}
               onScroll={handleSliderScroll}
-              className="flex overflow-x-auto overflow-y-hidden scroll-smooth snap-x snap-mandatory w-full pt-2 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="flex overflow-x-auto overflow-y-hidden scroll-smooth snap-x snap-mandatory w-full pt-2 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden web:grid web:grid-cols-4 web:gap-4 web:overflow-visible web:pt-4"
             >
               {/* Slide 1: Omset & ARPU */}
-              <div className="w-full shrink-0 grid grid-cols-2 gap-2 snap-start">
+              <div className="w-full shrink-0 grid grid-cols-2 gap-2 snap-start web:contents">
                 <MetricCard label="Omset Kotor" badge={<TrendBadge change={periodComparison.revenueChange} />} value={formatRupiah(financialOverview.grossRevenue)}>
                   <MetricLine left={`${periodComparison.current.count} trx lunas`} right={`bulan lalu ${formatRupiahCompact(periodComparison.previous.revenue)}`} />
                   <MetricLine left="Total kotor toko" right={`${periodPayment.active} plg aktif`} rightClass="text-indigo-600" />
@@ -505,7 +506,7 @@ const DashboardSuperadmin = (props) => {
               </div>
 
               {/* Slide 2: Komisi & Laba */}
-              <div className="w-full shrink-0 grid grid-cols-2 gap-2 snap-start">
+              <div className="w-full shrink-0 grid grid-cols-2 gap-2 snap-start web:contents">
                 <MetricCard label="Hak Komisi" badge={<Pill className="text-amber-700 bg-amber-50 border border-amber-200/60">{cashierCount} Kasir</Pill>} value={formatRupiah(financialOverview.totalCommissionLiability)} valueClass="text-amber-600">
                   <MetricLine left="Tarif POS" right={`${formatRupiahCompact(adminFee)}/trx`} />
                   <MetricLine left="Sudah cair" right={formatRupiah(financialOverview.totalCommissionPaid)} />
@@ -522,7 +523,7 @@ const DashboardSuperadmin = (props) => {
               </div>
 
               {/* Slide 3: Kolektibilitas & Proyeksi */}
-              <div className="w-full shrink-0 grid grid-cols-2 gap-2 snap-start">
+              <div className="w-full shrink-0 grid grid-cols-2 gap-2 snap-start web:contents">
                 <MetricCard label="Kolektibilitas" badge={<Pill className="text-emerald-600 bg-emerald-50">{periodPayment.paidPercent}%</Pill>} value={`${periodPayment.paid} / ${periodPayment.active} Plg`}>
                   <MetricLine left="Tertunda" right={`${periodPayment.unpaid} Plg`} rightClass="font-mono text-amber-600" />
                   <MetricLine left="Nominal" right={formatRupiahCompact(periodPayment.unpaidAmount) === '0' ? 'Rp 0' : `Rp ${formatRupiahCompact(periodPayment.unpaidAmount)}`} rightClass="font-bold text-slate-700" />
@@ -539,7 +540,7 @@ const DashboardSuperadmin = (props) => {
               </div>
 
               {/* Slide 4: Piutang Kasbon (bayar kurang, tapi tetap disinkron PAID ke Runsnet — lihat Transaksi.jsx) */}
-              <div className="w-full shrink-0 grid grid-cols-2 gap-2 snap-start">
+              <div className="w-full shrink-0 grid grid-cols-2 gap-2 snap-start web:contents">
                 <MetricCard label="Piutang Kasbon" badge={<Pill className="text-orange-700 bg-orange-50 border border-orange-200/60">{kasbon.count} trx</Pill>} value={formatRupiah(kasbon.shortfall)} valueClass="text-orange-600">
                   <MetricLine left="Kekurangan bayar" right="Belum ditutup" rightClass="font-bold text-orange-600" />
                   <MetricLine left="Status Runsnet" right="Tetap PAID" rightClass="font-bold text-emerald-600" />
@@ -551,7 +552,7 @@ const DashboardSuperadmin = (props) => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-1 pt-1 text-[10px] text-slate-500">
+            <div className="flex items-center justify-between px-1 pt-1 text-[10px] text-slate-500 web:hidden">
               <div className="flex items-center gap-1">
                 <button type="button" aria-label="Geser kiri" onClick={() => scrollSlider(-1)} className="w-5 h-5 rounded flex items-center justify-center bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 active:scale-95 transition cursor-pointer">
                   <ChevronLeft size={12} />
@@ -589,17 +590,18 @@ const DashboardSuperadmin = (props) => {
             </span>
           )}
           title="Aksi Cepat"
+          className="web:col-span-12"
           meta={<span className="text-[10px] text-slate-400 font-medium">• {quickActions.length} Menu</span>}
-          right={<span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-px rounded border border-amber-200/70">{showQuickActions ? 'Tutup' : 'Buka'}</span>}
+          right={<span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-px rounded border border-amber-200/70 web:hidden">{showQuickActions ? 'Tutup' : 'Buka'}</span>}
         >
-          <div className="px-2.5 pb-2.5 pt-2">
-            <div className="grid grid-cols-3 gap-1.5">
+          <div className="px-2.5 pb-2.5 pt-2 web:px-5 web:pb-5 web:pt-4">
+            <div className="grid grid-cols-3 gap-1.5 web:grid-cols-6 web:gap-3">
               {quickActions.map((action) => {
                 const IconComponent = action.icon;
-                const tileClass = `group flex flex-col items-center p-2 rounded-lg bg-white border border-slate-200/80 transition active:scale-95 text-center cursor-pointer ${action.hoverBorder}`;
+                const tileClass = `group flex flex-col items-center p-2 rounded-lg bg-white border border-slate-200/80 transition active:scale-95 text-center cursor-pointer web:grid web:grid-cols-[auto_1fr] web:content-center web:gap-x-3 web:text-left web:p-3 web:rounded-xl web:hover:shadow-md ${action.hoverBorder}`;
                 const inner = (
                   <>
-                    <span className={`relative w-8 h-8 rounded-lg flex items-center justify-center transition duration-200 ${action.iconBg} ${action.iconColor}`}>
+                    <span className={`relative w-8 h-8 rounded-lg flex items-center justify-center transition duration-200 web:row-span-2 web:w-10 web:h-10 ${action.iconBg} ${action.iconColor}`}>
                       <IconComponent size={16} />
                       {action.hasPending && (
                         <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-rose-500 border-2 border-white rounded-full animate-ping" />
@@ -610,8 +612,8 @@ const DashboardSuperadmin = (props) => {
                         </span>
                       )}
                     </span>
-                    <span className="text-[11px] font-semibold text-slate-800 mt-1 leading-tight">{action.title}</span>
-                    <span className={`text-[9px] font-bold leading-none mt-0.5 ${action.subColor}`}>{action.subLabel}</span>
+                    <span className="text-[11px] font-semibold text-slate-800 mt-1 leading-tight web:mt-0 web:text-sm web:self-end">{action.title}</span>
+                    <span className={`text-[9px] font-bold leading-none mt-0.5 web:mt-1 web:text-[11px] web:self-start ${action.subColor}`}>{action.subLabel}</span>
                   </>
                 );
 
@@ -626,7 +628,7 @@ const DashboardSuperadmin = (props) => {
         </FolderCard>
 
         {/* Pendapatan Harian */}
-        <section className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs space-y-2">
+        <section className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs space-y-2 web:col-span-5 web:p-5 web:space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-slate-700">
               <CalendarDays size={14} className="text-blue-600" />
@@ -661,14 +663,14 @@ const DashboardSuperadmin = (props) => {
             />
           )}
 
-          <div className="bg-[#0f172a] rounded-lg p-2.5 text-white shadow-xs">
+          <div className="bg-[#0f172a] rounded-lg p-2.5 text-white shadow-xs web:p-4 web:rounded-xl">
             <div className="flex items-center justify-between text-[10px] text-slate-300">
               <span>Total Uang Masuk</span>
               <span className="text-[9px] font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800/80 px-1 py-px rounded">
                 {dayComparison.current.count} Transaksi
               </span>
             </div>
-            <p className="text-lg font-black tracking-tight mt-0.5 text-white font-mono">{formatRupiah(dayComparison.current.revenue)}</p>
+            <p className="text-lg font-black tracking-tight mt-0.5 text-white font-mono web:text-3xl web:mt-1.5">{formatRupiah(dayComparison.current.revenue)}</p>
             <div className="mt-1.5 pt-1.5 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
               <span>Hari Sebelumnya ({previousDay.getDate()} {MONTHS[previousDay.getMonth()].slice(0, 3)}):</span>
               <span className="font-bold text-slate-200 font-mono">{formatRupiah(dayComparison.previous.revenue)}</span>
@@ -746,7 +748,7 @@ const DashboardSuperadmin = (props) => {
         </section>
 
         {/* Omset 7 hari / 14 hari / bulan ini */}
-        <section className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs space-y-2">
+        <section className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs space-y-2 web:col-span-7 web:p-5 web:space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-slate-700">
               <ChartColumn size={13} className="text-blue-600" />
@@ -772,7 +774,7 @@ const DashboardSuperadmin = (props) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-1 bg-slate-50/70 border border-slate-100 rounded-md p-1.5 text-center">
+          <div className="grid grid-cols-3 gap-1 bg-slate-50/70 border border-slate-100 rounded-md p-1.5 text-center web:p-3 web:rounded-lg">
             <div className="p-0.5">
               <span className="text-[9px] font-semibold text-slate-400 block uppercase">Rata-rata</span>
               <span className="text-[11px] font-black text-slate-800 font-mono">
@@ -792,7 +794,7 @@ const DashboardSuperadmin = (props) => {
           </div>
 
           <div className="relative pt-4">
-            <div className="relative h-20 flex items-end gap-0.5 sm:gap-1 px-0.5">
+            <div className="relative h-20 flex items-end gap-0.5 sm:gap-1 px-0.5 web:h-56 web:gap-1.5">
               {seriesMax > 0 && seriesAverage > 0 && (
                 <div
                   className="absolute left-0 right-0 border-t border-dashed border-slate-300 pointer-events-none flex justify-end"
@@ -867,7 +869,7 @@ const DashboardSuperadmin = (props) => {
         </section>
 
         {/* Target vs bulan lalu & Penagihan */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 web:col-span-6 web:gap-5">
           <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between min-w-0">
             <div>
               <div className="flex items-center justify-between gap-1">
@@ -928,7 +930,7 @@ const DashboardSuperadmin = (props) => {
         </div>
 
         {/* Status Pembayaran Bulan Ini */}
-        <section className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-xs">
+        <section className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-xs web:col-span-6 web:p-5">
           <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -990,7 +992,7 @@ const DashboardSuperadmin = (props) => {
         </section>
 
         {/* Performa Kasir & Hak Komisi */}
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 web:col-span-12 web:bg-white web:rounded-xl web:border web:border-slate-200/80 web:shadow-xs web:p-5 web:space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
             <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
               <Trophy size={13} className="text-amber-500" /> Performa Kasir &amp; Hak Komisi · {MONTHS[now.getMonth()]}
@@ -1002,7 +1004,7 @@ const DashboardSuperadmin = (props) => {
 
           {cashiers.length > 0 && (
             <div className="flex items-center justify-between gap-1.5">
-              <div className="grid grid-cols-3 gap-1 bg-slate-100/90 p-0.5 rounded-lg text-[9px] font-semibold text-slate-500 text-center flex-1">
+              <div className="grid grid-cols-3 gap-1 bg-slate-100/90 p-0.5 rounded-lg text-[9px] font-semibold text-slate-500 text-center flex-1 web:flex-none web:w-96 web:text-xs">
                 {[['all', `Semua (${cashierRows.length})`], ['pending', `Pending (${cashierPendingCount})`], ['noncommission', `Non-Komisi (${cashierNonKomisiCount})`]].map(([value, label]) => (
                   <button
                     key={value}
@@ -1051,9 +1053,9 @@ const DashboardSuperadmin = (props) => {
                 return (
                   <div
                     key={cashier.name}
-                    className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200/80 shadow-xs space-y-2.5 relative overflow-hidden transition-all hover:border-slate-300"
+                    className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200/80 shadow-xs space-y-2.5 relative overflow-hidden transition-all hover:border-slate-300 web:flex web:items-center web:gap-5 web:space-y-0 web:shadow-none web:hover:bg-slate-50"
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center justify-between gap-3 web:flex-1 web:min-w-0">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] shrink-0 ${medalColor}`}>
                           #{index + 1}
@@ -1079,7 +1081,7 @@ const DashboardSuperadmin = (props) => {
                     </div>
 
                     {/* Revenue Bar */}
-                    <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-1 bg-slate-100 rounded-full overflow-hidden web:w-40 web:h-1.5 web:shrink-0">
                       <div
                         className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full"
                         style={{ width: `${topRevenue > 0 ? Math.max(4, Math.round((cashier.revenue / topRevenue) * 100)) : 0}%` }}
@@ -1087,7 +1089,7 @@ const DashboardSuperadmin = (props) => {
                     </div>
 
                     {/* Dedicated Commission Status Capsule */}
-                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs web:pt-0 web:border-t-0 web:w-[30rem] web:shrink-0">
                       {isCS ? (
                         <div className="w-full flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-200/80">
                           <span className="text-[11px] font-semibold text-slate-800">Kanal Layanan:</span>
@@ -1130,7 +1132,7 @@ const DashboardSuperadmin = (props) => {
         </div>
 
         {/* Aktivitas login admin */}
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 web:col-span-5">
           <div className="flex items-center justify-between px-0.5">
             <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
               <Clock size={13} className="text-indigo-600" /> Aktivitas Login Terbaru
@@ -1190,7 +1192,7 @@ const DashboardSuperadmin = (props) => {
         {/* Tagihan & Pengingat Pelanggan — gabungan status bayar + pengingat WA gaya baru, ganti versi
             lama yang tadinya dobel lewat embed <Dashboard> di bawah (Aksi Cepat, reminder, payment donut
             sudah punya versi sendiri di atas; ini gantikan sisa bagian tagihan/pengingatnya). */}
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 web:col-span-7">
           <div className="flex items-center justify-between px-0.5 gap-2">
             <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
               <Receipt size={13} className="text-blue-600" /> Tagihan &amp; Pengingat Pelanggan
@@ -1235,12 +1237,12 @@ const DashboardSuperadmin = (props) => {
             </button>
           </div>
 
-          <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-xs space-y-2">
+          <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-xs space-y-2 web:grid web:grid-cols-2 web:gap-2 web:space-y-0 web:content-start">
             {(() => {
               const activeList = billingTab === 'unpaid' ? unpaidCustomersList : paidCustomersList;
               const visibleList = billingExpanded ? activeList : activeList.slice(0, 8);
               return activeList.length === 0 ? (
-                <p className="text-xs text-slate-400 italic text-center py-4">
+                <p className="text-xs text-slate-400 italic text-center py-4 web:col-span-2">
                   {billingTab === 'unpaid' ? 'Semua pelanggan sudah bayar bulan ini 🎉' : 'Belum ada pelanggan yang membayar bulan ini'}
                 </p>
               ) : (
@@ -1282,7 +1284,7 @@ const DashboardSuperadmin = (props) => {
                     <button
                       type="button"
                       onClick={() => setBillingExpanded((v) => !v)}
-                      className="w-full text-center text-[10px] font-bold text-blue-600 py-1.5 hover:underline"
+                      className="w-full text-center text-[10px] font-bold text-blue-600 py-1.5 hover:underline web:col-span-2"
                     >
                       {billingExpanded ? 'Tutup' : `Lihat Selengkapnya (${activeList.length - 8})`}
                     </button>
@@ -1295,7 +1297,7 @@ const DashboardSuperadmin = (props) => {
 
         {/* Aktivitas Transaksi Terbaru — ganti "Riwayat Terakhir" gaya lama yang tadinya dari embed
             <Dashboard>, sekarang punya filter metode bayar + ekspor CSV asli. */}
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 web:col-span-12">
           <div className="flex items-center justify-between px-0.5">
             <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
               <Receipt size={13} className="text-blue-600" /> Aktivitas Transaksi Terbaru
@@ -1303,8 +1305,8 @@ const DashboardSuperadmin = (props) => {
             <Link to="/history" className="text-[10px] font-bold text-blue-600 hover:underline active:scale-95 transition">Lihat Semua</Link>
           </div>
 
-          <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-xs space-y-1.5">
-            <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-100 text-[9px]">
+          <div className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-xs space-y-1.5 web:grid web:grid-cols-2 web:gap-x-4 web:gap-y-2 web:space-y-0 web:p-5">
+            <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-100 text-[9px] web:col-span-2 web:text-[11px] web:pb-3">
               <div className="flex items-center gap-1">
                 <span className="text-slate-400 font-semibold uppercase">Metode:</span>
                 {METHOD_FILTERS.map(([value, label]) => (
@@ -1329,14 +1331,14 @@ const DashboardSuperadmin = (props) => {
             </div>
 
             {recentTransactions.length === 0 ? (
-              <p className="text-xs text-slate-400 italic text-center py-4">Belum ada transaksi.</p>
+              <p className="text-xs text-slate-400 italic text-center py-4 web:col-span-2">Belum ada transaksi.</p>
             ) : (
               <>
                 {visibleTransactions.map((trx) => (
                   <div
                     key={trx.id}
                     onClick={() => (trx.type === 'instansi' ? setInstansiReceiptToView(trx) : setReceiptToView(trx))}
-                    className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition cursor-pointer active:scale-[0.99]"
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition cursor-pointer active:scale-[0.99] web:border web:border-slate-100 web:p-3"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${trx.type === 'instansi' ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>
@@ -1357,7 +1359,7 @@ const DashboardSuperadmin = (props) => {
                   <button
                     type="button"
                     onClick={() => setTxExpanded((v) => !v)}
-                    className="w-full text-center text-[10px] font-bold text-blue-600 py-1.5 hover:underline"
+                    className="w-full text-center text-[10px] font-bold text-blue-600 py-1.5 hover:underline web:col-span-2"
                   >
                     {txExpanded ? 'Tutup' : `Lihat ${Math.min(30, recentTransactions.length) - 8} lainnya`}
                   </button>
@@ -1367,7 +1369,7 @@ const DashboardSuperadmin = (props) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-2">
+        <div className="flex items-center gap-3 pt-2 web:col-span-12">
           <div className="flex-1 h-px bg-slate-200" />
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Detail Lengkap</span>
           <div className="flex-1 h-px bg-slate-200" />
